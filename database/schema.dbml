@@ -1,0 +1,291 @@
+﻿// Axisora Forge Academy LMS - Database Schema
+
+Table institutes {
+  id bigint [pk, increment]
+  name varchar [not null]
+  logo_url text
+  primary_color varchar
+  secondary_color varchar
+  description text
+  contact_email varchar
+  contact_phone varchar
+  address text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table users {
+  id bigint [pk, increment]
+  email varchar [unique, not null]
+  password varchar [not null]
+  full_name varchar [not null]
+  phone varchar
+  avatar_url text
+  linkedin_url text
+  github_url text
+  portfolio_url text
+  enabled boolean [default: true]
+  email_verified boolean [default: false]
+  institute_id bigint [ref: > institutes.id]
+  batch_id bigint [ref: > batches.id]
+  plan_id bigint [ref: > subscription_plans.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_roles {
+  user_id bigint [ref: > users.id]
+  role varchar [not null]
+}
+
+Table batches {
+  id bigint [pk, increment]
+  name varchar [not null]
+  schedule varchar
+  institute_id bigint [ref: > institutes.id]
+}
+
+Table subscription_plans {
+  id bigint [pk, increment]
+  name varchar [not null]
+  description text
+  price decimal [not null]
+  duration_days int
+  is_active boolean [default: true]
+  features text
+}
+
+Table courses {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  thumbnail_url text
+  category varchar
+  total_duration_minutes int
+  total_lessons int
+  institute_id bigint [ref: > institutes.id]
+  plan_id bigint [ref: > subscription_plans.id]
+}
+
+Table modules {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  order_index int
+  course_id bigint [ref: > courses.id]
+}
+
+Table lessons {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  youtube_url text
+  youtube_video_id varchar
+  thumbnail_url text
+  pdf_notes_url text
+  duration_minutes int
+  order_index int
+  is_locked boolean [default: false]
+  is_mandatory boolean [default: true]
+  module_id bigint [ref: > modules.id]
+}
+
+Table events {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  event_type varchar
+  start_time timestamp
+  end_time timestamp
+  meet_link text
+  venue varchar
+  attendance_required boolean [default: true]
+  batch_id bigint [ref: > batches.id]
+}
+
+Table enrollments {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  course_id bigint [ref: > courses.id]
+  progress double [default: 0.0]
+  enrolled_at timestamp
+  completed_at timestamp
+}
+
+Table subscriptions {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  plan_id bigint [ref: > subscription_plans.id]
+  status varchar
+  start_date timestamp
+  end_date timestamp
+}
+
+Table payments {
+  id bigint [pk, increment]
+  payment_id varchar [unique]
+  user_id bigint [ref: > users.id]
+  subscription_id bigint [ref: > subscriptions.id]
+  amount decimal [not null]
+  currency varchar
+  status varchar
+  method varchar
+  payment_date timestamp
+  invoice_number varchar
+}
+
+Table placement_drives {
+  id bigint [pk, increment]
+  company_name varchar [not null]
+  role varchar [not null]
+  package_amount decimal
+  location varchar
+  eligibility text
+  description text
+  apply_link text
+  deadline timestamp
+  is_active boolean [default: true]
+  plan_id bigint [ref: > subscription_plans.id]
+}
+
+Table placement_applications {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  placement_drive_id bigint [ref: > placement_drives.id]
+  status varchar
+  notes text
+}
+
+Table attendance {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  event_id bigint [ref: > events.id]
+  present boolean
+  remarks text
+}
+
+Table progress {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  lesson_id bigint [ref: > lessons.id]
+  completed boolean [default: false]
+  watch_time_seconds int
+  completion_percentage double [default: 0.0]
+}
+
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  title varchar [not null]
+  message text
+  type varchar
+  is_read boolean [default: false]
+  action_url text
+}
+
+Table bookmarks {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  lesson_id bigint [ref: > lessons.id]
+  bookmark_type varchar
+}
+
+Table assignments {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  lesson_id bigint [ref: > lessons.id]
+  max_marks int
+  deadline timestamp
+}
+
+Table assignment_submissions {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  assignment_id bigint [ref: > assignments.id]
+  submission_url text
+  marks int
+  feedback text
+  status varchar
+  submitted_at timestamp
+}
+
+Table quizzes {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  lesson_id bigint [ref: > lessons.id]
+  total_questions int
+  passing_score int
+  time_limit_minutes int
+}
+
+Table quiz_questions {
+  id bigint [pk, increment]
+  quiz_id bigint [ref: > quizzes.id]
+  question text
+  option_a text
+  option_b text
+  option_c text
+  option_d text
+  correct_answer varchar
+  marks int
+  has_negative_marking boolean [default: false]
+  negative_marks double
+}
+
+Table exams {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  start_time timestamp
+  duration_minutes int
+  total_marks int
+  has_negative_marking boolean [default: false]
+  negative_marking_percentage double
+}
+
+Table exam_results {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  exam_id bigint [ref: > exams.id]
+  score int
+  total_marks int
+  percentage double
+  grade varchar
+  rank int
+}
+
+Table feedback {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  entity_id bigint
+  entity_type varchar
+  rating int
+  faculty_rating int
+  content_rating int
+  difficulty int
+  comments text
+  is_anonymous boolean [default: false]
+}
+
+Table coding_questions {
+  id bigint [pk, increment]
+  title varchar [not null]
+  description text
+  expected_output text
+  hidden_test_cases text
+  difficulty varchar
+  hints text
+  marks int
+  language varchar
+}
+
+Table comments {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  lesson_id bigint [ref: > lessons.id]
+  content text
+  is_pinned boolean [default: false]
+  is_resolved boolean [default: false]
+}

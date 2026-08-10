@@ -1,0 +1,312 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/subscription_provider.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/widgets/common_header.dart';
+import '../../../data/models/placement_drive_model.dart';
+import '../browser/in_app_browser_screen.dart';
+
+class PlacementDrivesScreen extends ConsumerStatefulWidget {
+  const PlacementDrivesScreen({super.key});
+  @override
+  ConsumerState<PlacementDrivesScreen> createState() => _PlacementDrivesScreenState();
+}
+
+class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
+  String _selectedFilter = 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final activePlanIds = ref.watch(subscriptionProvider).activePlanIds;
+    final drivesAsync = ref.watch(placementDrivesProvider);
+
+    return Scaffold(
+      appBar: const CommonHeader(title: 'Placements'),
+      body: drivesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text('Failed to load placement drives', style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => ref.invalidate(placementDrivesProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (drives) {
+          final accessible = drives.where((d) => d.isAccessible(activePlanIds)).toList();
+          final filtered = _selectedFilter == 'All'
+              ? accessible
+              : accessible.where((d) => d.category == _selectedFilter).toList();
+          final filters = <String>{'All'};
+          for (final d in accessible) {
+            filters.add(d.category);
+          }
+
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [const Color(0xFF0F172A), const Color(0xFF0F172A).withOpacity(0.85)],
+                  ),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Placement Dashboard', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('${accessible.length} active drives', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _StatChip(icon: Icons.business, label: 'Companies', value: '${accessible.length}')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _StatChip(icon: Icons.event_available, label: 'Open', value: '${accessible.length}')),
+                  ]),
+                ]),
+              ),
+              SizedBox(
+                height: 52,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  children: filters.map((filter) {
+                    final isSelected = _selectedFilter == filter;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: isSelected,
+                        onSelected: (_) => setState(() => _selectedFilter = filter),
+                        selectedColor: const Color(0xFFEAB308),
+                        backgroundColor: Colors.grey.shade100,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.black : Colors.grey.shade700,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.work_off, size: 64, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          Text('No placement drives found', style: TextStyle(color: Colors.grey.shade500)),
+                        ]),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) => _DriveCard(
+                          drive: filtered[index],
+                          onApply: () => _openApplyLink(filtered[index]),
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _openApplyLink(PlacementDriveModel drive) {
+    final link = drive.applyLink;
+    if (link == null || link.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => InAppBrowserScreen(url: link, title: '${drive.companyName} - Apply'),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _StatChip({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(children: [
+        Icon(icon, color: const Color(0xFFEAB308), size: 18),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(label, style: TextStyle(color: Colors.white70, fontSize: 10)),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _DriveCard extends StatelessWidget {
+  final PlacementDriveModel drive;
+  final VoidCallback onApply;
+
+  const _DriveCard({required this.drive, required this.onApply});
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = const Color(0xFF0F172A);
+    final secondaryColor = const Color(0xFFEAB308);
+    final logoColor = _getLogoColor(drive.id);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: logoColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(drive.logoInitial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(drive.companyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 2),
+                Text(drive.role, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: secondaryColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.savings, size: 12, color: Color(0xFFB45309)),
+                      const SizedBox(width: 4),
+                      Text(drive.packageDisplay, style: const TextStyle(fontSize: 11, color: Color(0xFFB45309), fontWeight: FontWeight.bold)),
+                    ]),
+                  ),
+                  if (drive.location != null && drive.location!.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.location_on, size: 12, color: Colors.blue),
+                        const SizedBox(width: 2),
+                        Text(drive.location!, style: const TextStyle(fontSize: 11, color: Colors.blue)),
+                      ]),
+                    ),
+                  ],
+                ]),
+              ]),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: secondaryColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                drive.category,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFB45309),
+                ),
+              ),
+            ),
+          ]),
+          if (drive.eligibility != null && drive.eligibility!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Row(children: [
+                  Icon(Icons.check_circle_outline, size: 14, color: Colors.grey),
+                  SizedBox(width: 6),
+                  Text('Eligibility', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ]),
+                const SizedBox(height: 4),
+                Text(drive.eligibility!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
+              ]),
+            ),
+          ],
+          if (drive.description != null && drive.description!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(drive.description!, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4)),
+          ],
+          const SizedBox(height: 12),
+          Row(children: [
+            Icon(Icons.event, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Text('Deadline: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text(drive.formattedDeadline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: onApply,
+              icon: const Icon(Icons.open_in_browser, size: 16),
+              label: const Text('Apply'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: secondaryColor,
+                foregroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size.zero,
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Color _getLogoColor(int id) {
+    const colors = [
+      Color(0xFF4285F4),
+      Color(0xFF00A4EF),
+      Color(0xFF0F9D58),
+      Color(0xFF2078F4),
+      Color(0xFF2874F0),
+      Color(0xFFE82127),
+    ];
+    return colors[id % colors.length];
+  }
+}
+
+extension on PlacementDriveModel {
+  bool isAccessible(Set<int>? activePlanIds) {
+    if (planId == null) return true;
+    if (activePlanIds == null) return false;
+    return activePlanIds.contains(planId);
+  }
+}
