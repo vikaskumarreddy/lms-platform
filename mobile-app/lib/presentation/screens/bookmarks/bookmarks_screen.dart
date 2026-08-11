@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/constants/routes.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../data/models/bookmark_model.dart';
@@ -131,7 +133,7 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
                                 icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
                               ),
                               onTap: () {
-                                Navigator.pushNamed(context, '/courses/lesson', arguments: bookmark.lessonId);
+                                context.go(AppRoutes.lesson.replaceAll(':lessonId', '${bookmark.lessonId}'));
                               },
                             ),
                           );

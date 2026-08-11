@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/utils/avatar_utils.dart';
 import '../../../core/widgets/common_header.dart';
 
-class MainShellScreen extends StatefulWidget {
+class MainShellScreen extends ConsumerStatefulWidget {
   final Widget child;
   const MainShellScreen({super.key, required this.child});
   @override
-  State<MainShellScreen> createState() => _MainShellScreenState();
+  ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
 }
 
-class _MainShellScreenState extends State<MainShellScreen> {
+class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   final _tabs = [
     (AppRoutes.home, Icons.home_outlined, Icons.home, 'Home'),
     (AppRoutes.courses, Icons.book_outlined, Icons.book, 'Courses'),
@@ -105,6 +108,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final profileAsync = ref.watch(userProfileProvider);
+    final profile = profileAsync.asData?.value;
+    final rawName = (profile?['name'] as String?)?.trim();
+    final displayName = (rawName == null || rawName.isEmpty) ? 'Student' : rawName;
+    final batchName = (profile?['batchName'] as String?) ?? 'No batch assigned';
+    final isActive = profile?['isActive'] != false;
     final primaryColor = const Color(0xFF0F172A);
     final secondaryColor = const Color(0xFFEAB308);
     
@@ -126,16 +135,16 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         CircleAvatar(
                           radius: 28,
                           backgroundColor: secondaryColor,
-                          child: const Text('S', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          child: Text(AvatarUtils.initialsFor(displayName), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Student User', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 2),
-                              Text('Java Full Stack', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                              Text(batchName, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -144,8 +153,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: secondaryColor, borderRadius: BorderRadius.circular(12)),
-                      child: const Text('Active', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      decoration: BoxDecoration(color: isActive ? secondaryColor : Colors.grey, borderRadius: BorderRadius.circular(12)),
+                      child: Text(isActive ? 'Active' : 'Inactive', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -196,14 +205,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     Navigator.pop(context);
                   },
                 ),
-                _DrawerItem(
-                  icon: Icons.emoji_events_outlined,
-                  title: 'Achievements',
-                  onTap: () {
-                    context.go(AppRoutes.achievements);
-                    Navigator.pop(context);
-                  },
-                ),
+
                 _DrawerItem(
                   icon: Icons.forum_outlined,
                   title: 'Q&A',
@@ -233,14 +235,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   title: 'Attendance',
                   onTap: () {
                     context.go(AppRoutes.attendance);
-                    Navigator.pop(context);
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.trending_up_outlined,
-                  title: 'Progress',
-                  onTap: () {
-                    context.go(AppRoutes.progress);
                     Navigator.pop(context);
                   },
                 ),

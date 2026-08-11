@@ -104,6 +104,11 @@ public class UserService {
         if (request.getIsActive() != null) {
             user.setIsActive(request.getIsActive());
         }
+        // planId/batchId: the admin portal always sends these explicitly (including null
+        // to intentionally clear a batch/plan), so we keep straightforward assignment here.
+        // The mobile app's self-service profile update instead merges in the student's
+        // current planId/batchId before calling this endpoint (see ApiService.updateUserProfile)
+        // so it never accidentally wipes these out.
         user.setPlanId(request.getPlanId());
         user.setBatchId(request.getBatchId());
         user.setLinkedin(request.getLinkedin());

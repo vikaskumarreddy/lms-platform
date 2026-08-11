@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
 
 interface SubscriptionPlan {
   id: number;
@@ -14,6 +15,20 @@ interface Batch {
   id: number;
   name: string;
   isActive: boolean;
+}
+
+interface CalendarEvent {
+  id: number;
+  title: string;
+  description?: string;
+  eventType: string;
+  startTime?: string;
+  endTime?: string;
+  meetLink?: string;
+  venue?: string;
+  attendanceRequired?: boolean;
+  batchId?: number | null;
+  planId?: number | null;
 }
 
 @Component({
@@ -34,24 +49,8 @@ interface Batch {
           <input [(ngModel)]="formData.title" placeholder="e.g. Live Class - Java Basics" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Date (e.g. 28 Jul)</label>
-          <input [(ngModel)]="formData.date" placeholder="e.g. 28 Jul" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Day Label</label>
-          <input [(ngModel)]="formData.day" placeholder="e.g. Today, Thursday" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Month Key (YYYY-MM)</label>
-          <input [(ngModel)]="formData.monthKey" placeholder="e.g. 2026-07" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Time</label>
-          <input [(ngModel)]="formData.time" placeholder="e.g. 10:00 AM" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
           <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Type</label>
-          <select [(ngModel)]="formData.type" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <select [(ngModel)]="formData.eventType" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
             <option value="Class">Class</option>
             <option value="Workshop">Workshop</option>
             <option value="Exam">Exam</option>
@@ -62,33 +61,26 @@ interface Batch {
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Status</label>
-          <select [(ngModel)]="formData.status" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <option value="Upcoming">Upcoming</option>
-            <option value="Attended">Attended</option>
-            <option value="Absent">Absent</option>
-            <option value="Holiday">Holiday</option>
-          </select>
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Start Date & Time</label>
+          <input [(ngModel)]="formData.startTime" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">End Date & Time (optional)</label>
+          <input [(ngModel)]="formData.endTime" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         </div>
         <div>
           <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Meet Link (optional)</label>
           <input [(ngModel)]="formData.meetLink" placeholder="https://meet.google.com/..." style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Is Past Event?</label>
-          <select [(ngModel)]="formData.isPast" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <option [ngValue]="false">No (Upcoming)</option>
-            <option [ngValue]="true">Yes (Past)</option>
-          </select>
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Venue (optional)</label>
+          <input [(ngModel)]="formData.venue" placeholder="e.g. Auditorium / Online" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Color</label>
-          <select [(ngModel)]="formData.color" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <option value="blue">Blue</option>
-            <option value="orange">Orange</option>
-            <option value="red">Red</option>
-            <option value="green">Green</option>
-            <option value="purple">Purple</option>
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Attendance Required?</label>
+          <select [(ngModel)]="formData.attendanceRequired" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+            <option [ngValue]="true">Yes</option>
+            <option [ngValue]="false">No</option>
           </select>
         </div>
         <div>
@@ -105,6 +97,10 @@ interface Batch {
             <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
           </select>
         </div>
+        <div style="grid-column:1 / -1;">
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Description (optional)</label>
+          <textarea [(ngModel)]="formData.description" rows="2" placeholder="Details about this event" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
+        </div>
       </div>
       <div style="margin-top:16px;display:flex;gap:12px;">
         <button class="btn btn-primary" (click)="save()">{{editingId ? 'Update' : 'Create'}} Event</button>
@@ -117,30 +113,31 @@ interface Batch {
         <thead>
           <tr>
             <th>Title</th>
-            <th>Date</th>
-            <th>Time</th>
+            <th>Start</th>
+            <th>End</th>
             <th>Type</th>
-            <th>Status</th>
             <th>Subscription</th>
             <th>Batch</th>
-            <th>Month</th>
+            <th>Attendance</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let e of events">
             <td style="font-weight:600;">{{e.title}}</td>
-            <td>{{e.date}}</td>
-            <td>{{e.time}}</td>
-            <td><span class="badge badge-warning">{{e.type}}</span></td>
-            <td><span [class.badge-success]="e.status === 'Attended'" [class.badge-danger]="e.status === 'Absent'" [class.badge-warning]="e.status === 'Upcoming'" class="badge">{{e.status}}</span></td>
+            <td>{{formatDate(e.startTime)}}</td>
+            <td>{{e.endTime ? formatDate(e.endTime) : '—'}}</td>
+            <td><span class="badge badge-warning">{{e.eventType}}</span></td>
             <td><span *ngIf="e.planId" class="badge badge-warning">⭐ {{getPlanName(e.planId)}}</span><span *ngIf="!e.planId" style="color:#64748B;font-size:13px;">All</span></td>
             <td><span *ngIf="e.batchId" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{getBatchName(e.batchId)}}</span><span *ngIf="!e.batchId" style="color:#64748B;font-size:13px;">All</span></td>
-            <td>{{e.monthKey}}</td>
+            <td><span class="badge" [class.badge-success]="e.attendanceRequired" [class.badge-warning]="!e.attendanceRequired">{{e.attendanceRequired ? 'Required' : 'Optional'}}</span></td>
             <td>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="edit(e)">Edit</button>
               <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="delete(e)">Delete</button>
             </td>
+          </tr>
+          <tr *ngIf="events.length === 0">
+            <td colspan="8" style="text-align:center;padding:32px;color:#64748B;">No calendar events found. Click "+ Add Event" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -153,33 +150,32 @@ export class CalendarEventsComponent implements OnInit {
   editingId: number | null = null;
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
+  events: CalendarEvent[] = [];
 
   formData: any = {
     title: '',
-    date: '',
-    day: '',
-    monthKey: '',
-    time: '',
-    type: 'Class',
-    status: 'Upcoming',
+    description: '',
+    eventType: 'Class',
+    startTime: '',
+    endTime: '',
     meetLink: '',
-    isPast: false,
-    color: 'blue',
+    venue: '',
+    attendanceRequired: true,
     planId: null,
     batchId: null
   };
 
-  events: any[] = [
-    { id: 1, title: 'Live Class - Java Basics', date: '28 Jul', day: 'Today', monthKey: '2026-07', time: '10:00 AM', type: 'Class', status: 'Upcoming', meetLink: 'https://meet.google.com/abc', isPast: false, color: 'blue', planId: null, batchId: null },
-    { id: 2, title: 'Mock Interview', date: '28 Jul', day: 'Today', monthKey: '2026-07', time: '2:00 PM', type: 'Interview', status: 'Upcoming', meetLink: 'https://meet.google.com/xyz', isPast: false, color: 'orange', planId: null, batchId: null },
-    { id: 3, title: 'Placement Drive - Google', date: '31 Jul', day: 'Thursday', monthKey: '2026-07', time: '10:00 AM', type: 'Placement', status: 'Upcoming', meetLink: 'https://careers.google.com', isPast: false, color: 'green', planId: null, batchId: null },
-    { id: 4, title: 'React Workshop', date: '20 Aug', day: 'Thursday', monthKey: '2026-08', time: '11:00 AM', type: 'Workshop', status: 'Upcoming', meetLink: 'https://meet.google.com/react', isPast: false, color: 'blue', planId: null, batchId: null },
-    { id: 5, title: 'Tech Fest 2026', date: '10 Sep', day: 'Wednesday', monthKey: '2026-09', time: '09:00 AM', type: 'Event', status: 'Upcoming', meetLink: 'https://techfest.axisoraforge.com', isPast: false, color: 'green', planId: null, batchId: null },
-  ];
-
   ngOnInit() {
+    this.loadEvents();
     this.loadPlans();
     this.loadBatches();
+  }
+
+  loadEvents() {
+    this.api.get<CalendarEvent[]>('/api/events').subscribe({
+      next: (data) => { this.events = data; },
+      error: (err) => { console.error('Failed to load events:', err); }
+    });
   }
 
   loadPlans() {
@@ -196,43 +192,84 @@ export class CalendarEventsComponent implements OnInit {
     });
   }
 
-  getPlanName(planId?: number): string {
+  getPlanName(planId?: number | null): string {
     if (!planId) return '';
     const plan = this.plans.find(p => p.id === planId);
     return plan ? plan.name : '';
   }
 
-  getBatchName(batchId?: number): string {
+  getBatchName(batchId?: number | null): string {
     if (!batchId) return '';
     const batch = this.batches.find(b => b.id === batchId);
     return batch ? batch.name : '';
   }
 
-  save() {
-    if (this.editingId) {
-      const idx = this.events.findIndex(e => e.id === this.editingId);
-      if (idx > -1) this.events[idx] = { ...this.formData, id: this.editingId };
-    } else {
-      this.events.push({ ...this.formData, id: Date.now() });
-    }
-    this.resetForm();
+  formatDate(value?: string): string {
+    return formatDateTimeDisplay(value);
   }
 
-  edit(e: any) {
+  save() {
+    const payload: any = {
+      title: this.formData.title,
+      description: this.formData.description || null,
+      eventType: this.formData.eventType,
+      startTime: toIsoDateTime(this.formData.startTime),
+      endTime: this.formData.endTime ? toIsoDateTime(this.formData.endTime) : null,
+      meetLink: this.formData.meetLink || null,
+      venue: this.formData.venue || null,
+      attendanceRequired: this.formData.attendanceRequired,
+      planId: this.formData.planId,
+      batchId: this.formData.batchId
+    };
+
+    if (this.editingId) {
+      this.api.put<CalendarEvent>(`/api/events/${this.editingId}`, payload).subscribe({
+        next: (updated) => {
+          const idx = this.events.findIndex(e => e.id === this.editingId);
+          if (idx > -1) this.events[idx] = updated;
+          this.resetForm();
+        },
+        error: (err) => { console.error('Failed to update event:', err); alert('Failed to update event'); }
+      });
+    } else {
+      this.api.post<CalendarEvent>('/api/events', payload).subscribe({
+        next: (created) => {
+          this.events.push(created);
+          this.resetForm();
+        },
+        error: (err) => { console.error('Failed to create event:', err); alert('Failed to create event'); }
+      });
+    }
+  }
+
+  edit(e: CalendarEvent) {
     this.editingId = e.id;
-    this.formData = { ...e };
-    delete (this.formData as any).id;
+    this.formData = {
+      title: e.title,
+      description: e.description || '',
+      eventType: e.eventType,
+      startTime: toDateTimeLocalValue(e.startTime),
+      endTime: e.endTime ? toDateTimeLocalValue(e.endTime) : '',
+      meetLink: e.meetLink || '',
+      venue: e.venue || '',
+      attendanceRequired: e.attendanceRequired ?? true,
+      planId: e.planId ?? null,
+      batchId: e.batchId ?? null
+    };
     this.showForm = true;
   }
 
-  delete(e: any) {
+  delete(e: CalendarEvent) {
     if (confirm('Delete this event?')) {
-      this.events = this.events.filter(ev => ev.id !== e.id);
+      this.api.delete(`/api/events/${e.id}`).subscribe({
+        next: () => { this.events = this.events.filter(ev => ev.id !== e.id); },
+        error: (err) => { console.error('Failed to delete event:', err); alert('Failed to delete event'); }
+      });
     }
   }
 
   resetForm() {
-    this.formData = { title: '', date: '', day: '', monthKey: '', time: '', type: 'Class', status: 'Upcoming', meetLink: '', isPast: false, color: 'blue', planId: null, batchId: null };
+    this.formData = { title: '', description: '', eventType: 'Class', startTime: '', endTime: '', meetLink: '', venue: '', attendanceRequired: true, planId: null, batchId: null };
     this.editingId = null;
     this.showForm = false;
   }

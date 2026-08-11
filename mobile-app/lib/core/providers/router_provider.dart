@@ -19,8 +19,6 @@ import '../../presentation/screens/placement/placement_drives_screen.dart';
 import '../../presentation/screens/calendar/calendar_screen.dart';
 import '../../presentation/screens/assignments/assignments_screen.dart';
 import '../../presentation/screens/exams/exams_screen.dart';
-import '../../presentation/screens/events/events_screen.dart';
-import '../../presentation/screens/progress/progress_screen.dart';
 import '../../presentation/screens/certificates/certificates_screen.dart';
 import '../../presentation/screens/resume/resume_builder_screen.dart';
 import '../../presentation/screens/discussion/discussion_screen.dart';
@@ -28,7 +26,6 @@ import '../../presentation/screens/search/search_screen.dart';
 import '../../presentation/screens/subscription/subscription_screen.dart';
 import '../../presentation/screens/payment/payment_screen.dart';
 import '../../presentation/screens/payment/payment_history_screen.dart';
-import '../../presentation/screens/coding/coding_playground_screen.dart';
 import '../../presentation/screens/attendance/attendance_screen.dart';
 import '../../presentation/screens/feedback/feedback_screen.dart';
 import '../../presentation/screens/interviews/interview_history_screen.dart';
@@ -37,7 +34,6 @@ import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/notes/notes_screen.dart';
 import '../../presentation/screens/onboarding/onboarding_screen.dart';
 import '../../presentation/screens/bookmarks/bookmarks_screen.dart';
-import '../../presentation/screens/achievements/achievements_screen.dart';
 import '../../presentation/screens/qa/qa_screen.dart';
 import '../../presentation/screens/browser/in_app_browser_screen.dart';
 import '../../presentation/screens/main_shell_screen.dart';
@@ -68,8 +64,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.calendar, builder: (context, state) => const CalendarScreen()),
           GoRoute(path: AppRoutes.assignments, builder: (context, state) => const AssignmentsScreen()),
           GoRoute(path: AppRoutes.exams, builder: (context, state) => const ExamsScreen()),
-          GoRoute(path: AppRoutes.events, builder: (context, state) => const EventsScreen()),
-          GoRoute(path: AppRoutes.progress, builder: (context, state) => const ProgressScreen()),
           GoRoute(path: AppRoutes.certificates, builder: (context, state) => const CertificatesScreen()),
           GoRoute(path: AppRoutes.resumeBuilder, builder: (context, state) => const ResumeBuilderScreen()),
           GoRoute(path: AppRoutes.discussion, builder: (context, state) => DiscussionScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
@@ -80,7 +74,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.feedback, builder: (context, state) => const FeedbackScreen()),
           GoRoute(path: AppRoutes.interviewHistory, builder: (context, state) => const InterviewHistoryScreen()),
           GoRoute(path: AppRoutes.bookmarks, builder: (context, state) => const BookmarksScreen()),
-          GoRoute(path: AppRoutes.achievements, builder: (context, state) => const AchievementsScreen()),
           GoRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
         ],
       ),
@@ -88,7 +81,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         url: state.uri.queryParameters['url'] ?? '',
         title: state.uri.queryParameters['title'] ?? 'Browser',
       )),
-      GoRoute(path: AppRoutes.codingPlayground, builder: (context, state) => CodingPlaygroundScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
       GoRoute(path: AppRoutes.quiz, builder: (context, state) => QuizScreen(lessonId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
       GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
       GoRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),

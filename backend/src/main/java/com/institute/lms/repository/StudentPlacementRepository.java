@@ -15,4 +15,6 @@ public interface StudentPlacementRepository extends JpaRepository<StudentPlaceme
     List<StudentPlacement> findByIsPlacedTrue();
     long countByIsPlacedTrue();
     Optional<StudentPlacement> findByUserIdAndIsPlacedTrue(Long userId);
+    Optional<StudentPlacement> findByUserIdAndDriveId(Long userId, Long driveId);
+    List<StudentPlacement> findByDriveId(Long driveId);
 }

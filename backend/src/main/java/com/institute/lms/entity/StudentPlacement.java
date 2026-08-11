@@ -35,4 +35,18 @@ public class StudentPlacement extends BaseEntity {
     
     @Column(name = "is_placed")
     private Boolean isPlaced = false;
+
+    @Column(name = "drive_id")
+    private Long driveId;
+
+    /**
+     * Application status for this placement drive: OPEN, APPLIED, SELECTED, REJECTED.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private Status status = Status.APPLIED;
+
+    public enum Status {
+        OPEN, APPLIED, SELECTED, REJECTED
+    }
 }

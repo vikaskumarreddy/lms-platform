@@ -36,7 +36,7 @@ public class ExamController {
 
     @GetMapping("/batch/{batchId}")
     public List<Exam> getExamsByBatch(@PathVariable Long batchId) {
-        return examRepository.findByBatchIdsContaining(batchId);
+        return examRepository.findVisibleToBatch(batchId);
     }
 
     @GetMapping("/course/{courseId}")
@@ -49,17 +49,15 @@ public class ExamController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (user.getBatchId() == null) {
-            return ResponseEntity.ok(Map.of(
-                "exams", Collections.emptyList(),
-                "totalExams", 0,
-                "upcomingCount", 0,
-                "completedCount", 0,
-                "averageScore", 0.0
-            ));
-        }
-
-        List<Exam> exams = examRepository.findByBatchIdsContaining(user.getBatchId());
+        // Exams with no batch restriction ("All Batches" in the admin portal) are visible
+        // to every student, in addition to exams explicitly targeted at the student's own
+        // batch. Previously this returned an empty list whenever the student had no batch
+        // assigned, hiding "All Batches" exams entirely.
+        List<Exam> exams = user.getBatchId() != null
+                ? examRepository.findVisibleToBatch(user.getBatchId())
+                : examRepository.findAll().stream()
+                        .filter(e -> e.getBatchIds() == null || e.getBatchIds().isEmpty())
+                        .collect(Collectors.toList());
 
         List<ExamSubmission> submissions = examSubmissionRepository.findByUserId(userId);
         Map<Long, ExamSubmission> submissionMap = submissions.stream()

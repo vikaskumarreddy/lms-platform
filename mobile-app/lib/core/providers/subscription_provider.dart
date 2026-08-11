@@ -95,6 +95,12 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     state = state.copyWith(plan: plan);
   }
 
+  /// Clears the subscription state (used on logout) so a new session
+  /// doesn't briefly show the previous user's plan/access.
+  void reset() {
+    state = const SubscriptionState();
+  }
+
   /// Sync the user's subscription plan from the backend profile.
   /// The profile response contains `planId` and `planName`.
   Future<void> syncFromProfile(Map<String, dynamic>? profile) async {

@@ -1,16 +1,36 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
 
-class HomeScreen extends StatelessWidget {
+final studentDashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getStudentDashboard();
+});
+
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final primaryColor = const Color(0xFF0F172A);
     final secondaryColor = const Color(0xFFEAB308);
+    final profileAsync = ref.watch(userProfileProvider);
+    final dashboardAsync = ref.watch(studentDashboardProvider);
+
+    final profile = profileAsync.asData?.value;
+    final rawName = (profile?['name'] as String?)?.trim();
+    final displayName = (rawName == null || rawName.isEmpty) ? 'Student' : rawName;
+    final planName = (profile?['planName'] as String?) ?? 'Free';
+    final isActive = profile?['isActive'] != false;
+
+    final dashboard = dashboardAsync.asData?.value ?? const {};
+    final attendancePercent = ((dashboard['attendancePercent'] as num?) ?? 0).round();
+    final progressPercent = ((dashboard['progressPercent'] as num?) ?? 0).round();
+    final performancePercent = ((dashboard['performancePercent'] as num?) ?? 0).round();
 
     return Scaffold(
       appBar: CommonHeader(
@@ -31,57 +51,44 @@ class HomeScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Welcome, Student!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Welcome, $displayName!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 4),
-                Text('Java Full Stack Development', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+                Text(planName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
                 const SizedBox(height: 12),
                 Row(children: [
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: secondaryColor, borderRadius: BorderRadius.circular(12)), child: const Text('Active', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
-                  const SizedBox(width: 8),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.3), borderRadius: BorderRadius.circular(12)), child: const Text('60 days left', style: TextStyle(color: Colors.white, fontSize: 11))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isActive ? secondaryColor : Colors.grey, borderRadius: BorderRadius.circular(12)), child: Text(isActive ? 'Active' : 'Inactive', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
                 ]),
               ]),
             ),
           ),
           const SizedBox(height: 20),
           Row(children: [
-            Expanded(child: _StatCard(title: 'Attendance', value: '92%', icon: Icons.check_circle, color: Colors.green, subtitle: 'This month')),
+            Expanded(child: _StatCard(title: 'Attendance', value: '$attendancePercent%', icon: Icons.check_circle, color: Colors.green, subtitle: 'Classes attended')),
             const SizedBox(width: 12),
-            Expanded(child: _StatCard(title: 'Progress', value: '65%', icon: Icons.trending_up, color: secondaryColor, subtitle: 'Course')),
+            Expanded(child: _StatCard(title: 'Progress', value: '$progressPercent%', icon: Icons.trending_up, color: secondaryColor, subtitle: 'Course')),
           ]),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _StatCard(title: 'Performance', value: '78%', icon: Icons.star, color: Colors.blue, subtitle: 'Overall')),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard(title: 'Streak', value: '5 days', icon: Icons.local_fire_department, color: Colors.orange, subtitle: 'Current')),
-          ]),
+          SizedBox(width: double.infinity, child: _StatCard(title: 'Performance', value: '$performancePercent%', icon: Icons.star, color: Colors.blue, subtitle: 'Graded assignments & exams')),
           const SizedBox(height: 20),
-          Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Performance Overview', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-            const SizedBox(height: 20),
-            SizedBox(height: 180, child: CustomPaint(size: const Size(double.infinity, 180), painter: _PerformanceChartPainter())),
-          ]))),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-              SizedBox(height: 100, child: CustomPaint(size: const Size(100, 100), painter: _PieChartPainter(segments: [
-                _PieSegment(label: 'Completed', value: 0.65, color: secondaryColor),
-                _PieSegment(label: 'In Progress', value: 0.20, color: Colors.blue),
-                _PieSegment(label: 'Pending', value: 0.15, color: Colors.grey.shade300),
-              ]))),
-              const SizedBox(height: 8),
-              Text('Course Progress', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            ])))),
-            const SizedBox(width: 12),
-            Expanded(child: Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-              SizedBox(height: 100, child: CustomPaint(size: const Size(100, 100), painter: _PieChartPainter(segments: [
-                _PieSegment(label: 'Present', value: 0.92, color: Colors.green),
-                _PieSegment(label: 'Absent', value: 0.08, color: Colors.red.shade300),
-              ]))),
-              const SizedBox(height: 8),
-              Text('Attendance', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            ])))),
-          ]),
+          Consumer(builder: (context, ref, _) {
+            final overviewAsync = ref.watch(placementOverviewProvider);
+            final overview = overviewAsync.asData?.value ?? const {};
+            final totalPosted = ((overview['totalPosted'] as num?) ?? 0).toInt();
+            final openCount = ((overview['openCount'] as num?) ?? 0).toInt();
+            final appliedCount = ((overview['appliedCount'] as num?) ?? 0).toInt();
+            final selectedCount = ((overview['selectedCount'] as num?) ?? 0).toInt();
+            return Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Placement Overview', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
+              const SizedBox(height: 4),
+              Text('$totalPosted drives posted since you joined', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _PlacementStatBar(label: 'Open', value: openCount, total: totalPosted, color: Colors.grey),
+                _PlacementStatBar(label: 'Applied', value: appliedCount, total: totalPosted, color: secondaryColor),
+                _PlacementStatBar(label: 'Selected', value: selectedCount, total: totalPosted, color: Colors.green),
+              ]),
+            ])));
+          }),
           const SizedBox(height: 20),
           Text('Quick Links', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
           const SizedBox(height: 12),
@@ -100,29 +107,17 @@ class HomeScreen extends StatelessWidget {
           Row(children: [
             Expanded(child: _QuickLinkCard(title: 'Assignments', icon: Icons.assignment, color: Colors.indigo, onTap: () => context.go(AppRoutes.assignments))),
             const SizedBox(width: 12),
-            Expanded(child: _QuickLinkCard(title: 'Achievements', icon: Icons.emoji_events, color: Colors.red, onTap: () => context.go(AppRoutes.achievements))),
+            Expanded(child: _QuickLinkCard(title: 'Exams', icon: Icons.assignment, color: Colors.orange, onTap: () => context.go(AppRoutes.exams))),
           ]),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: _QuickLinkCard(title: 'Q&A', icon: Icons.forum, color: Colors.teal, onTap: () => context.go(AppRoutes.qa))),
             const SizedBox(width: 12),
-            Expanded(child: _QuickLinkCard(title: 'Exams', icon: Icons.assignment, color: Colors.orange, onTap: () => context.go(AppRoutes.exams))),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _QuickLinkCard(title: 'Events', icon: Icons.event, color: Colors.pink, onTap: () => context.go(AppRoutes.events))),
-            const SizedBox(width: 12),
-            Expanded(child: _QuickLinkCard(title: 'Progress', icon: Icons.trending_up, color: Colors.cyan, onTap: () => context.go(AppRoutes.progress))),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
             Expanded(child: _QuickLinkCard(title: 'Certificates', icon: Icons.workspace_premium, color: Colors.amber, onTap: () => context.go(AppRoutes.certificates))),
-            const SizedBox(width: 12),
-            Expanded(child: _QuickLinkCard(title: 'Attendance', icon: Icons.fact_check, color: Colors.brown, onTap: () => context.go(AppRoutes.attendance))),
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            Expanded(child: _QuickLinkCard(title: 'Coding', icon: Icons.code, color: Colors.purple, onTap: () => context.go(AppRoutes.codingPlayground.replaceAll(':lessonId', '101')))),
+            Expanded(child: _QuickLinkCard(title: 'Attendance', icon: Icons.fact_check, color: Colors.brown, onTap: () => context.go(AppRoutes.attendance))),
             const SizedBox(width: 12),
             Expanded(child: _QuickLinkCard(title: 'Notes', icon: Icons.notes, color: Colors.lightBlue, onTap: () => context.go(AppRoutes.notes.replaceAll(':lessonId', '101')))),
           ]),
@@ -159,38 +154,19 @@ class _QuickLinkCard extends StatelessWidget {
   }
 }
 
-class _PieSegment { final String label; final double value; final Color color; _PieSegment({required this.label, required this.value, required this.color}); }
-class _PieChartPainter extends CustomPainter {
-  final List<_PieSegment> segments;
-  _PieChartPainter({required this.segments});
-  @override void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width, size.height) / 2;
-    final paint = Paint()..style = PaintingStyle.fill;
-    double startAngle = -pi / 2;
-    for (final segment in segments) {
-      final sweepAngle = 2 * pi * segment.value;
-      paint.color = segment.color;
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepAngle, true, paint);
-      startAngle += sweepAngle;
-    }
-  }
-  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
+class _PlacementStatBar extends StatelessWidget {
+  final String label;
+  final int value;
+  final int total;
+  final Color color;
+  const _PlacementStatBar({required this.label, required this.value, required this.total, required this.color});
 
-class _PerformanceChartPainter extends CustomPainter {
-  @override void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [const Color(0xFFEAB308).withOpacity(0.3), const Color(0xFFEAB308).withOpacity(0.0)]).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    final linePaint = Paint()..style = PaintingStyle.stroke..strokeWidth = 2.5..color = const Color(0xFFEAB308);
-    final path = Path(); final linePath = Path();
-    final points = [0.4, 0.55, 0.45, 0.7, 0.6, 0.75, 0.85, 0.72, 0.78];
-    path.moveTo(0, size.height * (1 - points[0])); linePath.moveTo(0, size.height * (1 - points[0]));
-    final stepX = size.width / (points.length - 1);
-    for (int i = 1; i < points.length; i++) { final x = i * stepX; final y = size.height * (1 - points[i]); path.lineTo(x, y); linePath.lineTo(x, y); }
-    path.lineTo(size.width, size.height); path.lineTo(0, size.height); path.close();
-    canvas.drawPath(path, paint); canvas.drawPath(linePath, linePaint);
-    final dotPaint = Paint()..color = const Color(0xFFEAB308)..style = PaintingStyle.fill;
-    for (int i = 0; i < points.length; i++) { final x = i * stepX; final y = size.height * (1 - points[i]); canvas.drawCircle(Offset(x, y), 4, dotPaint); }
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      CircleAvatar(radius: 24, backgroundColor: color.withOpacity(0.15), child: Text('$value', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16))),
+      const SizedBox(height: 6),
+      Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+    ]);
   }
-  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

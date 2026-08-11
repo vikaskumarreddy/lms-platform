@@ -19,8 +19,6 @@ class AppRoutes {
   static const String calendar = '/calendar';
   static const String assignments = '/assignments';
   static const String exams = '/exams';
-  static const String events = '/events';
-  static const String progress = '/progress';
   static const String certificates = '/certificates';
   static const String resumeBuilder = '/resume-builder';
   static const String discussion = '/discussion/:lessonId';
@@ -31,10 +29,8 @@ class AppRoutes {
   static const String feedback = '/feedback';
   static const String interviewHistory = '/interview-history';
   static const String bookmarks = '/bookmarks';
-  static const String achievements = '/achievements';
   static const String qa = '/qa';
   static const String inAppBrowser = '/browser';
-  static const String codingPlayground = '/coding/:lessonId';
   static const String quiz = '/quiz/:id';
   static const String mentorChat = '/chat/:mentorId';
   static const String notes = '/notes/:lessonId';

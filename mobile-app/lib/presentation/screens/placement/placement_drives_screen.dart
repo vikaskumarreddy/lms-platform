@@ -105,14 +105,24 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
                           Text('No placement drives found', style: TextStyle(color: Colors.grey.shade500)),
                         ]),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) => _DriveCard(
-                          drive: filtered[index],
-                          onApply: () => _openApplyLink(filtered[index]),
-                        ),
-                      ),
+                    : Consumer(builder: (context, ref, _) {
+                        final overviewAsync = ref.watch(placementOverviewProvider);
+                        final items = (overviewAsync.asData?.value['items'] as List<dynamic>? ?? [])
+                            .cast<Map<String, dynamic>>();
+                        final statusByDrive = {
+                          for (final item in items)
+                            if (item['driveId'] != null) (item['driveId'] as num).toInt(): item['status']?.toString() ?? 'OPEN',
+                        };
+                        return ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) => _DriveCard(
+                            drive: filtered[index],
+                            status: statusByDrive[filtered[index].id] ?? 'OPEN',
+                            onApply: () => _applyAndOpenLink(ref, filtered[index]),
+                          ),
+                        );
+                      }),
               ),
             ],
           );
@@ -121,9 +131,12 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
     );
   }
 
-  void _openApplyLink(PlacementDriveModel drive) {
+  Future<void> _applyAndOpenLink(WidgetRef ref, PlacementDriveModel drive) async {
+    await ref.read(apiServiceProvider).applyToPlacementDrive(drive.id);
+    ref.invalidate(placementOverviewProvider);
     final link = drive.applyLink;
     if (link == null || link.isEmpty) return;
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => InAppBrowserScreen(url: link, title: '${drive.companyName} - Apply'),
@@ -160,9 +173,36 @@ class _StatChip extends StatelessWidget {
 
 class _DriveCard extends StatelessWidget {
   final PlacementDriveModel drive;
+  final String status;
   final VoidCallback onApply;
 
-  const _DriveCard({required this.drive, required this.onApply});
+  const _DriveCard({required this.drive, required this.status, required this.onApply});
+
+  Color get _statusColor {
+    switch (status) {
+      case 'APPLIED':
+        return Colors.orange;
+      case 'SELECTED':
+        return Colors.green;
+      case 'REJECTED':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String get _statusLabel {
+    switch (status) {
+      case 'APPLIED':
+        return 'Applied';
+      case 'SELECTED':
+        return 'Selected';
+      case 'REJECTED':
+        return 'Rejected';
+      default:
+        return 'Open';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,21 +267,35 @@ class _DriveCard extends StatelessWidget {
                 ]),
               ]),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: secondaryColor.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                drive.category,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFB45309),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: secondaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  drive.category,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFB45309),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _statusColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _statusLabel,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _statusColor),
+                ),
+              ),
+            ]),
           ]),
           if (drive.eligibility != null && drive.eligibility!.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -274,9 +328,9 @@ class _DriveCard extends StatelessWidget {
             Text(drive.formattedDeadline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             const Spacer(),
             ElevatedButton.icon(
-              onPressed: onApply,
-              icon: const Icon(Icons.open_in_browser, size: 16),
-              label: const Text('Apply'),
+              onPressed: status == 'SELECTED' ? null : onApply,
+              icon: Icon(status == 'APPLIED' ? Icons.check_circle : Icons.open_in_browser, size: 16),
+              label: Text(status == 'OPEN' || status == 'REJECTED' ? 'Apply' : (status == 'APPLIED' ? 'Applied' : 'Selected')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: secondaryColor,
                 foregroundColor: primaryColor,

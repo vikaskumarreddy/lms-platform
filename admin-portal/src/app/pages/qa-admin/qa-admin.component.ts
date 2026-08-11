@@ -29,7 +29,7 @@ interface Batch {
       <h3 style="margin-bottom:16px;">{{editingId ? 'Edit' : 'Add New'}} Question</h3>
       <div style="display:grid;gap:16px;">
         <input [(ngModel)]="formData.title" placeholder="Question Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.author" placeholder="Author Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+        <input [(ngModel)]="formData.authorName" placeholder="Author Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         <input [(ngModel)]="formData.category" placeholder="Category (e.g. Java, SQL, React)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         <textarea [(ngModel)]="formData.content" placeholder="Question Content" rows="3" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
         <input [(ngModel)]="formData.answerCount" type="number" placeholder="Answer Count" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
@@ -53,14 +53,18 @@ interface Batch {
     <div class="card" *ngIf="!showForm">
       <table><thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Subscription</th><th>Batch</th><th>Answers</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody><tr *ngFor="let q of questions">
-        <td style="font-weight:600;">{{q.title}}</td><td>{{q.author}}</td><td><span class="badge badge-warning">{{q.category}}</span></td>
+        <td style="font-weight:600;">{{q.title}}</td><td>{{q.authorName}}</td><td><span class="badge badge-warning">{{q.category}}</span></td>
         <td><span *ngIf="q.planId" class="badge badge-warning">⭐ {{getPlanName(q.planId)}}</span><span *ngIf="!q.planId" style="color:#64748B;font-size:13px;">All</span></td>
         <td><span *ngIf="q.batchId" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{getBatchName(q.batchId)}}</span><span *ngIf="!q.batchId" style="color:#64748B;font-size:13px;">All</span></td>
         <td>{{q.answerCount}}</td>
         <td><span [class.badge-success]="q.isAnswered" [class.badge-danger]="!q.isAnswered" class="badge">{{q.isAnswered ? 'Answered' : 'Open'}}</span></td>
         <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="edit(q)">Edit</button>
         <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="delete(q)">Delete</button></td>
-      </tr></tbody></table>
+      </tr>
+      <tr *ngIf="questions.length === 0">
+        <td colspan="8" style="text-align:center;padding:32px;color:#64748B;">No questions found. Click "+ Add Question" to create one.</td>
+      </tr>
+      </tbody></table>
     </div>
   `
 })
@@ -69,16 +73,20 @@ export class QaAdminComponent implements OnInit {
   showForm = false; editingId: number | null = null;
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
-  formData: any = { title: '', author: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null };
-  questions: any[] = [
-    { id: 1, title: 'How to use Java Streams?', author: 'John Doe', category: 'Java', content: 'Can someone explain Java Streams?', answerCount: 3, isAnswered: true, planId: null, batchId: null },
-    { id: 2, title: 'SQL JOIN vs Subquery', author: 'Jane Smith', category: 'SQL', content: 'Which is better for performance?', answerCount: 2, isAnswered: true, planId: null, batchId: null },
-    { id: 3, title: 'React useEffect cleanup', author: 'Mike Johnson', category: 'React', content: 'How to properly cleanup useEffect?', answerCount: 0, isAnswered: false, planId: null, batchId: null },
-  ];
+  formData: any = { title: '', authorName: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null };
+  questions: any[] = [];
 
   ngOnInit() {
+    this.loadQuestions();
     this.loadPlans();
     this.loadBatches();
+  }
+
+  loadQuestions() {
+    this.api.get<any[]>('/api/questions').subscribe({
+      next: (data) => { this.questions = data; },
+      error: (err) => { console.error('Failed to load questions:', err); }
+    });
   }
 
   loadPlans() {
@@ -107,8 +115,65 @@ export class QaAdminComponent implements OnInit {
     return batch ? batch.name : '';
   }
 
-  save() { if (this.editingId) { const i = this.questions.findIndex(q => q.id === this.editingId); if (i > -1) this.questions[i] = { ...this.formData, id: this.editingId }; } else { this.questions.push({ ...this.formData, id: Date.now() }); } this.resetForm(); }
-  edit(q: any) { this.editingId = q.id; this.formData = { ...q }; delete (this.formData as any).id; this.showForm = true; }
-  delete(q: any) { if (confirm('Delete?')) this.questions = this.questions.filter(x => x.id !== q.id); }
-  resetForm() { this.formData = { title: '', author: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null }; this.editingId = null; this.showForm = false; }
+  save() {
+    const payload: any = {
+      title: this.formData.title,
+      content: this.formData.content,
+      category: this.formData.category,
+      authorName: this.formData.authorName || 'Mentor',
+      isAnswered: this.formData.isAnswered,
+      answerCount: this.formData.answerCount || 0,
+      planId: this.formData.planId,
+      batchId: this.formData.batchId
+    };
+
+    if (this.editingId) {
+      this.api.put<any>(`/api/questions/${this.editingId}`, payload).subscribe({
+        next: (updated) => {
+          const i = this.questions.findIndex(q => q.id === this.editingId);
+          if (i > -1) this.questions[i] = updated;
+          this.resetForm();
+        },
+        error: (err) => { console.error('Failed to update question:', err); alert('Failed to update question'); }
+      });
+    } else {
+      this.api.post<any>('/api/questions', payload).subscribe({
+        next: (created) => {
+          this.questions.unshift(created);
+          this.resetForm();
+        },
+        error: (err) => { console.error('Failed to create question:', err); alert('Failed to create question'); }
+      });
+    }
+  }
+
+  edit(q: any) {
+    this.editingId = q.id;
+    this.formData = {
+      title: q.title,
+      authorName: q.authorName || '',
+      category: q.category || '',
+      content: q.content || '',
+      answerCount: q.answerCount || 0,
+      isAnswered: q.isAnswered || false,
+      planId: q.planId ?? null,
+      batchId: q.batchId ?? null
+    };
+    this.showForm = true;
+  }
+
+  delete(q: any) {
+    if (confirm('Delete this question?')) {
+      this.api.delete(`/api/questions/${q.id}`).subscribe({
+        next: () => { this.questions = this.questions.filter(x => x.id !== q.id); },
+        error: (err) => { console.error('Failed to delete question:', err); alert('Failed to delete question'); }
+      });
+    }
+  }
+
+  resetForm() {
+    this.formData = { title: '', authorName: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null };
+    this.editingId = null;
+    this.showForm = false;
+  }
 }

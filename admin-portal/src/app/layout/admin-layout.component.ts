@@ -23,6 +23,8 @@ import { AuthService } from '../services/auth.service';
       <a routerLink="/calendar-events" routerLinkActive="active" class="nav-item">📅 Calendar Events</a>
       <a routerLink="/assignments-admin" routerLinkActive="active" class="nav-item">📝 Assignments</a>
       <a routerLink="/exams-admin" routerLinkActive="active" class="nav-item">📋 Exams</a>
+      <a routerLink="/grading-admin" routerLinkActive="active" class="nav-item">✅ Grading</a>
+      <a routerLink="/attendance-admin" routerLinkActive="active" class="nav-item">🗓️ Attendance</a>
       <a routerLink="/achievements-admin" routerLinkActive="active" class="nav-item">🏆 Achievements</a>
       <a routerLink="/qa-admin" routerLinkActive="active" class="nav-item">💬 Q&A</a>
       <a routerLink="/payments" routerLinkActive="active" class="nav-item">💳 Payments</a>

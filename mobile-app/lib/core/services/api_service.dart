@@ -9,6 +9,9 @@ import '../../data/models/lesson.dart';
 import '../../data/models/event_model.dart';
 import '../../data/models/assignment_model.dart';
 import '../../data/models/exam_model.dart';
+import '../../data/models/question_model.dart';
+
+
 import '../../data/models/placement_drive_model.dart';
 
 class ApiService {
@@ -86,6 +89,136 @@ class ApiService {
     }
   }
 
+  /// Persists profile edits (name/email/phone/linkedin/github) to the backend.
+  /// The backend PUT /api/students/{id} requires name+email (NotBlank), so we
+  /// merge with the existing profile fields to avoid wiping them out.
+  Future<bool> updateUserProfile({
+    required String name,
+    required String email,
+    String? phone,
+    String? linkedin,
+    String? github,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return false;
+
+      // The backend PUT /api/students/{id} sets planId/batchId directly from the
+      // request body (admin portal relies on this to explicitly clear them), so we
+      // must fetch and re-send the student's current planId/batchId here, otherwise
+      // this self-service profile edit would silently unassign them from their
+      // batch and subscription plan.
+      final currentProfile = await getUserProfile();
+
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/students/$userId'),
+        headers: headers,
+        body: json.encode({
+          'name': name,
+          'email': email,
+          'phone': phone,
+          'linkedin': linkedin,
+          'github': github,
+          'planId': currentProfile?['planId'],
+          'batchId': currentProfile?['batchId'],
+          'isActive': currentProfile?['isActive'],
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating user profile: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getStudentDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return {};
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/dashboard/student/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {};
+    } catch (e) {
+      print('Error fetching student dashboard: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> getAttendanceHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return {'history': [], 'percentage': 0.0, 'presentCount': 0, 'totalEvents': 0};
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/attendance/student/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'history': [], 'percentage': 0.0, 'presentCount': 0, 'totalEvents': 0};
+    } catch (e) {
+      print('Error fetching attendance history: $e');
+      return {'history': [], 'percentage': 0.0, 'presentCount': 0, 'totalEvents': 0};
+    }
+  }
+
+  Future<Map<String, dynamic>> getPlacementOverview() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return {'items': [], 'totalPosted': 0, 'openCount': 0, 'appliedCount': 0, 'selectedCount': 0};
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/student-placements/overview/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'items': [], 'totalPosted': 0, 'openCount': 0, 'appliedCount': 0, 'selectedCount': 0};
+    } catch (e) {
+      print('Error fetching placement overview: $e');
+      return {'items': [], 'totalPosted': 0, 'openCount': 0, 'appliedCount': 0, 'selectedCount': 0};
+    }
+  }
+
+  Future<bool> applyToPlacementDrive(int driveId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return false;
+
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/student-placements/apply'),
+        headers: headers,
+        body: json.encode({'userId': userId, 'driveId': driveId}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error applying to placement drive: $e');
+      return false;
+    }
+  }
+
   Future<List<CourseModel>> getCourses() async {
     try {
       final headers = await _getHeaders();
@@ -108,8 +241,18 @@ class ApiService {
   Future<List<EventModel>> getEvents() async {
     try {
       final headers = await _getHeaders();
+      final prefs = await SharedPreferences.getInstance();
+      final batchId = prefs.getInt('batchId');
+
+      String uri;
+      if (batchId != null) {
+        uri = '$baseUrl/events/batch/$batchId';
+      } else {
+        uri = '$baseUrl/events';
+      }
+
       final response = await http.get(
-        Uri.parse('$baseUrl/events'),
+        Uri.parse(uri),
         headers: headers,
       );
 
@@ -430,9 +573,282 @@ class ApiService {
         headers: headers,
         body: json.encode({'userId': userId}),
       );
-      return response.statusCode == 200;
+            return response.statusCode == 200;
     } catch (e) {
       print('Error submitting exam: $e');
+      return false;
+    }
+  }
+
+  Future<List<QuestionModel>> getQuestions() async {
+    try {
+      final headers = await _getHeaders();
+      final prefs = await SharedPreferences.getInstance();
+      final batchId = prefs.getInt('batchId');
+
+      String uri;
+      if (batchId != null) {
+        uri = '$baseUrl/questions/batch/$batchId';
+      } else {
+        uri = '$baseUrl/questions';
+      }
+
+      final response = await http.get(
+        Uri.parse(uri),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => QuestionModel.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching questions: $e');
+      return [];
+    }
+  }
+
+  Future<List<AnswerModel>> getAnswersByQuestion(int questionId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/questions/$questionId/answers'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => AnswerModel.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching answers: $e');
+      return [];
+    }
+  }
+
+  Future<QuestionModel?> createQuestion({
+    required String title,
+    required String content,
+    required String category,
+    String? authorName,
+    int? planId,
+    int? batchId,
+    int? userId,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final prefs = await SharedPreferences.getInstance();
+      final currentUserId = prefs.getInt('userId');
+      final currentBatchId = prefs.getInt('batchId');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/questions'),
+        headers: headers,
+        body: json.encode({
+          'title': title,
+          'content': content,
+          'category': category,
+          'authorName': authorName,
+          'planId': planId,
+          'batchId': batchId ?? currentBatchId,
+          'userId': userId ?? currentUserId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return QuestionModel.fromJson(json.decode(response.body));
+      }
+      return null;
+    } catch (e) {
+      print('Error creating question: $e');
+      return null;
+    }
+  }
+
+  Future<AnswerModel?> createAnswer(int questionId, String content, {String? authorName}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/questions/$questionId/answers'),
+        headers: headers,
+        body: json.encode({
+          'content': content,
+          'authorName': authorName,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return AnswerModel.fromJson(json.decode(response.body));
+      }
+      return null;
+    } catch (e) {
+      print('Error creating answer: $e');
+      return null;
+    }
+  }
+
+  // MARK: - Notes APIs
+
+  Future<List<Map<String, dynamic>>> getNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/notes/user/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching notes: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> createNote({required String title, required String content, int? lessonId}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return null;
+
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/notes'),
+        headers: headers,
+        body: json.encode({
+          'userId': userId,
+          'lessonId': lessonId,
+          'title': title,
+          'content': content,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('Error creating note: $e');
+      return null;
+    }
+  }
+
+  Future<bool> updateNote(int noteId, {String? title, String? content}) async {
+    try {
+      final headers = await _getHeaders();
+      final body = <String, dynamic>{};
+      if (title != null) body['title'] = title;
+      if (content != null) body['content'] = content;
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/notes/$noteId'),
+        headers: headers,
+        body: json.encode(body),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating note: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteNote(int noteId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/notes/$noteId'),
+        headers: headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error deleting note: $e');
+      return false;
+    }
+  }
+
+  // MARK: - Mentor Grading APIs
+
+  Future<List<Map<String, dynamic>>> getAssignmentSubmissionsForMentor(int batchId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/assignment-submissions'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching assignment submissions: $e');
+      return [];
+    }
+  }
+
+  Future<bool> gradeAssignmentSubmission(int submissionId, {int? marksObtained, String? feedback}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/assignment-submissions/$submissionId'),
+        headers: headers,
+        body: json.encode({
+          'marksObtained': marksObtained,
+          'feedback': feedback,
+          'isGraded': marksObtained != null,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error grading assignment submission: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getExamSubmissionsForMentor(int batchId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/exam-submissions'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching exam submissions: $e');
+      return [];
+    }
+  }
+
+  Future<bool> gradeExamSubmission(int submissionId, {int? marksObtained, String? remarks}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/exam-submissions/$submissionId'),
+        headers: headers,
+        body: json.encode({
+          'marksObtained': marksObtained,
+          'remarks': remarks,
+          'isGraded': marksObtained != null,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error grading exam submission: $e');
       return false;
     }
   }

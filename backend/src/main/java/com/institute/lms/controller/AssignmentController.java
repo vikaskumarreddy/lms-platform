@@ -36,7 +36,7 @@ public class AssignmentController {
 
     @GetMapping("/batch/{batchId}")
     public List<Assignment> getAssignmentsByBatch(@PathVariable Long batchId) {
-        return assignmentRepository.findByBatchIdsContaining(batchId);
+        return assignmentRepository.findVisibleToBatch(batchId);
     }
 
     @GetMapping("/course/{courseId}")
@@ -49,17 +49,15 @@ public class AssignmentController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (user.getBatchId() == null) {
-            return ResponseEntity.ok(Map.of(
-                "assignments", Collections.emptyList(),
-                "totalAssignments", 0,
-                "pendingCount", 0,
-                "submittedCount", 0,
-                "overdueCount", 0
-            ));
-        }
-
-        List<Assignment> assignments = assignmentRepository.findByBatchIdsContaining(user.getBatchId());
+        // Assignments with no batch restriction ("All Batches" in the admin portal) are
+        // visible to every student, in addition to assignments explicitly targeted at the
+        // student's own batch. Previously this returned an empty list whenever the student
+        // had no batch assigned, hiding "All Batches" assignments entirely.
+        List<Assignment> assignments = user.getBatchId() != null
+                ? assignmentRepository.findVisibleToBatch(user.getBatchId())
+                : assignmentRepository.findAll().stream()
+                        .filter(a -> a.getBatchIds() == null || a.getBatchIds().isEmpty())
+                        .collect(Collectors.toList());
         
         List<AssignmentSubmission> submissions = assignmentSubmissionRepository.findByUserId(userId);
         Map<Long, AssignmentSubmission> submissionMap = submissions.stream()

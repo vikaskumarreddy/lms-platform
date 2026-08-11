@@ -19,6 +19,8 @@ import { EventsAdminComponent } from './pages/events-admin/events-admin.componen
 import { BookmarksAdminComponent } from './pages/bookmarks-admin/bookmarks-admin.component';
 import { HomeContentComponent } from './pages/home-content/home-content.component';
 import { BatchesComponent } from './pages/batches/batches.component';
+import { GradingAdminComponent } from './pages/grading-admin/grading-admin.component';
+import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
@@ -36,6 +38,8 @@ export const routes: Routes = [
       { path: 'calendar-events', component: CalendarEventsComponent },
       { path: 'assignments-admin', component: AssignmentsAdminComponent },
       { path: 'exams-admin', component: ExamsAdminComponent },
+      { path: 'grading-admin', component: GradingAdminComponent },
+      { path: 'attendance-admin', component: AttendanceAdminComponent },
       { path: 'achievements-admin', component: AchievementsAdminComponent },
       { path: 'qa-admin', component: QaAdminComponent },
       { path: 'notifications-admin', component: NotificationsAdminComponent },

@@ -3,7 +3,6 @@ import 'package:lms_student_app/core/services/api_service.dart';
 import 'package:lms_student_app/data/models/course_model.dart';
 import 'package:lms_student_app/data/models/course_section.dart';
 import 'package:lms_student_app/data/models/lesson.dart';
-import 'package:lms_student_app/data/models/event_model.dart';
 import 'package:lms_student_app/data/models/assignment_model.dart';
 import 'package:lms_student_app/data/models/exam_model.dart';
 import 'package:lms_student_app/data/models/placement_drive_model.dart';
@@ -31,11 +30,6 @@ final lessonProvider = FutureProvider.family<Lesson?, int>((ref, lessonId) async
   return api.getLesson(lessonId);
 });
 
-final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
-  final api = ref.watch(apiServiceProvider);
-  return api.getEvents();
-});
-
 final assignmentsProvider = FutureProvider<List<AssignmentModel>>((ref) async {
   final api = ref.watch(apiServiceProvider);
   return api.getAssignments();
@@ -60,4 +54,14 @@ final bookmarksProvider = FutureProvider<List<BookmarkModel>>((ref) async {
   final api = ref.watch(apiServiceProvider);
   final bookmarksJson = await api.getBookmarks();
   return bookmarksJson.map((json) => BookmarkModel.fromJson(json)).toList();
+});
+
+final placementOverviewProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getPlacementOverview();
+});
+
+final attendanceHistoryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getAttendanceHistory();
 });

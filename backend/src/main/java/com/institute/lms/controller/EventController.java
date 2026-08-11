@@ -31,7 +31,7 @@ public class EventController {
 
     @GetMapping("/batch/{batchId}")
     public List<Event> getEventsByBatch(@PathVariable Long batchId) {
-        return eventRepository.findByBatchId(batchId);
+        return eventRepository.findByBatchIdIsNullOrBatchId(batchId);
     }
 
     @GetMapping("/plan/{planId}")

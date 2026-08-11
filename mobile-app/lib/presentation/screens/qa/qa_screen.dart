@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/services/api_service.dart';
+import '../../../data/models/question_model.dart';
 
 class QaScreen extends StatefulWidget {
   const QaScreen({super.key});
@@ -10,92 +12,41 @@ class QaScreen extends StatefulWidget {
 class _QaScreenState extends State<QaScreen> {
   String _selectedFilter = 'All';
   final _questionController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _categoryController = TextEditingController();
   bool _showAskForm = false;
+  bool _isLoading = true;
+  List<QuestionModel> _questions = [];
 
   final List<String> _filters = ['All', 'Java', 'SQL', 'DSA', 'Web', 'Coding'];
 
-  final List<_QAItem> _questions = [
-    _QAItem(
-      id: 1,
-      title: 'What is the difference between == and .equals() in Java?',
-      question: 'I am confused about when to use == and when to use .equals() for string comparison in Java.',
-      author: 'Rahul Kumar',
-      time: '2 hours ago',
-      category: 'Java',
-      answers: 4,
-      votes: 12,
-      isAnswered: true,
-      authorInitial: 'R',
-      authorColor: const Color(0xFF3B82F6),
-      answersList: [
-        _Answer(author: 'Priya Sharma', time: '1 hour ago', body: '== compares object references, .equals() compares content. For strings always use .equals().', votes: 8, isAccepted: true),
-      ],
-    ),
-    _QAItem(
-      id: 2,
-      title: 'How to optimize SQL queries with large datasets?',
-      question: 'I have a query that runs slowly on a table with millions of rows.',
-      author: 'Sneha Reddy',
-      time: '5 hours ago',
-      category: 'SQL',
-      answers: 3,
-      votes: 9,
-      isAnswered: true,
-      authorInitial: 'S',
-      authorColor: const Color(0xFF10B981),
-      answersList: [
-        _Answer(author: 'Vikram Singh', time: '3 hours ago', body: 'Add indexes on WHERE columns, avoid SELECT *, use EXPLAIN ANALYZE.', votes: 6, isAccepted: true),
-      ],
-    ),
-    _QAItem(
-      id: 3,
-      title: 'How to reverse a linked list recursively?',
-      question: 'I understand iterative approach but struggling with recursive solution.',
-      author: 'Arjun Nair',
-      time: '1 day ago',
-      category: 'DSA',
-      answers: 2,
-      votes: 15,
-      isAnswered: true,
-      authorInitial: 'A',
-      authorColor: const Color(0xFF8B5CF6),
-      answersList: [
-        _Answer(author: 'Kavya Iyer', time: '20 hours ago', body: 'Assume rest is reversed, then fix pointers. Base case: null or single node.', votes: 10, isAccepted: true),
-      ],
-    ),
-    _QAItem(
-      id: 4,
-      title: 'What is hoisting in JavaScript?',
-      question: 'I need a clear explanation with examples about var vs let vs const hoisting.',
-      author: 'Rohan Das',
-      time: '2 days ago',
-      category: 'Web',
-      answers: 0,
-      votes: 5,
-      isAnswered: false,
-      authorInitial: 'R',
-      authorColor: const Color(0xFF06B6D4),
-      answersList: [],
-    ),
-    _QAItem(
-      id: 5,
-      title: 'How to handle null pointer exceptions in Java?',
-      question: 'What are the best practices for avoiding NullPointerExceptions?',
-      author: 'Pooja Verma',
-      time: '3 days ago',
-      category: 'Java',
-      answers: 5,
-      votes: 18,
-      isAnswered: true,
-      authorInitial: 'P',
-      authorColor: const Color(0xFFF97316),
-      answersList: [
-        _Answer(author: 'Arun Kumar', time: '2 days ago', body: 'Use Objects.requireNonNull(), Optional for return types, never return null.', votes: 12, isAccepted: true),
-      ],
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadQuestions();
+  }
 
-  List<_QAItem> get _filteredQuestions {
+  Future<void> _loadQuestions() async {
+    try {
+      final questions = await ApiService().getQuestions();
+      if (!mounted) return;
+      setState(() {
+        _questions = questions;
+        final backendCategories = questions.map((q) => q.category).toSet().toList();
+        for (final cat in backendCategories) {
+          if (cat.isNotEmpty && !_filters.contains(cat)) {
+            _filters.add(cat);
+          }
+        }
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  List<QuestionModel> get _filteredQuestions {
     if (_selectedFilter == 'All') return _questions;
     return _questions.where((q) => q.category == _selectedFilter).toList();
   }
@@ -103,23 +54,75 @@ class _QaScreenState extends State<QaScreen> {
   @override
   void dispose() {
     _questionController.dispose();
+    _titleController.dispose();
+    _categoryController.dispose();
     super.dispose();
   }
 
-  void _submitQuestion() {
+  String _formatTimeAgo(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return 'Recently';
+    final date = DateTime.tryParse(isoDate);
+    if (date == null) return 'Recently';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 2) return 'yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${date.year}/${date.month}/${date.day}';
+  }
+
+  Color _categoryColor(String category) {
+    final colors = <Color>[
+      const Color(0xFF3B82F6), const Color(0xFF10B981), const Color(0xFF8B5CF6),
+      const Color(0xFF06B6D4), const Color(0xFFF97316), const Color(0xFFEC4899),
+    ];
+    return colors[category.hashCode % colors.length];
+  }
+
+  String _authorInitial(String authorName) {
+    if (authorName.isEmpty) return '?';
+    return authorName[0].toUpperCase();
+  }
+
+  void _submitQuestion() async {
     final text = _questionController.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      _showAskForm = false;
-      _questionController.clear();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Your question has been posted successfully'),
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
+    final title = _titleController.text.trim();
+    final category = _categoryController.text.trim().isEmpty ? 'General' : _categoryController.text.trim();
+    if (text.isEmpty || title.isEmpty) return;
+
+    final result = await ApiService().createQuestion(
+      title: title,
+      content: text,
+      category: category,
     );
+
+    if (result != null) {
+      if (!mounted) return;
+      setState(() {
+        _showAskForm = false;
+        _questionController.clear();
+        _titleController.clear();
+        _categoryController.clear();
+        _questions.insert(0, result);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your question has been posted successfully'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to post question. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -136,126 +139,160 @@ class _QaScreenState extends State<QaScreen> {
         icon: Icon(_showAskForm ? Icons.close : Icons.add),
         label: Text(_showAskForm ? 'Cancel' : 'Ask Question'),
       ),
-      body: Column(
-        children: [
-          if (_showAskForm)
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: secondaryColor.withOpacity(0.5)),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Ask a Question', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _questionController,
-                  maxLines: 3,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                    hintText: 'Describe your question in detail...',
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: Color(0xFFF8FAFC),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                if (_showAskForm)
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: secondaryColor.withOpacity(0.5)),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Ask a Question', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _titleController,
+                        decoration: const InputDecoration(
+                          hintText: 'Question title',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _questionController,
+                        maxLines: 3,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          hintText: 'Describe your question in detail...',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: ['Java', 'SQL', 'DSA', 'Web', 'Coding'].map((tag) =>
+                              FilterChip(
+                                label: Text(tag, style: const TextStyle(fontSize: 11)),
+                                selected: _categoryController.text == tag,
+                                onSelected: (_) => setState(() => _categoryController.text = tag),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ).toList(),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: _submitQuestion,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: secondaryColor,
+                            foregroundColor: primaryColor,
+                          ),
+                          child: const Text('Post Question'),
+                        ),
+                      ]),
+                    ]),
+                  ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, primaryColor.withOpacity(0.85)],
+                    ),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Community Q&A', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_questions.length} questions • ${_questions.where((q) => q.isAnswered).length} answered',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                  ]),
+                ),
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    children: _filters.map((filter) {
+                      final isSelected = _selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(filter),
+                          selected: isSelected,
+                          onSelected: (_) => setState(() => _selectedFilter = filter),
+                          selectedColor: secondaryColor,
+                          labelStyle: TextStyle(
+                            color: isSelected ? primaryColor : Colors.grey.shade700,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: ['Java', 'SQL', 'DSA', 'Web', 'Coding'].map((tag) =>
-                        FilterChip(
-                          label: Text(tag, style: const TextStyle(fontSize: 11)),
-                          selected: false,
-                          onSelected: (_) {},
-                          visualDensity: VisualDensity.compact,
+                Expanded(
+                  child: _filteredQuestions.isEmpty
+                      ? Center(
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade300),
+                            const SizedBox(height: 12),
+                            Text('No questions yet', style: TextStyle(color: Colors.grey.shade500)),
+                            const SizedBox(height: 4),
+                            Text('Be the first to ask!', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                          ]),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadQuestions,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                            itemCount: _filteredQuestions.length,
+                            itemBuilder: (context, index) => _QuestionCard(
+                              qa: _filteredQuestions[index],
+                              formatTimeAgo: _formatTimeAgo,
+                              categoryColor: _categoryColor,
+                              authorInitial: _authorInitial,
+                            ),
+                          ),
                         ),
-                      ).toList(),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _submitQuestion,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: secondaryColor,
-                      foregroundColor: primaryColor,
-                    ),
-                    child: const Text('Post Question'),
-                  ),
-                ]),
-              ]),
+                ),
+              ],
             ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [primaryColor, primaryColor.withOpacity(0.85)],
-              ),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Community Q&A', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('${_questions.length} questions • ${_questions.where((q) => q.isAnswered).length} answered',
-                  style: TextStyle(color: Colors.white70, fontSize: 13)),
-            ]),
-          ),
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: _filters.map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedFilter = filter),
-                    selectedColor: secondaryColor,
-                    backgroundColor: Colors.grey.shade100,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.black : Colors.grey.shade700,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          Expanded(
-            child: _filteredQuestions.isEmpty
-                ? Center(
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
-                      Text('No questions found', style: TextStyle(color: Colors.grey.shade500)),
-                    ]),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                    itemCount: _filteredQuestions.length,
-                    itemBuilder: (context, index) => _QuestionCard(qa: _filteredQuestions[index]),
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }
 
 class _QuestionCard extends StatelessWidget {
-  final _QAItem qa;
-  const _QuestionCard({required this.qa});
+  final QuestionModel qa;
+  final String Function(String?) formatTimeAgo;
+  final Color Function(String) categoryColor;
+  final String Function(String) authorInitial;
+
+  const _QuestionCard({
+    required this.qa,
+    required this.formatTimeAgo,
+    required this.categoryColor,
+    required this.authorInitial,
+  });
 
   @override
   Widget build(BuildContext context) {
     final secondaryColor = const Color(0xFFEAB308);
+    final authorColor = categoryColor(qa.category);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 1,
@@ -266,40 +303,40 @@ class _QuestionCard extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: qa.authorColor.withOpacity(0.15),
-              child: Text(qa.authorInitial, style: TextStyle(color: qa.authorColor, fontWeight: FontWeight.bold, fontSize: 14)),
+              backgroundColor: authorColor.withOpacity(0.15),
+              child: Text(authorInitial(qa.authorName), style: TextStyle(color: authorColor, fontWeight: FontWeight.bold, fontSize: 14)),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(qa.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 2),
-                Text('${qa.author} • ${qa.time}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                Text('${qa.authorName} • ${formatTimeAgo(qa.createdAt)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: qa.authorColor.withOpacity(0.1),
+                    color: authorColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(qa.category, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: qa.authorColor)),
+                  child: Text(qa.category, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: authorColor)),
                 ),
               ]),
             ),
             IconButton(
               icon: Icon(
-                qa.answers > 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                color: qa.answers > 0 ? Colors.green : Colors.grey.shade400,
+                qa.answerCount > 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
+                color: qa.answerCount > 0 ? Colors.green : Colors.grey.shade400,
                 size: 18,
               ),
               onPressed: () {},
-              tooltip: '${qa.answers} answers',
+              tooltip: '${qa.answerCount} answers',
             ),
           ]),
           const SizedBox(height: 8),
-          if (qa.question.isNotEmpty)
+          if (qa.content.isNotEmpty)
             Text(
-              qa.question,
+              qa.content,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4),
@@ -320,7 +357,7 @@ class _QuestionCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${qa.answers} Answers',
+                  '${qa.answerCount} Answers',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -332,7 +369,7 @@ class _QuestionCard extends StatelessWidget {
             const SizedBox(width: 12),
             Icon(Icons.thumb_up_outlined, size: 14, color: Colors.grey.shade500),
             const SizedBox(width: 4),
-            Text('${qa.votes}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text('${qa.voteCount}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             const Spacer(),
             Text('View', style: TextStyle(fontSize: 12, color: Colors.blue.shade600, fontWeight: FontWeight.w600)),
           ]),
@@ -340,50 +377,4 @@ class _QuestionCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _QAItem {
-  final int id;
-  final String title;
-  final String question;
-  final String author;
-  final String time;
-  final String category;
-  final int answers;
-  final int votes;
-  final bool isAnswered;
-  final String authorInitial;
-  final Color authorColor;
-  final List<_Answer> answersList;
-
-  _QAItem({
-    required this.id,
-    required this.title,
-    required this.question,
-    required this.author,
-    required this.time,
-    required this.category,
-    required this.answers,
-    required this.votes,
-    required this.isAnswered,
-    required this.authorInitial,
-    required this.authorColor,
-    required this.answersList,
-  });
-}
-
-class _Answer {
-  final String author;
-  final String time;
-  final String body;
-  final int votes;
-  final bool isAccepted;
-
-  _Answer({
-    required this.author,
-    required this.time,
-    required this.body,
-    required this.votes,
-    required this.isAccepted,
-  });
 }

@@ -6,6 +6,7 @@ import '../../../core/providers/router_provider.dart';
 import '../../../core/providers/notification_preferences_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/constants/routes.dart';
+import '../../../core/utils/avatar_utils.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -26,7 +27,14 @@ class SettingsScreen extends ConsumerWidget {
           // Account section
           Card(child: Column(children: [
             ListTile(
-              leading: const Icon(Icons.person_outline, size: 32, color: Color(0xFF0F172A)),
+              leading: CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFF0F172A),
+                child: Text(
+                  AvatarUtils.initialsFor(authState.user?.fullName),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
               title: Text(authState.user?.fullName ?? 'Student User', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(authState.user?.email ?? ''),
             ),

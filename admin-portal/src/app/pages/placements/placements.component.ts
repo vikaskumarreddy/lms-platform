@@ -17,6 +17,16 @@ interface Drive {
   planId?: number;
 }
 
+interface StudentApplication {
+  id: number;
+  user: { id: number; name?: string; fullName?: string; email?: string };
+  companyName: string;
+  role: string;
+  driveId?: number;
+  status: 'OPEN' | 'APPLIED' | 'SELECTED' | 'REJECTED';
+  placedDate?: string;
+}
+
 interface SubscriptionPlan {
   id: number;
   name: string;
@@ -58,6 +68,42 @@ interface SubscriptionPlan {
           </tr>
           <tr *ngIf="drives.length === 0">
             <td colspan="8" style="text-align:center;color:#64748B;padding:32px;">No placement drives found. Click "+ Add Drive" to create one.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 16px;">Student Applications</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Student</th><th>Company</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let a of applications">
+            <td>{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</td>
+            <td>{{ a.companyName }}</td>
+            <td>{{ a.role }}</td>
+            <td>
+              <span class="badge"
+                    [class.badge-success]="a.status === 'SELECTED'"
+                    [class.badge-warning]="a.status === 'APPLIED'"
+                    [class.badge-danger]="a.status === 'REJECTED'">
+                {{ a.status }}
+              </span>
+            </td>
+            <td>
+              <select [ngModel]="a.status" (ngModelChange)="updateApplicationStatus(a, $event)"
+                      style="padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
+                <option value="OPEN">Open</option>
+                <option value="APPLIED">Applied</option>
+                <option value="SELECTED">Selected</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </td>
+          </tr>
+          <tr *ngIf="applications.length === 0">
+            <td colspan="5" style="text-align:center;color:#64748B;padding:32px;">No student applications yet.</td>
           </tr>
         </tbody>
       </table>
@@ -180,6 +226,7 @@ interface SubscriptionPlan {
 export class PlacementsComponent implements OnInit {
   drives: Drive[] = [];
   plans: SubscriptionPlan[] = [];
+  applications: StudentApplication[] = [];
   showModal = false;
   editingDrive: Drive | null = null;
   saving = false;
@@ -203,6 +250,26 @@ export class PlacementsComponent implements OnInit {
   ngOnInit() {
     this.loadDrives();
     this.loadPlans();
+    this.loadApplications();
+  }
+
+  loadApplications() {
+    this.apiService.get<StudentApplication[]>('/api/student-placements').subscribe({
+      next: (data) => { this.applications = data; },
+      error: (err) => { console.error('Failed to load applications', err); this.applications = []; }
+    });
+  }
+
+  updateApplicationStatus(application: StudentApplication, status: string) {
+    this.apiService.put(`/api/student-placements/${application.id}/status`, { status }).subscribe({
+      next: () => {
+        application.status = status as StudentApplication['status'];
+      },
+      error: (err) => {
+        console.error('Failed to update status', err);
+        alert('Failed to update application status.');
+      }
+    });
   }
 
   loadDrives() {

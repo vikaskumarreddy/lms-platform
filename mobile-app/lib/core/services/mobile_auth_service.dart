@@ -53,11 +53,13 @@ class MobileAuthService {
     final token = body['accessToken'] ?? '';
     final user = AuthUser.fromJson(body['user'] ?? body);
 
-    await prefs.setString(_tokenKey, token);
+        await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, json.encode(user.toJson()));
     if (user.id != null) {
       await prefs.setInt(_userIdKey, user.id!);
-      await prefs.setInt(_batchIdKey, user.batchId!);
+      if (user.batchId != null) {
+        await prefs.setInt(_batchIdKey, user.batchId!);
+      }
     }
 
     return AuthResponse(token: token, user: user);
@@ -95,21 +97,25 @@ class MobileAuthService {
     final token = body['accessToken'] ?? '';
     final user = AuthUser.fromJson(body['user'] ?? body);
 
-    await prefs.setString(_tokenKey, token);
+        await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, json.encode(user.toJson()));
     if (user.id != null) {
       await prefs.setInt(_userIdKey, user.id!);
+      if (user.batchId != null) {
+        await prefs.setInt(_batchIdKey, user.batchId!);
+      }
     }
 
     return AuthResponse(token: token, user: user);
   }
 
-  /// Clears all stored auth data, effectively logging the user out.
+    /// Clears all stored auth data, effectively logging the user out.
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
     await prefs.remove(_userIdKey);
+    await prefs.remove(_batchIdKey);
   }
 }
 

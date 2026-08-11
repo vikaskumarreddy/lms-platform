@@ -34,9 +34,16 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
   }
 
   Future<void> _checkLoginStatus() async {
+    state = state.copyWith(isLoading: true);
     final loggedIn = await _auth.isLoggedIn();
     final user = loggedIn ? await _auth.getUser() : null;
-    state = state.copyWith(isLoggedIn: loggedIn, user: user);
+    state = state.copyWith(isLoggedIn: loggedIn, user: user, isLoading: false);
+    // Re-sync the subscription plan from the backend whenever a persisted
+    // session is restored (e.g. app restart), otherwise the subscription
+    // state resets to Free and previously-unlocked courses appear locked.
+    if (loggedIn) {
+      await _syncSubscription();
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -66,6 +73,7 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
   Future<void> logout() async {
     await _auth.logout();
     state = state.copyWith(isLoggedIn: false, user: null);
+    _ref.read(subscriptionProvider.notifier).reset();
   }
 
   /// Fetch the user profile from backend and sync the subscription plan.

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/routes.dart';
 import '../../../../core/providers/data_providers.dart';
 import '../../../../core/widgets/common_header.dart';
+import '../../../../core/utils/avatar_utils.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -18,6 +19,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _phoneController = TextEditingController();
   final _linkedinController = TextEditingController();
   final _githubController = TextEditingController();
+
+  bool _isSaving = false;
+
+  Future<void> _toggleEditOrSave(BuildContext context) async {
+    if (!_isEditing) {
+      setState(() => _isEditing = true);
+      return;
+    }
+    // Currently editing -> persist changes to backend.
+    setState(() => _isSaving = true);
+    final success = await ref.read(apiServiceProvider).updateUserProfile(
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: _phoneController.text.trim(),
+          linkedin: _linkedinController.text.trim(),
+          github: _githubController.text.trim(),
+        );
+    if (!mounted) return;
+    setState(() {
+      _isSaving = false;
+      _isEditing = false;
+    });
+    ref.invalidate(userProfileProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(success ? 'Profile updated successfully' : 'Failed to update profile. Please try again.')),
+    );
+  }
 
   @override
   void dispose() {
@@ -39,7 +67,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: CommonHeader(
         title: 'Profile',
         actions: [
-          IconButton(icon: Icon(_isEditing ? Icons.check : Icons.edit_outlined), onPressed: () { setState(() { _isEditing = !_isEditing; if (!_isEditing) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully'))); } }); }),
+          IconButton(icon: Icon(_isEditing ? Icons.check : Icons.edit_outlined), onPressed: () => _toggleEditOrSave(context)),
         ],
       ),
       body: profileAsync.when(
@@ -74,7 +102,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-                const CircleAvatar(radius: 50, backgroundColor: Color(0xFF0F172A), child: Icon(Icons.person, size: 50, color: Colors.white)),
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: const Color(0xFF0F172A),
+                  child: Text(
+                    AvatarUtils.initialsFor(profile?['name'] ?? _nameController.text),
+                    style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 if (_isEditing)
                   TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()))
@@ -92,7 +127,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text('Personal Information', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-                  TextButton.icon(onPressed: () => setState(() => _isEditing = !_isEditing), icon: Icon(_isEditing ? Icons.check : Icons.edit, size: 18), label: Text(_isEditing ? 'Save' : 'Edit')),
+                  TextButton.icon(onPressed: _isSaving ? null : () => _toggleEditOrSave(context), icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(_isEditing ? Icons.check : Icons.edit, size: 18), label: Text(_isEditing ? 'Save' : 'Edit')),
                 ]),
                 const SizedBox(height: 12),
                 if (_isEditing) ...[

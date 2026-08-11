@@ -21,6 +21,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   ];
 
   List<_CalendarEvent> _allEvents = [];
+  Map<int, bool> _attendanceByEventId = {};
 
   @override
   void initState() {
@@ -37,6 +38,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
     } catch (_) {
       events = [];
     }
+
+    try {
+      final attendance = await ApiService().getAttendanceHistory();
+      final history = (attendance['history'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      _attendanceByEventId = {
+        for (final h in history)
+          if (h['eventId'] != null) (h['eventId'] as num).toInt(): h['present'] == true,
+      };
+    } catch (_) {
+      _attendanceByEventId = {};
+    }
+
     final grouped = <String, List<_CalendarEvent>>{};
     for (final e in events) {
       final dt = DateTime.tryParse(e.startTime ?? '');
@@ -91,6 +104,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
   _EventItem _toEventItem(EventModel e, DateTime dt) {
     final now = DateTime.now();
     final isPast = dt.isBefore(now);
+    final attendance = _attendanceByEventId[e.id];
+    String status;
+    if (attendance != null) {
+      status = attendance ? 'Attended' : 'Missed';
+    } else if (isPast) {
+      status = 'Completed';
+    } else {
+      status = 'Upcoming';
+    }
     return _EventItem(
       title: e.title,
       time: e.time.isEmpty ? 'All Day' : e.time,
@@ -98,7 +120,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       type: e.eventType ?? 'Event',
       isPast: isPast,
       meetLink: e.meetLink ?? '',
-      status: isPast ? 'Completed' : 'Upcoming',
+      status: status,
     );
   }
 
@@ -205,8 +227,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(event.day, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('${event.items.length} events', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  Text(
+                    event.items.length == 1
+                        ? event.items.first.title
+                        : '${event.items.first.title} +${event.items.length - 1} more',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    event.items.length == 1 ? '1 event' : '${event.items.length} events',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
                 ]),
               ),
               Icon(isSelected ? Icons.expand_less : Icons.expand_more, color: secondaryColor),
