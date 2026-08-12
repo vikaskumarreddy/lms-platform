@@ -61,4 +61,14 @@ public class UserController {
         }
         return ResponseEntity.notFound().build();
     }
+
+    /**
+     * Registers/refreshes the mobile app's FCM device token for push
+     * notifications. Called on login and whenever Firebase rotates the token.
+     */
+    @PutMapping("/{id}/fcm-token")
+    public ResponseEntity<Void> updateFcmToken(@PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
+        boolean updated = userService.updateFcmToken(id, body.get("fcmToken"));
+        return updated ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
+    }
 }

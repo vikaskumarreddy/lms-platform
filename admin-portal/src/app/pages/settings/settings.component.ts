@@ -36,7 +36,7 @@ interface SystemConfigItem {
               {{ cfg.description || cfg.configKey }}
               <span *ngIf="cfg.isSecret" style="color:#B45309;font-size:11px;">🔒 secret</span>
             </label>
-            <div style="display:flex;gap:8px;">
+            <div *ngIf="!isLongField(cfg)" style="display:flex;gap:8px;">
               <input
                 [type]="cfg.isSecret && !revealed[cfg.id] ? 'password' : 'text'"
                 [(ngModel)]="cfg.configValue"
@@ -46,6 +46,13 @@ interface SystemConfigItem {
                       style="padding:0 12px;" (click)="revealed[cfg.id] = !revealed[cfg.id]">
                 {{ revealed[cfg.id] ? 'Hide' : 'Show' }}
               </button>
+            </div>
+            <div *ngIf="isLongField(cfg)">
+              <textarea
+                [(ngModel)]="cfg.configValue"
+                [placeholder]="cfg.configKey === 'firebase.serviceAccountJson' ? 'Paste the full Firebase service-account JSON here...' : cfg.configKey"
+                rows="6"
+                style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;font-family:monospace;font-size:12px;resize:vertical;"></textarea>
             </div>
           </div>
           <button class="btn btn-primary" [disabled]="saving" (click)="saveCategory(category)">
@@ -92,9 +99,14 @@ export class SettingsComponent implements OnInit {
       FIREBASE: 'Firebase Configuration',
       PAYMENTS: 'Payment Settings (Razorpay)',
       SECURITY: 'Security (JWT)',
+      PUSH_NOTIFICATIONS: '🔔 Push Notifications',
       GENERAL: 'General'
     };
     return labels[category] || category;
+  }
+
+  isLongField(cfg: SystemConfigItem): boolean {
+    return cfg.configKey === 'firebase.serviceAccountJson';
   }
 
   saveCategory(category: string) {

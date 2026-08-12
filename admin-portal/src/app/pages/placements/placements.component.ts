@@ -15,6 +15,17 @@ interface Drive {
   deadline: string;
   isActive: boolean;
   planId?: number;
+  driveType?: 'INTERNAL' | 'EXTERNAL';
+}
+
+interface InterviewSlot {
+  id: number;
+  driveId: number;
+  slotTime: string;
+  location?: string;
+  notes?: string;
+  bookedByUserId?: number;
+  status: 'AVAILABLE' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 }
 
 interface StudentApplication {
@@ -47,12 +58,17 @@ interface SubscriptionPlan {
     <div class="card">
       <table>
         <thead>
-          <tr><th>Company</th><th>Role</th><th>Package</th><th>Location</th><th>Plan</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+          <tr><th>Company</th><th>Role</th><th>Type</th><th>Package</th><th>Location</th><th>Plan</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
         </thead>
         <tbody>
           <tr *ngFor="let d of drives">
             <td>{{d.companyName}}</td>
             <td>{{d.role}}</td>
+            <td>
+              <span class="badge" [class.badge-success]="d.driveType === 'INTERNAL'" [class.badge-info]="d.driveType !== 'INTERNAL'">
+                {{ d.driveType === 'INTERNAL' ? '🏢 Internal' : '🌐 External' }}
+              </span>
+            </td>
             <td>{{d.packageAmount ? '₹' + d.packageAmount + ' LPA' : '-'}}</td>
             <td>{{d.location || '-'}}</td>
             <td>
@@ -62,12 +78,13 @@ interface SubscriptionPlan {
             <td>{{d.deadline ? (d.deadline | slice:0:10) : '-'}}</td>
             <td><span class="badge" [class.badge-success]="d.isActive" [class.badge-danger]="!d.isActive">{{d.isActive ? 'Active' : 'Inactive'}}</span></td>
             <td>
+              <button *ngIf="d.driveType === 'INTERNAL'" class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openSlotsModal(d)">Slots</button>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openEditModal(d)">Edit</button>
               <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="deleteDrive(d)">Delete</button>
             </td>
           </tr>
           <tr *ngIf="drives.length === 0">
-            <td colspan="8" style="text-align:center;color:#64748B;padding:32px;">No placement drives found. Click "+ Add Drive" to create one.</td>
+            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No placement drives found. Click "+ Add Drive" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -130,6 +147,15 @@ interface SubscriptionPlan {
             <input type="text" [(ngModel)]="driveForm.role" name="role" required
                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
                    placeholder="e.g. SDE-1">
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Drive Type</label>
+            <select [(ngModel)]="driveForm.driveType" name="driveType"
+                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
+              <option value="EXTERNAL">🌐 External (company-run, apply link only)</option>
+              <option value="INTERNAL">🏢 Internal (institute-run, schedulable interview slots)</option>
+            </select>
           </div>
 
           <div style="margin-bottom:20px;">
@@ -202,6 +228,44 @@ interface SubscriptionPlan {
         </div>
       </div>
     </div>
+
+    <!-- Interview Slots Modal (INTERNAL drives) -->
+    <div class="modal-overlay" *ngIf="showSlotsModal" (click)="closeSlotsModal()">
+      <div class="modal-content" style="width:90%;max-width:640px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+          <h2 style="font-size:20px;font-weight:700;">Interview Slots — {{ slotsForDrive?.companyName }}</h2>
+          <button class="btn btn-secondary" (click)="closeSlotsModal()">✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <input type="datetime-local" [(ngModel)]="newSlot.slotTime" name="slotTime"
+                 style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Room 204 / Google Meet)"
+                 style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)"
+                 style="grid-column:1/-1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+        </div>
+        <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">+ Add Slot</button>
+
+        <table>
+          <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By (User ID)</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of slots">
+              <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
+              <td>{{ s.location || '-' }}</td>
+              <td>
+                <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
+              </td>
+              <td>{{ s.bookedByUserId || '-' }}</td>
+              <td><button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" (click)="deleteSlot(s)">Delete</button></td>
+            </tr>
+            <tr *ngIf="slots.length === 0">
+              <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   `,
   styles: [`
     .modal-overlay {
@@ -235,6 +299,7 @@ export class PlacementsComponent implements OnInit {
   driveForm: any = {
     companyName: '',
     role: '',
+    driveType: 'EXTERNAL',
     packageAmount: null,
     location: '',
     eligibility: '',
@@ -244,6 +309,11 @@ export class PlacementsComponent implements OnInit {
     isActive: true,
     planId: null
   };
+
+  showSlotsModal = false;
+  slotsForDrive: Drive | null = null;
+  slots: InterviewSlot[] = [];
+  newSlot: { slotTime: string; location: string; notes: string } = { slotTime: '', location: '', notes: '' };
 
   constructor(private apiService: ApiService) {}
 
@@ -308,6 +378,7 @@ export class PlacementsComponent implements OnInit {
     this.driveForm = {
       companyName: '',
       role: '',
+      driveType: 'EXTERNAL',
       packageAmount: null,
       location: '',
       eligibility: '',
@@ -326,6 +397,7 @@ export class PlacementsComponent implements OnInit {
     this.driveForm = {
       companyName: drive.companyName,
       role: drive.role,
+      driveType: drive.driveType || 'EXTERNAL',
       packageAmount: drive.packageAmount,
       location: drive.location || '',
       eligibility: drive.eligibility || '',
@@ -336,6 +408,51 @@ export class PlacementsComponent implements OnInit {
       planId: drive.planId || null
     };
     this.showModal = true;
+  }
+
+  openSlotsModal(drive: Drive) {
+    this.slotsForDrive = drive;
+    this.newSlot = { slotTime: '', location: drive.location || '', notes: '' };
+    this.showSlotsModal = true;
+    this.loadSlots(drive.id);
+  }
+
+  closeSlotsModal() {
+    this.showSlotsModal = false;
+    this.slotsForDrive = null;
+    this.slots = [];
+  }
+
+  loadSlots(driveId: number) {
+    this.apiService.get<InterviewSlot[]>(`/api/interview-slots/drive/${driveId}`).subscribe({
+      next: (data) => { this.slots = data; },
+      error: () => { this.slots = []; }
+    });
+  }
+
+  addSlot() {
+    if (!this.slotsForDrive || !this.newSlot.slotTime) return;
+    const payload = {
+      driveId: this.slotsForDrive.id,
+      slotTime: this.newSlot.slotTime.length === 16 ? `${this.newSlot.slotTime}:00` : this.newSlot.slotTime,
+      location: this.newSlot.location,
+      notes: this.newSlot.notes
+    };
+    this.apiService.post('/api/interview-slots', payload).subscribe({
+      next: () => {
+        this.loadSlots(this.slotsForDrive!.id);
+        this.newSlot = { slotTime: '', location: this.slotsForDrive!.location || '', notes: '' };
+      },
+      error: () => alert('Failed to add interview slot')
+    });
+  }
+
+  deleteSlot(slot: InterviewSlot) {
+    if (!confirm('Delete this interview slot?')) return;
+    this.apiService.delete(`/api/interview-slots/${slot.id}`).subscribe({
+      next: () => this.loadSlots(this.slotsForDrive!.id),
+      error: () => alert('Failed to delete slot')
+    });
   }
 
   closeModal(event?: any) {

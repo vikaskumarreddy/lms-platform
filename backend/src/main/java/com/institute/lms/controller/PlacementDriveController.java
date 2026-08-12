@@ -30,6 +30,7 @@ public class PlacementDriveController {
     @PostMapping
     public PlacementDrive createDrive(@RequestBody PlacementDrive drive) {
         if (drive.getIsActive() == null) drive.setIsActive(true);
+        if (drive.getDriveType() == null || drive.getDriveType().isBlank()) drive.setDriveType("EXTERNAL");
         return placementDriveRepository.save(drive);
     }
 
@@ -47,6 +48,9 @@ public class PlacementDriveController {
                     existing.setDeadline(drive.getDeadline());
                     existing.setIsActive(drive.getIsActive());
                     existing.setPlanId(drive.getPlanId());
+                    if (drive.getDriveType() != null && !drive.getDriveType().isBlank()) {
+                        existing.setDriveType(drive.getDriveType());
+                    }
                     return ResponseEntity.ok(placementDriveRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

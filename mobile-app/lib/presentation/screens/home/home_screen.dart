@@ -123,9 +123,15 @@ class HomeScreen extends ConsumerWidget {
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            Expanded(child: _QuickLinkCard(title: 'Resume', icon: Icons.description, color: Colors.green, onTap: () => context.go(AppRoutes.resumeBuilder))),
+            Expanded(child: _QuickLinkCard(title: 'Leaderboard', icon: Icons.leaderboard, color: Colors.deepPurple, onTap: () => context.go(AppRoutes.leaderboard))),
             const SizedBox(width: 12),
+            Expanded(child: _QuickLinkCard(title: 'Resume', icon: Icons.description, color: Colors.green, onTap: () => context.go(AppRoutes.resumeBuilder))),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
             Expanded(child: _QuickLinkCard(title: 'Settings', icon: Icons.settings, color: Colors.blueGrey, onTap: () => context.go(AppRoutes.settings))),
+            const SizedBox(width: 12),
+            Expanded(child: Container()),
           ]),
         ],
       ),

@@ -1,6 +1,8 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/mobile_auth_service.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../models/auth_user.dart';
 import 'subscription_provider.dart';
 
@@ -52,6 +54,7 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
       state = state.copyWith(isLoggedIn: true, user: response.user);
       // Sync subscription from backend profile
       await _syncSubscription();
+      await _registerPushToken();
       return true;
     } catch (e) {
       return false;
@@ -64,6 +67,7 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
       state = state.copyWith(isLoggedIn: true, user: response.user);
       // Sync subscription from backend profile
       await _syncSubscription();
+      await _registerPushToken();
       return true;
     } catch (e) {
       return false;
@@ -71,9 +75,25 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
   }
 
   Future<void> logout() async {
+    await PushNotificationService().clearToken();
     await _auth.logout();
     state = state.copyWith(isLoggedIn: false, user: null);
     _ref.read(subscriptionProvider.notifier).reset();
+  }
+
+  /// Registers this device's current FCM token (if any) with the backend
+  /// right after login/register, so the very first session on a device
+  /// starts receiving push notifications without waiting for a token
+  /// refresh event.
+  Future<void> _registerPushToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      final apiService = ApiService();
+      await apiService.updateFcmToken(token);
+    } catch (e) {
+      print('Failed to register push token after login: $e');
+    }
   }
 
   /// Fetch the user profile from backend and sync the subscription plan.

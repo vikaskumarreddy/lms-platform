@@ -121,8 +121,9 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
                                   ],
                                 ],
                               ),
-                              trailing: IconButton(
-                                onPressed: () async {
+                              trailing: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () async {
                                   final api = ref.read(apiServiceProvider);
                                   final success = await api.deleteBookmark(bookmark.lessonId);
                                   if (success && mounted) {
@@ -130,7 +131,11 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bookmark removed')));
                                   }
                                 },
-                                icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                                  child: Icon(Icons.delete_rounded, color: Colors.red.shade400, size: 20),
+                                ),
                               ),
                               onTap: () {
                                 context.go(AppRoutes.lesson.replaceAll(':lessonId', '${bookmark.lessonId}'));

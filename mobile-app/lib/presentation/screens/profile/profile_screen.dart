@@ -156,7 +156,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ListTile(leading: const Icon(Icons.emoji_events_outlined), title: const Text('My Certificates'), subtitle: const Text('View achievements'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.certificates)),
               ListTile(leading: const Icon(Icons.description_outlined), title: const Text('Resume Builder'), subtitle: const Text('Create your resume'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.resumeBuilder)),
               ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: const Text('App preferences'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.settings)),
-              ListTile(leading: const Icon(Icons.logout), title: const Text('Logout'), subtitle: const Text('Sign out'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.landing)),
+              ListTile(leading: const Icon(Icons.logout), title: const Text('Logout'), subtitle: const Text('Sign out'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.login)),
             ],
           );
         },

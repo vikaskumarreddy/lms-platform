@@ -340,6 +340,96 @@ public class CourseServiceImpl implements CourseService {
         return Optional.of(toLessonProgressDTO(lesson, completedLessonIds));
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Admin portal: granular module/lesson CRUD
+    // ─────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public Module addModule(Long courseId, ModuleRequest request) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found: " + courseId));
+
+        Module module = new Module();
+        applyModuleRequest(module, request);
+        module.setCourse(course);
+        return moduleRepository.save(module);
+    }
+
+    @Override
+    @Transactional
+    public Module updateModule(Long moduleId, ModuleRequest request) {
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module not found: " + moduleId));
+        applyModuleRequest(module, request);
+        return moduleRepository.save(module);
+    }
+
+    private void applyModuleRequest(Module module, ModuleRequest request) {
+        module.setTitle(request.getTitle());
+        module.setDescription(request.getDescription());
+        module.setOrderIndex(request.getOrderIndex());
+        module.setIcon(request.getIcon());
+        module.setColor(request.getColor());
+        module.setIsLocked(request.getIsLocked() != null ? request.getIsLocked() : false);
+    }
+
+    @Override
+    @Transactional
+    public void deleteModule(Long moduleId) {
+        Module module = moduleRepository.findById(moduleId).orElse(null);
+        if (module == null) return;
+        if (module.getLessons() != null) {
+            for (Lesson lesson : module.getLessons()) {
+                if (lesson.getId() != null) {
+                    progressRepository.deleteByLessonId(lesson.getId());
+                }
+            }
+        }
+        moduleRepository.deleteById(moduleId);
+    }
+
+    @Override
+    @Transactional
+    public Lesson addLesson(Long moduleId, LessonRequest request) {
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module not found: " + moduleId));
+
+        Lesson lesson = new Lesson();
+        applyLessonRequest(lesson, request);
+        lesson.setModule(module);
+        return lessonRepository.save(lesson);
+    }
+
+    @Override
+    @Transactional
+    public Lesson updateLesson(Long lessonId, LessonRequest request) {
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new RuntimeException("Lesson not found: " + lessonId));
+        applyLessonRequest(lesson, request);
+        return lessonRepository.save(lesson);
+    }
+
+    private void applyLessonRequest(Lesson lesson, LessonRequest request) {
+        lesson.setTitle(request.getTitle());
+        lesson.setHeading(request.getHeading());
+        lesson.setContent(request.getContent());
+        lesson.setVideoUrl(request.getVideoUrl());
+        lesson.setThumbnailUrl(request.getThumbnailUrl());
+        lesson.setPdfNotesUrl(request.getPdfNotesUrl());
+        lesson.setOrderIndex(request.getOrderIndex());
+        lesson.setDurationMinutes(request.getDurationMinutes());
+        lesson.setIsLocked(request.getIsLocked() != null ? request.getIsLocked() : false);
+        lesson.setIsMandatory(request.getIsMandatory() != null ? request.getIsMandatory() : true);
+    }
+
+    @Override
+    @Transactional
+    public void deleteLesson(Long lessonId) {
+        progressRepository.deleteByLessonId(lessonId);
+        lessonRepository.deleteById(lessonId);
+    }
+
     private LessonProgressDTO toLessonProgressDTO(Lesson lesson, Set<Long> completedLessonIds) {
         boolean completed = lesson.getId() != null && completedLessonIds.contains(lesson.getId());
         Boolean isLocked = lesson.getIsLocked() != null ? lesson.getIsLocked() : false;

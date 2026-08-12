@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/router_provider.dart';
+import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
+
+bool _firebaseReady = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +18,7 @@ void main() async {
     final options = await DefaultFirebaseOptions.fetchFromBackend();
     if (options != null) {
       await Firebase.initializeApp(options: options);
+      _firebaseReady = true;
     }
   } catch (e) {
     print('Firebase initialization skipped: $e');
@@ -30,6 +34,15 @@ class LmsApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+
+    // Push notifications only start doing anything once Firebase is actually
+    // configured (admin has filled in System Config) -- this call is safe
+    // and inert otherwise. Runs once per router instance.
+    if (_firebaseReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        PushNotificationService().initialize(router);
+      });
+    }
 
     return MaterialApp.router(
       title: 'Axisora Forge Academy',

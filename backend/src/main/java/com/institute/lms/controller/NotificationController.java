@@ -4,6 +4,7 @@ import com.institute.lms.entity.Notification;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.NotificationRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.service.FcmService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,10 +19,20 @@ public class NotificationController {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final FcmService fcmService;
 
-    public NotificationController(NotificationRepository notificationRepository, UserRepository userRepository) {
+    public NotificationController(NotificationRepository notificationRepository, UserRepository userRepository,
+                                   FcmService fcmService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.fcmService = fcmService;
+    }
+
+    /** Pushes a notification to a student's device (no-op if push isn't configured/enabled). */
+    private void pushToStudent(User student, String title, String message, String actionUrl) {
+        if (student.getFcmToken() == null || student.getFcmToken().isBlank()) return;
+        Map<String, String> data = actionUrl != null ? Map.of("actionUrl", actionUrl) : Map.of();
+        fcmService.sendToToken(student.getFcmToken(), title, message, data);
     }
 
     @GetMapping
@@ -82,6 +93,7 @@ public class NotificationController {
                     n.setActionUrl(actionUrl);
                     n.setIsRead(false);
                     created.add(notificationRepository.save(n));
+                    pushToStudent(student, title, message, actionUrl);
                 }
                 break;
 
@@ -100,6 +112,7 @@ public class NotificationController {
                         n.setActionUrl(actionUrl);
                         n.setIsRead(false);
                         created.add(notificationRepository.save(n));
+                        pushToStudent(student, title, message, actionUrl);
                     }
                 }
                 break;
@@ -119,6 +132,7 @@ public class NotificationController {
                         n.setActionUrl(actionUrl);
                         n.setIsRead(false);
                         created.add(notificationRepository.save(n));
+                        pushToStudent(student, title, message, actionUrl);
                     }
                 }
                 break;
@@ -135,6 +149,7 @@ public class NotificationController {
                     n.setActionUrl(actionUrl);
                     n.setIsRead(false);
                     created.add(notificationRepository.save(n));
+                    userRepository.findById(uid).ifPresent(student -> pushToStudent(student, title, message, actionUrl));
                 }
                 break;
 

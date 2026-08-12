@@ -118,6 +118,16 @@ public class UserService {
     }
 
     @Transactional
+    public boolean updateFcmToken(Long id, String fcmToken) {
+        Optional<User> userOpt = userRepository.findById(id);
+        if (userOpt.isEmpty()) return false;
+        User user = userOpt.get();
+        user.setFcmToken(fcmToken);
+        userRepository.save(user);
+        return true;
+    }
+
+    @Transactional
     public boolean deleteStudent(Long id) {
         Optional<User> userOpt = userRepository.findById(id);
         if (userOpt.isEmpty() || userOpt.get().getRole() != User.UserRole.STUDENT) {

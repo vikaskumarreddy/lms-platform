@@ -37,4 +37,8 @@ public class Batch extends BaseEntity {
 
     @Column(name = "schedule")
     private String schedule;
+
+    /** The faculty/instructor mentoring this batch (links to a User with role INSTRUCTOR). */
+    @Column(name = "mentor_id")
+    private Long mentorId;
 }

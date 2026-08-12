@@ -16,7 +16,6 @@ import { AuthService } from '../services/auth.service';
       <a routerLink="/faculty" routerLinkActive="active" class="nav-item">👨‍🏫 Faculty</a>
       <a routerLink="/placements" routerLinkActive="active" class="nav-item">💼 Placements</a>
       <a routerLink="/subscriptions-admin" routerLinkActive="active" class="nav-item">⭐ Subscriptions</a>
-      <a routerLink="/home-content" routerLinkActive="active" class="nav-item">🏠 Home Content</a>
       <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
       <a routerLink="/events-admin" routerLinkActive="active" class="nav-item">🎉 Events</a>
       <a routerLink="/bookmarks-admin" routerLinkActive="active" class="nav-item">🔖 Bookmarks</a>
@@ -25,7 +24,7 @@ import { AuthService } from '../services/auth.service';
       <a routerLink="/exams-admin" routerLinkActive="active" class="nav-item">📋 Exams</a>
       <a routerLink="/grading-admin" routerLinkActive="active" class="nav-item">✅ Grading</a>
       <a routerLink="/attendance-admin" routerLinkActive="active" class="nav-item">🗓️ Attendance</a>
-      <a routerLink="/achievements-admin" routerLinkActive="active" class="nav-item">🏆 Achievements</a>
+      <a routerLink="/certificates-admin" routerLinkActive="active" class="nav-item">🎓 Certificates</a>
       <a routerLink="/qa-admin" routerLinkActive="active" class="nav-item">💬 Q&A</a>
       <a routerLink="/payments" routerLinkActive="active" class="nav-item">💳 Payments</a>
       <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>

@@ -10,6 +10,7 @@ class PlacementDriveModel {
   final String? deadline;
   final bool? isActive;
   final int? planId;
+  final String driveType;
 
   PlacementDriveModel({
     required this.id,
@@ -23,7 +24,10 @@ class PlacementDriveModel {
     this.deadline,
     this.isActive,
     this.planId,
+    this.driveType = 'EXTERNAL',
   });
+
+  bool get isInternal => driveType == 'INTERNAL';
 
   factory PlacementDriveModel.fromJson(Map<String, dynamic> json) {
     return PlacementDriveModel(
@@ -40,6 +44,7 @@ class PlacementDriveModel {
       deadline: json['deadline'],
       isActive: json['isActive'],
       planId: json['planId'],
+      driveType: json['driveType'] ?? 'EXTERNAL',
     );
   }
 

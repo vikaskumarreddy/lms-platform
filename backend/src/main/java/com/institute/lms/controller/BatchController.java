@@ -69,6 +69,7 @@ public class BatchController {
                     existing.setIsActive(batch.getIsActive());
                     existing.setMaxStudents(batch.getMaxStudents());
                     existing.setSchedule(batch.getSchedule());
+                    existing.setMentorId(batch.getMentorId());
                     return ResponseEntity.ok(batchRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

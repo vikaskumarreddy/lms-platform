@@ -6,6 +6,7 @@ import '../../../core/constants/routes.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/utils/avatar_utils.dart';
 import '../../../core/widgets/common_header.dart';
+import '../widgets/modern_bottom_nav_bar.dart';
 
 class MainShellScreen extends ConsumerStatefulWidget {
   final Widget child;
@@ -16,10 +17,11 @@ class MainShellScreen extends ConsumerStatefulWidget {
 
 class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   final _tabs = [
-    (AppRoutes.home, Icons.home_outlined, Icons.home, 'Home'),
-    (AppRoutes.courses, Icons.book_outlined, Icons.book, 'Courses'),
-    (AppRoutes.calendar, Icons.calendar_today_outlined, Icons.calendar_today, 'Calendar'),
-    (AppRoutes.profile, Icons.person_outline, Icons.person, 'Profile'),
+    (AppRoutes.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
+    (AppRoutes.courses, Icons.book_outlined, Icons.menu_book_rounded, 'Courses'),
+    (AppRoutes.calendar, Icons.calendar_today_outlined, Icons.calendar_month_rounded, 'Calendar'),
+    (AppRoutes.placementDrives, Icons.work_outline_rounded, Icons.work_rounded, 'Placements'),
+    (AppRoutes.profile, Icons.person_outline, Icons.person_rounded, 'Profile'),
   ];
 
   int _getCurrentIndex() {
@@ -81,27 +83,10 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
         key: mainScaffoldKey,
         drawer: _buildDrawer(context),
         body: widget.child,
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -2)),
-            ],
-          ),
-          child: BottomNavigationBar(
-            currentIndex: _getCurrentIndex(),
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFFEAB308),
-            unselectedItemColor: Colors.grey,
-            onTap: (index) {
-              final tab = _tabs[index];
-              context.go(tab.$1);
-            },
-            items: _tabs.map((t) => BottomNavigationBarItem(
-              icon: Icon(t.$2),
-              activeIcon: Icon(t.$3),
-              label: t.$4,
-            )).toList(),
-          ),
+        bottomNavigationBar: ModernBottomNavBar(
+          currentIndex: _getCurrentIndex(),
+          tabs: _tabs,
+          onTap: (index) => context.go(_tabs[index].$1),
         ),
       ),
     );
@@ -219,6 +204,14 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                   title: 'Bookmarks',
                   onTap: () {
                     context.go(AppRoutes.bookmarks);
+                    Navigator.pop(context);
+                  },
+                ),
+                _DrawerItem(
+                  icon: Icons.leaderboard_outlined,
+                  title: 'Leaderboard',
+                  onTap: () {
+                    context.go(AppRoutes.leaderboard);
                     Navigator.pop(context);
                   },
                 ),

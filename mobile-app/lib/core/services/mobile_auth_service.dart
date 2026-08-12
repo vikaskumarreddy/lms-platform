@@ -15,12 +15,43 @@ class MobileAuthService {
   static const String _userIdKey = 'userId';
   static const String _batchIdKey = 'batchId';
 
-  /// Checks whether the user is currently logged in by verifying
-  /// that a non-empty token exists in local storage.
+  /// Checks whether the user is currently logged in.
+  ///
+  /// Previously this only checked that *some* token string was present in
+  /// local storage, without verifying it was still valid. That meant a
+  /// leftover/expired JWT from a previous session (e.g. after the backend's
+  /// signing secret rotated, or the token's expiry passed) would still be
+  /// treated as "logged in" on the next app launch, silently dropping the
+  /// user into Home without ever re-authenticating. We now also decode the
+  /// JWT payload and check its `exp` claim client-side.
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) return false;
+    if (_isJwtExpired(token)) {
+      // Stale/expired session: clear it so we don't keep re-checking a dead token.
+      await logout();
+      return false;
+    }
+    return true;
+  }
+
+  /// Decodes a JWT's payload (without verifying the signature, which the
+  /// client can't do anyway) and checks whether its `exp` claim has passed.
+  /// Returns true (treat as expired) if the token is malformed, to fail safe.
+  bool _isJwtExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = json.decode(utf8.decode(base64Url.decode(normalized))) as Map<String, dynamic>;
+      final exp = payload['exp'];
+      if (exp == null) return false; // No expiry claim: trust the backend to reject it if invalid.
+      final expiryMillis = (exp is int ? exp : int.tryParse(exp.toString()) ?? 0) * 1000;
+      return DateTime.now().millisecondsSinceEpoch >= expiryMillis;
+    } catch (_) {
+      return true;
+    }
   }
 
   /// Returns the cached [AuthUser] from local storage, or `null` if not logged in.

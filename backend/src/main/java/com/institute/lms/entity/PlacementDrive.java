@@ -41,4 +41,12 @@ public class PlacementDrive extends BaseEntity {
 
     @Column(name = "plan_id")
     private Long planId;
+
+    /**
+     * INTERNAL: institute-run drive with schedulable interview slots (see
+     * InterviewSlot). EXTERNAL: company-run drive, informational only --
+     * students just use applyLink, no in-app scheduling.
+     */
+    @Column(name = "drive_type", nullable = false)
+    private String driveType = "EXTERNAL";
 }

@@ -689,6 +689,157 @@ class ApiService {
     }
   }
 
+  /// Returns the plan ids the logged-in student currently has ACTIVE access to,
+  /// across *all* of their subscriptions (a student may be subscribed to more
+  /// than one plan at once, e.g. "Java Full Stack" + "Placement Pro").
+  Future<List<int>> getActivePlanIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/students/$userId/subscriptions/active-plan-ids'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((e) => (e as num).toInt()).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching active plan ids: $e');
+      return [];
+    }
+  }
+
+  /// Registers/refreshes this device's FCM token with the backend so push
+  /// notifications (admin broadcasts, deadline reminders, class reminders,
+  /// interview confirmations, etc.) can actually reach it.
+  Future<bool> updateFcmToken(String fcmToken) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return false;
+
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/students/$userId/fcm-token'),
+        headers: headers,
+        body: json.encode({'fcmToken': fcmToken}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating FCM token: $e');
+      return false;
+    }
+  }
+
+  // MARK: - Interview Slots (internal placement drives)
+
+  Future<List<Map<String, dynamic>>> getInterviewSlotsForDrive(int driveId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interview-slots/drive/$driveId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching interview slots: $e');
+      return [];
+    }
+  }
+
+  Future<bool> bookInterviewSlot(int slotId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return false;
+
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interview-slots/$slotId/book'),
+        headers: headers,
+        body: json.encode({'userId': userId}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error booking interview slot: $e');
+      return false;
+    }
+  }
+
+  Future<bool> cancelInterviewSlot(int slotId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interview-slots/$slotId/cancel'),
+        headers: headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error cancelling interview slot: $e');
+      return false;
+    }
+  }
+
+  // MARK: - Leaderboard
+
+  Future<Map<String, dynamic>> getWeeklyLeaderboard({int? batchId}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      final effectiveBatchId = batchId ?? prefs.getInt('batchId');
+
+      final headers = await _getHeaders();
+      final params = <String, String>{};
+      if (effectiveBatchId != null) params['batchId'] = effectiveBatchId.toString();
+      if (userId != null) params['studentId'] = userId.toString();
+      final uri = Uri.parse('$baseUrl/leaderboard').replace(queryParameters: params.isEmpty ? null : params);
+
+      final response = await http.get(uri, headers: headers);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'entries': [], 'myRank': null};
+    } catch (e) {
+      print('Error fetching leaderboard: $e');
+      return {'entries': [], 'myRank': null};
+    }
+  }
+
+  // MARK: - Certificates API
+
+  Future<List<Map<String, dynamic>>> getCertificates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/certificates/user/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching certificates: $e');
+      return [];
+    }
+  }
+
   // MARK: - Notes APIs
 
   Future<List<Map<String, dynamic>>> getNotes() async {

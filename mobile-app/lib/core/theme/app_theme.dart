@@ -33,21 +33,27 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: backgroundColor,
       fontFamily: GoogleFonts.inter().fontFamily,
+      // Every AppBar in the app is rendered via CommonHeader, which paints its
+      // own navy-gold-bordered flexibleSpace; this theme entry is the sane
+      // fallback for any stray default AppBar.
       appBarTheme: AppBarTheme(
-        backgroundColor: surfaceColor,
-        foregroundColor: textPrimary,
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
-        centerTitle: false,
+        centerTitle: true,
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: textPrimary,
+          color: Colors.white,
         ),
       ),
+      // The real bottom nav is ModernBottomNavBar (navy bar + gold top
+      // border + floating gold bubble for the active tab); this theme is
+      // kept as a matching fallback for any stray default BottomNavigationBar.
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: surfaceColor,
+        backgroundColor: primaryColor,
         selectedItemColor: accentColor,
-        unselectedItemColor: textSecondary,
+        unselectedItemColor: Colors.white70,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
         selectedLabelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
@@ -55,8 +61,11 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: surfaceColor,
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: dividerColor, width: 1),
+        ),
         margin: const EdgeInsets.only(bottom: 12),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -64,9 +73,54 @@ class AppTheme {
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          side: const BorderSide(color: primaryColor, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryColor,
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: accentColor.withOpacity(0.12),
+        selectedColor: accentColor,
+        labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: primaryColor),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: BorderSide.none,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surfaceColor,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: primaryColor,
+        contentTextStyle: GoogleFonts.inter(color: Colors.white),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: accentColor,
+        linearTrackColor: Color(0xFFE2E8F0),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -87,24 +141,7 @@ class AppTheme {
         labelStyle: GoogleFonts.inter(color: textSecondary),
         hintStyle: GoogleFonts.inter(color: textSecondary.withOpacity(0.5)),
       ),
-      chipTheme: ChipThemeData(
-        backgroundColor: accentColor.withOpacity(0.1),
-        selectedColor: accentColor,
-        labelStyle: GoogleFonts.inter(fontSize: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      bottomSheetTheme: BottomSheetThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
       dividerTheme: DividerThemeData(color: dividerColor, thickness: 1),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: accentColor,
-        linearTrackColor: Color(0xFFE2E8F0),
-      ),
     );
   }
 

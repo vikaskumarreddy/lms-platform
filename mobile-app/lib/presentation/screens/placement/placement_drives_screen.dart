@@ -120,6 +120,7 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
                             drive: filtered[index],
                             status: statusByDrive[filtered[index].id] ?? 'OPEN',
                             onApply: () => _applyAndOpenLink(ref, filtered[index]),
+                            onScheduleSlot: () => _showSlotPicker(ref, filtered[index]),
                           ),
                         );
                       }),
@@ -140,6 +141,69 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => InAppBrowserScreen(url: link, title: '${drive.companyName} - Apply'),
+      ),
+    );
+  }
+
+  /// Closes the loop between an INTERNAL placement drive and actual
+  /// interview tracking: shows the admin-created open slots for this drive
+  /// and lets the student book one ("Schedule my slot").
+  Future<void> _showSlotPicker(WidgetRef ref, PlacementDriveModel drive) async {
+    final api = ref.read(apiServiceProvider);
+    final slots = await api.getInterviewSlotsForDrive(drive.id);
+    if (!mounted) return;
+
+    final available = slots.where((s) => s['status'] == 'AVAILABLE').toList();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Available Interview Slots', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(drive.companyName, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+            const SizedBox(height: 16),
+            if (available.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No open slots right now. Check back later.', style: TextStyle(color: Colors.grey.shade500))),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 360),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: available.length,
+                  itemBuilder: (context, index) {
+                    final slot = available[index];
+                    return ListTile(
+                      leading: const Icon(Icons.schedule, color: Color(0xFF0F172A)),
+                      title: Text((slot['slotTime'] ?? '').toString().replaceFirst('T', '  ')),
+                      subtitle: Text(slot['location'] ?? ''),
+                      trailing: ElevatedButton(
+                        onPressed: () async {
+                          final success = await api.bookInterviewSlot(slot['id'] as int);
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(success ? 'Interview slot booked!' : 'Failed to book slot. Try another.')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEAB308), foregroundColor: const Color(0xFF0F172A)),
+                        child: const Text('Book'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -175,8 +239,9 @@ class _DriveCard extends StatelessWidget {
   final PlacementDriveModel drive;
   final String status;
   final VoidCallback onApply;
+  final VoidCallback onScheduleSlot;
 
-  const _DriveCard({required this.drive, required this.status, required this.onApply});
+  const _DriveCard({required this.drive, required this.status, required this.onApply, required this.onScheduleSlot});
 
   Color get _statusColor {
     switch (status) {
@@ -327,6 +392,19 @@ class _DriveCard extends StatelessWidget {
             Text('Deadline: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             Text(drive.formattedDeadline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             const Spacer(),
+            if (drive.isInternal && status != 'SELECTED')
+              OutlinedButton.icon(
+                onPressed: onScheduleSlot,
+                icon: const Icon(Icons.event_available, size: 16),
+                label: const Text('Schedule my slot'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: primaryColor,
+                  side: BorderSide(color: primaryColor),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                ),
+              ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: status == 'SELECTED' ? null : onApply,
               icon: Icon(status == 'APPLIED' ? Icons.check_circle : Icons.open_in_browser, size: 16),

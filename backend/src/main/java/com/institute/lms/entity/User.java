@@ -61,6 +61,10 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "github")
     private String github;
 
+    /** Firebase Cloud Messaging device token, refreshed by the mobile app on login/token-rotation. */
+    @Column(name = "fcm_token", columnDefinition = "TEXT")
+    private String fcmToken;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private Set<Enrollment> enrollments;

@@ -13,7 +13,14 @@ interface Batch {
   isActive: boolean;
   maxStudents?: number;
   schedule?: string;
+  mentorId?: number;
   createdAt?: string;
+}
+
+interface Faculty {
+  id: number;
+  name: string;
+  email: string;
 }
 
 interface Student {
@@ -49,6 +56,7 @@ interface SubscriptionPlan {
           <tr>
             <th>ID</th>
             <th>Batch Name</th>
+            <th>Mentor</th>
             <th>Subscription Plan</th>
             <th>Start Date</th>
             <th>End Date</th>
@@ -61,6 +69,10 @@ interface SubscriptionPlan {
           <tr *ngFor="let b of batches">
             <td>{{b.id}}</td>
             <td style="font-weight:600;">{{b.name}}</td>
+            <td>
+              <span *ngIf="getMentorName(b.mentorId)" style="font-size:13px;">👨‍🏫 {{getMentorName(b.mentorId)}}</span>
+              <span *ngIf="!getMentorName(b.mentorId)" style="color:#64748B;font-size:13px;">No mentor</span>
+            </td>
             <td>
               <span *ngIf="getPlanName(b.planId)" class="badge badge-warning">⭐ {{getPlanName(b.planId)}}</span>
               <span *ngIf="!getPlanName(b.planId)" style="color:#64748B;font-size:13px;">No plan</span>
@@ -82,7 +94,7 @@ interface SubscriptionPlan {
             </td>
           </tr>
           <tr *ngIf="batches.length === 0">
-            <td colspan="8" style="text-align:center;color:#64748B;padding:32px;">No batches found. Click "+ Create Batch" to create one.</td>
+            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No batches found. Click "+ Create Batch" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -117,6 +129,15 @@ interface SubscriptionPlan {
                     style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
               <option [ngValue]="null">No plan</option>
               <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Mentor / Faculty</label>
+            <select [(ngModel)]="batchForm.mentorId" name="mentorId"
+                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
+              <option [ngValue]="null">No mentor assigned</option>
+              <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
             </select>
           </div>
 
@@ -272,6 +293,7 @@ export class BatchesComponent implements OnInit {
   batches: Batch[] = [];
   allStudents: Student[] = [];
   plans: SubscriptionPlan[] = [];
+  faculty: Faculty[] = [];
 
   showModal = false;
   editingBatch: Batch | null = null;
@@ -286,7 +308,8 @@ export class BatchesComponent implements OnInit {
     endDate: '',
     isActive: true,
     maxStudents: null,
-    schedule: ''
+    schedule: '',
+    mentorId: null
   };
 
   // Batch detail / manage students
@@ -300,6 +323,20 @@ export class BatchesComponent implements OnInit {
     this.loadBatches();
     this.loadStudents();
     this.loadPlans();
+    this.loadFaculty();
+  }
+
+  loadFaculty() {
+    this.api.get<Faculty[]>('/api/faculty').subscribe({
+      next: (data) => { this.faculty = data; },
+      error: (err) => { console.error('Failed to load faculty', err); this.faculty = []; }
+    });
+  }
+
+  getMentorName(mentorId?: number): string {
+    if (!mentorId) return '';
+    const f = this.faculty.find(x => x.id === mentorId);
+    return f ? f.name : '';
   }
 
   loadBatches() {
@@ -353,7 +390,8 @@ export class BatchesComponent implements OnInit {
       endDate: '',
       isActive: true,
       maxStudents: null,
-      schedule: ''
+      schedule: '',
+      mentorId: null
     };
     this.showModal = true;
   }
@@ -369,7 +407,8 @@ export class BatchesComponent implements OnInit {
       endDate: batch.endDate ? new Date(batch.endDate).toISOString().slice(0, 16) : '',
       isActive: batch.isActive,
       maxStudents: batch.maxStudents || null,
-      schedule: batch.schedule || ''
+      schedule: batch.schedule || '',
+      mentorId: batch.mentorId || null
     };
     this.showModal = true;
   }

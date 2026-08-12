@@ -29,6 +29,7 @@ class AppRoutes {
   static const String feedback = '/feedback';
   static const String interviewHistory = '/interview-history';
   static const String bookmarks = '/bookmarks';
+  static const String leaderboard = '/leaderboard';
   static const String qa = '/qa';
   static const String inAppBrowser = '/browser';
   static const String quiz = '/quiz/:id';

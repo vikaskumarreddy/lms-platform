@@ -34,29 +34,40 @@ class SubscriptionState {
   final SubscriptionPlan plan;
   final List<SubscriptionPlanModel> availablePlans;
   final int? userPlanId;
+  /// All plan ids the student has ACTIVE access to across every subscription
+  /// they hold (a student can be subscribed to multiple plans at once).
+  final Set<int> multiPlanIds;
 
   const SubscriptionState({
     this.plan = SubscriptionPlan.free,
     this.availablePlans = const [],
     this.userPlanId,
+    this.multiPlanIds = const {},
   });
 
   SubscriptionState copyWith({
     SubscriptionPlan? plan,
     List<SubscriptionPlanModel>? availablePlans,
     int? userPlanId,
+    Set<int>? multiPlanIds,
   }) {
     return SubscriptionState(
       plan: plan ?? this.plan,
       availablePlans: availablePlans ?? this.availablePlans,
       userPlanId: userPlanId ?? this.userPlanId,
+      multiPlanIds: multiPlanIds ?? this.multiPlanIds,
     );
   }
 
   /// Returns the set of plan IDs the user has access to.
   /// Used for plan-based access control on courses and placement drives.
-  /// Uses the actual planId from the user's profile when available.
+  /// Combines every ACTIVE subscription the student holds (multiPlanIds)
+  /// with the legacy single userPlanId, so a student subscribed to more than
+  /// one plan gets access to content unlocked by *any* of their plans.
   Set<int> get activePlanIds {
+    if (multiPlanIds.isNotEmpty) {
+      return userPlanId != null ? {...multiPlanIds, userPlanId!} : multiPlanIds;
+    }
     if (userPlanId != null) {
       return {userPlanId!};
     }
@@ -105,6 +116,17 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   /// The profile response contains `planId` and `planName`.
   Future<void> syncFromProfile(Map<String, dynamic>? profile) async {
     if (profile == null) return;
+
+    // Fetch the union of all ACTIVE subscriptions (a student may hold more
+    // than one plan at once) in addition to the single legacy planId below.
+    try {
+      final apiService = ApiService();
+      final activeIds = await apiService.getActivePlanIds();
+      state = state.copyWith(multiPlanIds: activeIds.toSet());
+    } catch (e) {
+      print('Failed to load multi-subscription plan ids: $e');
+    }
+
     final planId = profile['planId'];
     final planName = profile['planName'];
 

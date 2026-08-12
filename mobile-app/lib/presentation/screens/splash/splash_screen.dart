@@ -30,7 +30,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       state = ref.read(mobileAuthProvider);
     }
     if (!mounted) return;
-    context.go(state.isLoggedIn ? AppRoutes.home : AppRoutes.landing);
+    context.go(state.isLoggedIn ? AppRoutes.home : AppRoutes.login);
   }
 
   @override

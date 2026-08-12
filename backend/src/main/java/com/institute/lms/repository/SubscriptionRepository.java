@@ -11,4 +11,10 @@ import java.util.List;
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
     @EntityGraph(attributePaths = {"user", "plan"})
     List<Subscription> findAll();
+
+    @EntityGraph(attributePaths = {"plan"})
+    List<Subscription> findByUserIdAndStatus(Long userId, String status);
+
+    @EntityGraph(attributePaths = {"user", "plan"})
+    List<Subscription> findByUserId(Long userId);
 }

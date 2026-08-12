@@ -25,6 +25,21 @@ interface Subscription {
   endDate: string;
 }
 
+interface Student {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface StudentSubscription {
+  id: number;
+  planId: number;
+  planName: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
 interface PlanFormData {
   name: string;
   description: string;
@@ -97,8 +112,59 @@ interface PlanFormData {
     </div>
     <div *ngIf="!showForm && !plans.length && !loading" style="color:#64748B;padding:20px;">No plans found.</div>
 
-    <!-- User Subscriptions -->
-    <h2 style="font-size:20px;font-weight:700;margin:24px 0 16px;">User Subscriptions ({{ subscriptions.length }})</h2>
+    <!-- Map a Student to Multiple Subscriptions -->
+    <h2 style="font-size:20px;font-weight:700;margin:24px 0 16px;">Assign Subscription to Student</h2>
+    <p style="color:#64748B;margin-bottom:12px;font-size:13px;">
+      A student can be subscribed to multiple plans at once (e.g. "Java Full Stack" + "Placement Pro").
+      Assigning a plan here adds it to the student's active subscriptions without removing existing ones.
+    </p>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end;">
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Student</label>
+          <select [(ngModel)]="assignForm.studentId" (ngModelChange)="onStudentSelected($event)"
+                  style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+            <option [ngValue]="null">Select Student</option>
+            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.name }} ({{ s.email }})</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Plan</label>
+          <select [(ngModel)]="assignForm.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+            <option [ngValue]="null">Select Plan</option>
+            <option *ngFor="let p of plans" [ngValue]="p.id">{{ p.name }} - ₹{{ p.price }}{{ p.period }}</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" [disabled]="assigning" (click)="assignSubscription()">
+          {{ assigning ? 'Assigning...' : '+ Assign Plan' }}
+        </button>
+      </div>
+      <div *ngIf="assignError" style="margin-top:8px;color:#EF4444;">{{ assignError }}</div>
+
+      <div *ngIf="assignForm.studentId" style="margin-top:20px;">
+        <h4 style="font-size:14px;font-weight:700;margin-bottom:8px;">
+          Current subscriptions for {{ getStudentName(assignForm.studentId) }}
+        </h4>
+        <table *ngIf="studentSubscriptions.length">
+          <thead><tr><th>Plan</th><th>Status</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of studentSubscriptions">
+              <td style="font-weight:600;">{{ s.planName || '—' }}</td>
+              <td><span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span></td>
+              <td style="font-size:13px;">{{ s.startDate || '—' }}</td>
+              <td style="font-size:13px;">{{ s.endDate || '—' }}</td>
+              <td>
+                <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="removeStudentSubscription(s)">Remove</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div *ngIf="!studentSubscriptions.length" style="color:#64748B;padding:12px;text-align:center;">No subscriptions for this student yet.</div>
+      </div>
+    </div>
+
+    <!-- All Subscriptions -->
+    <h2 style="font-size:20px;font-weight:700;margin:24px 0 16px;">All Subscriptions ({{ subscriptions.length }})</h2>
     <div class="card">
       <table *ngIf="subscriptions.length">
         <thead>
@@ -122,10 +188,16 @@ export class SubscriptionsAdminComponent implements OnInit {
   private api = inject(ApiService);
   plans: Plan[] = [];
   subscriptions: Subscription[] = [];
+  students: Student[] = [];
+  studentSubscriptions: StudentSubscription[] = [];
   showForm = false;
   editingId: number | null = null;
   loading = false;
   errorMsg = '';
+
+  assignForm: { studentId: number | null; planId: number | null } = { studentId: null, planId: null };
+  assigning = false;
+  assignError = '';
 
   formData: PlanFormData = {
     name: '', description: '', price: 0, durationDays: 30, isActive: true,
@@ -135,6 +207,60 @@ export class SubscriptionsAdminComponent implements OnInit {
   ngOnInit() {
     this.loadPlans();
     this.loadSubscriptions();
+    this.loadStudents();
+  }
+
+  loadStudents() {
+    this.api.get<Student[]>('/api/students').subscribe({
+      next: (data) => { this.students = data; },
+      error: () => { this.students = []; }
+    });
+  }
+
+  getStudentName(studentId: number | null): string {
+    if (!studentId) return '';
+    const student = this.students.find(s => s.id === studentId);
+    return student ? student.name : '';
+  }
+
+  onStudentSelected(studentId: number | null) {
+    this.studentSubscriptions = [];
+    if (!studentId) return;
+    this.api.get<StudentSubscription[]>(`/api/students/${studentId}/subscriptions`).subscribe({
+      next: (data) => { this.studentSubscriptions = data; },
+      error: () => { this.studentSubscriptions = []; }
+    });
+  }
+
+  assignSubscription() {
+    this.assignError = '';
+    if (!this.assignForm.studentId) { this.assignError = 'Please select a student'; return; }
+    if (!this.assignForm.planId) { this.assignError = 'Please select a plan'; return; }
+
+    this.assigning = true;
+    this.api.post(`/api/students/${this.assignForm.studentId}/subscriptions`, { planId: this.assignForm.planId }).subscribe({
+      next: () => {
+        this.assigning = false;
+        this.onStudentSelected(this.assignForm.studentId);
+        this.loadSubscriptions();
+      },
+      error: (err) => {
+        this.assigning = false;
+        this.assignError = err.error?.message || 'Failed to assign subscription';
+      }
+    });
+  }
+
+  removeStudentSubscription(sub: StudentSubscription) {
+    if (!this.assignForm.studentId) return;
+    if (!confirm(`Remove "${sub.planName}" subscription?`)) return;
+    this.api.delete(`/api/students/${this.assignForm.studentId}/subscriptions/${sub.id}`).subscribe({
+      next: () => {
+        this.onStudentSelected(this.assignForm.studentId);
+        this.loadSubscriptions();
+      },
+      error: () => { alert('Failed to remove subscription'); }
+    });
   }
 
   loadPlans() {
