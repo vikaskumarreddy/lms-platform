@@ -1,0 +1,89 @@
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Phone mockup used to preview lesson HTML notes as they'd render on the
+   mobile app — gives admins immediate visual feedback without needing the
+   Flutter app open. */
+.phone-mockup {
+  width: 320px;
+  height: 640px;
+  background: #0F172A;
+  border-radius: 40px;
+  padding: 14px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  margin: 0 auto;
+}
+
+.phone-notch {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 22px;
+  background: #0F172A;
+  border-radius: 0 0 16px 16px;
+  z-index: 2;
+}
+
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  background: white;
+  border-radius: 28px;
+  overflow-y: auto;
+  padding: 40px 16px 16px;
+  box-sizing: border-box;
+  font-family: -apple-system, Roboto, "Segoe UI", sans-serif;
+  font-size: 14px;
+  color: #1E293B;
+  line-height: 1.6;
+}
+
+.phone-screen img { max-width: 100%; border-radius: 8px; }
+.phone-screen h1, .phone-screen h2, .phone-screen h3 { color: #0F172A; margin-top: 0; }
+.phone-screen pre, .phone-screen code {
+  background: #F1F5F9;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  overflow-x: auto;
+  display: block;
+}
+.phone-screen table { width: 100%; border-collapse: collapse; }
+.phone-screen table, .phone-screen th, .phone-screen td { border: 1px solid #E2E8F0; padding: 6px; }

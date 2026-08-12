@@ -1,0 +1,204 @@
+<div *ngIf="loading" style="text-align:center;padding:64px;color:#64748B;">Loading course...</div>
+
+<div *ngIf="!loading && !course" class="card" style="text-align:center;padding:48px;color:#64748B;">
+  Course not found. <a routerLink="/courses">Go back</a>
+</div>
+
+<div *ngIf="!loading && course">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <button class="btn btn-secondary" (click)="back()">← Back</button>
+    <div>
+      <h1 style="font-size:22px;font-weight:700;">{{course.title}}</h1>
+      <p style="color:#64748B;font-size:13px;margin-top:2px;">
+        👨‍🏫 {{getFacultyName(course.instructorId)}} &nbsp;·&nbsp; 💳 {{getPlanName(course.planId)}} &nbsp;·&nbsp;
+        <span class="badge" [class.badge-success]="course.isPublished" [class.badge-warning]="!course.isPublished">
+          {{course.isPublished ? 'Published' : 'Draft'}}
+        </span>
+      </p>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h2 style="font-size:16px;font-weight:700;color:#0F172A;">📦 Modules ({{course.modules.length}})</h2>
+    <button class="btn btn-primary" (click)="openAddModule()">+ Add Module</button>
+  </div>
+
+  <div *ngFor="let m of course.modules" class="card" style="margin-bottom:16px;padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;" (click)="toggleModule(m)">
+      <div style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;"
+           [style.background]="(m.color || '#4F46E5') + '20'">{{m.icon || '📘'}}</div>
+      <div style="flex:1;">
+        <h3 style="font-weight:700;font-size:15px;">{{m.title}}</h3>
+        <p style="color:#64748B;font-size:12px;">{{m.lessons.length}} lesson(s) · order {{m.orderIndex}}</p>
+      </div>
+      <span *ngIf="m.isLocked" class="badge badge-warning">🔒 Locked</span>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); openEditModule(m)">Edit</button>
+      <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); deleteModule(m)">Delete</button>
+      <span style="font-size:14px;color:#94A3B8;">{{m.expanded ? '▲' : '▼'}}</span>
+    </div>
+
+    <div *ngIf="m.expanded" style="border-top:1px solid #E2E8F0;padding:16px 20px;background:#F8FAFC;">
+      <p *ngIf="m.description" style="color:#475569;font-size:13px;margin-bottom:12px;">{{m.description}}</p>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h4 style="font-weight:700;font-size:13px;color:#334155;">📄 Lessons</h4>
+        <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="openAddLesson(m)">+ Add Lesson</button>
+      </div>
+
+      <div *ngFor="let l of m.lessons" class="card" style="margin-bottom:10px;padding:12px 16px;background:white;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:36px;height:36px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#E2E8F0;display:flex;align-items:center;justify-content:center;font-size:16px;">
+            <img *ngIf="l.thumbnailUrl" [src]="l.thumbnailUrl" style="width:100%;height:100%;object-fit:cover;" (error)="l.thumbnailUrl=''">
+            <span *ngIf="!l.thumbnailUrl">🎬</span>
+          </div>
+          <div style="flex:1;">
+            <p style="font-weight:600;font-size:13px;">{{l.title}}</p>
+            <p style="color:#64748B;font-size:11px;">{{l.heading || 'No heading'}} · {{l.durationMinutes || 0}} min</p>
+          </div>
+          <span *ngIf="l.isLocked" class="badge badge-warning" style="font-size:10px;">🔒</span>
+          <span *ngIf="l.isMandatory" class="badge badge-info" style="font-size:10px;">Mandatory</span>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openPreview(l.content || '')">👁 Preview</button>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openEditLesson(m, l)">Edit</button>
+          <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" (click)="deleteLesson(l)">Delete</button>
+        </div>
+      </div>
+      <div *ngIf="m.lessons.length === 0" style="color:#94A3B8;font-size:12px;text-align:center;padding:12px;">No lessons yet. Click "+ Add Lesson".</div>
+    </div>
+  </div>
+
+  <div *ngIf="course.modules.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;">
+    No modules yet. Click "+ Add Module" to start building this course.
+  </div>
+</div>
+
+<!-- Module Modal -->
+<div class="modal-overlay" *ngIf="showModuleModal" (click)="closeModuleModal()">
+  <div class="modal-content" style="width:90%;max-width:480px;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;font-weight:700;">{{editingModule ? 'Edit Module' : 'Add Module'}}</h2>
+      <button class="btn btn-secondary" (click)="closeModuleModal()">✕</button>
+    </div>
+    <form (ngSubmit)="saveModule()">
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Title</label>
+        <input type="text" [(ngModel)]="moduleForm.title" name="mTitle" required class="form-input" placeholder="Module title">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Description</label>
+        <textarea [(ngModel)]="moduleForm.description" name="mDesc" rows="2" class="form-input"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">Icon (emoji)</label>
+          <input type="text" [(ngModel)]="moduleForm.icon" name="mIcon" class="form-input" placeholder="📘">
+        </div>
+        <div>
+          <label class="form-label">Color (hex)</label>
+          <input type="text" [(ngModel)]="moduleForm.color" name="mColor" class="form-input" placeholder="#4F46E5">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;margin-bottom:16px;">
+        <div>
+          <label class="form-label">Order Index</label>
+          <input type="number" [(ngModel)]="moduleForm.orderIndex" name="mOrder" class="form-input">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:20px;">
+          <input type="checkbox" [(ngModel)]="moduleForm.isLocked" name="mLocked" style="width:18px;height:18px;">
+          <label style="margin-bottom:0;font-size:13px;font-weight:600;">Locked</label>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" (click)="closeModuleModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="savingModule">{{savingModule ? 'Saving...' : 'Save'}}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Lesson Modal -->
+<div class="modal-overlay" *ngIf="showLessonModal" (click)="closeLessonModal()">
+  <div class="modal-content" style="width:92%;max-width:640px;max-height:90vh;overflow-y:auto;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;font-weight:700;">{{editingLesson ? 'Edit Lesson' : 'Add Lesson'}}</h2>
+      <button class="btn btn-secondary" (click)="closeLessonModal()">✕</button>
+    </div>
+    <form (ngSubmit)="saveLesson()">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">Title</label>
+          <input type="text" [(ngModel)]="lessonForm.title" name="lTitle" required class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Heading / Sub-title</label>
+          <input type="text" [(ngModel)]="lessonForm.heading" name="lHeading" class="form-input">
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label class="form-label" style="margin-bottom:0;">Notes Content (HTML)</label>
+          <button type="button" class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="openPreview(lessonForm.content)">👁 Preview on Mobile</button>
+        </div>
+        <textarea [(ngModel)]="lessonForm.content" name="lContent" rows="7" class="form-input" style="font-family:monospace;font-size:12px;"
+                  placeholder="<h2>Topic</h2><p>Write lesson notes as HTML...</p>"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">Video URL</label>
+          <input type="text" [(ngModel)]="lessonForm.videoUrl" name="lVideo" class="form-input" placeholder="https://youtube.com/watch?v=...">
+        </div>
+        <div>
+          <label class="form-label">Thumbnail URL</label>
+          <input type="text" [(ngModel)]="lessonForm.thumbnailUrl" name="lThumb" class="form-input">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">PDF Notes URL</label>
+          <input type="text" [(ngModel)]="lessonForm.pdfNotesUrl" name="lPdf" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Duration (min)</label>
+          <input type="number" [(ngModel)]="lessonForm.durationMinutes" name="lDuration" class="form-input">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px;">
+        <div>
+          <label class="form-label">Order Index</label>
+          <input type="number" [(ngModel)]="lessonForm.orderIndex" name="lOrder" class="form-input" style="width:100px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:20px;">
+          <input type="checkbox" [(ngModel)]="lessonForm.isLocked" name="lLocked" style="width:18px;height:18px;">
+          <label style="margin-bottom:0;font-size:13px;font-weight:600;">Locked</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:20px;">
+          <input type="checkbox" [(ngModel)]="lessonForm.isMandatory" name="lMandatory" style="width:18px;height:18px;">
+          <label style="margin-bottom:0;font-size:13px;font-weight:600;">Mandatory</label>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" (click)="closeLessonModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="savingLesson">{{savingLesson ? 'Saving...' : 'Save'}}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- HTML Mobile Preview Modal -->
+<div class="modal-overlay" *ngIf="showPreview" (click)="closePreview()">
+  <div style="background:transparent;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="btn btn-secondary" (click)="closePreview()">✕ Close Preview</button>
+    </div>
+    <div class="phone-mockup">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div [innerHTML]="previewHtml"></div>
+      </div>
+    </div>
+  </div>
+</div>
