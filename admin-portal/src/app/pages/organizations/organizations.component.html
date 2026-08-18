@@ -1,0 +1,185 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+  <h1 style="font-size:24px;font-weight:700;">🏢 Organizations</h1>
+  <button class="btn btn-primary" (click)="openAddModal()">+ Create Organization</button>
+</div>
+
+<!-- Organizations Table -->
+<div style="background:white;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);overflow:hidden;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead style="background:#f5f5f5;border-bottom:2px solid #e0e0e0;">
+      <tr>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Logo</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Name</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Slug</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Domain</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Plan</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Purchase Date</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Expiry Date</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Status</th>
+        <th style="padding:12px 16px;text-align:left;font-weight:600;color:#333;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let org of organizations" style="border-bottom:1px solid #e0e0e0;">
+        <td style="padding:12px 16px;">
+          <img *ngIf="org.logoUrl" [src]="org.logoUrl" alt="Logo" style="width:32px;height:32px;border-radius:4px;">
+          <div *ngIf="!org.logoUrl" style="width:32px;height:32px;background:#e0e0e0;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;">No Logo</div>
+        </td>
+        <td style="padding:12px 16px;">{{ org.name }}</td>
+        <td style="padding:12px 16px;">{{ org.slug }}</td>
+        <td style="padding:12px 16px;">{{ org.domain || '-' }}</td>
+        <td style="padding:12px 16px;">{{ org.orgSubscriptionName || ('Plan #' + (org.planId || '-')) }}</td>
+        <td style="padding:12px 16px;font-size:13px;">{{ org.purchaseDate ? (org.purchaseDate | date:'MMM d, y') : '—' }}</td>
+        <td style="padding:12px 16px;font-size:13px;">{{ org.expiryDate ? (org.expiryDate | date:'MMM d, y') : '—' }}</td>
+        <td style="padding:12px 16px;">
+          <span *ngIf="org.status === 'EXPIRED'" style="color:#f44336;font-weight:600;background:#ffe5e5;padding:2px 8px;border-radius:4px;">✗ Expired</span>
+          <span *ngIf="org.status !== 'EXPIRED'" style="color:#4caf50;font-weight:600;background:#e6f7e6;padding:2px 8px;border-radius:4px;">✓ Active</span>
+          <button *ngIf="org.status === 'EXPIRED'" class="btn btn-sm" (click)="renewOrg(org)" style="margin-left:8px;background:#ff9800;color:#fff;">↻ Renew</button>
+        </td>
+        <td style="padding:12px 16px;">
+          <button class="btn btn-sm btn-secondary" (click)="openEditModal(org)" style="margin-right:8px;">Edit</button>
+          <button class="btn btn-sm btn-info" (click)="openAdminModal(org)" style="margin-right:8px;">Manage Admins</button>
+          <button class="btn btn-sm btn-danger" (click)="confirmDelete(org)">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div *ngIf="organizations.length === 0" style="padding:32px;text-align:center;color:#999;">
+    No organizations found. Create one to get started.
+  </div>
+</div>
+
+<!-- Modal -->
+<div *ngIf="showModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;">
+  <div style="background:white;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);width:90%;max-width:500px;max-height:90vh;overflow-y:auto;">
+    <div style="padding:24px;border-bottom:1px solid #e0e0e0;">
+      <h2 style="margin:0;font-size:20px;font-weight:700;">{{ editingId ? 'Edit' : 'Create' }} Organization</h2>
+    </div>
+    <form (submit)="saveOrganization()" style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Name *</label>
+        <input [(ngModel)]="formData.name" name="name" type="text" placeholder="Organization name" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;" required>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Slug *</label>
+        <input [(ngModel)]="formData.slug" name="slug" type="text" placeholder="organization-slug" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;" required>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Domain</label>
+        <input [(ngModel)]="formData.domain" name="domain" type="text" placeholder="example.com" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">
+          <input [(ngModel)]="formData.isActive" name="isActive" type="checkbox"> Active
+        </label>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Plan ID</label>
+        <input [(ngModel)]="formData.planId" name="planId" type="number" placeholder="Plan ID (optional)" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Org Subscription Plan</label>
+        <select [(ngModel)]="formData.orgSubscriptionId" name="orgSubscriptionId" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          <option [ngValue]="null">-- None --</option>
+          <option *ngFor="let sub of subscriptions" [value]="sub.id">{{ sub.name }} ({{ sub.price | number:'1.0-0' }} / {{ sub.period }})</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Status</label>
+        <select [(ngModel)]="formData.status" name="status" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          <option value="ACTIVE">Active</option>
+          <option value="EXPIRED">Expired</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Purchase Date</label>
+        <input [(ngModel)]="formData.purchaseDate" name="purchaseDate" type="datetime-local" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Expiry Date</label>
+        <input [(ngModel)]="formData.expiryDate" name="expiryDate" type="datetime-local" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+      </div>
+      <div *ngIf="editingId" style="border-top:1px solid #e0e0e0;padding-top:16px;">
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Upload Logo</label>
+        <input #logoFile type="file" accept="image/*" style="display:block;margin-bottom:8px;" (change)="onLogoSelect()">
+        <button type="button" class="btn btn-secondary" [disabled]="!logoFile.files?.length" (click)="uploadLogo(logoFile)">Upload</button>
+      </div>
+      <div style="display:flex;gap:8px;border-top:1px solid #e0e0e0;padding-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Save</button>
+        <button type="button" class="btn btn-secondary" (click)="closeModal()" style="flex:1;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Admin Modal -->
+<div *ngIf="showAdminModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;">
+  <div style="background:white;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);width:90%;max-width:500px;max-height:90vh;overflow-y:auto;">
+    <div style="padding:20px 24px;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;font-size:20px;font-weight:700;">Manage Admins</h2>
+      <button type="button" class="btn btn-primary" (click)="openCreateAdminForm()">+ Create Admin</button>
+    </div>
+    <div style="padding:24px;">
+      <div *ngIf="orgAdmins.length > 0" style="margin-bottom:20px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid #e0e0e0;">
+              <th style="text-align:left;padding:6px 8px;font-size:13px;color:#666;">Name</th>
+              <th style="text-align:left;padding:6px 8px;font-size:13px;color:#666;">Email</th>
+              <th style="text-align:left;padding:6px 8px;font-size:13px;color:#666;">Status</th>
+              <th style="text-align:left;padding:6px 8px;font-size:13px;color:#666;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let admin of orgAdmins" style="border-bottom:1px solid #f0f0f0;">
+              <td style="padding:6px 8px;font-size:14px;">{{ admin.name }}</td>
+              <td style="padding:6px 8px;font-size:14px;">{{ admin.email }}</td>
+              <td style="padding:6px 8px;font-size:14px;">
+                <span [style.color]="admin.isActive ? '#4caf50' : '#f44336'">{{ admin.isActive ? 'Active' : 'Inactive' }}</span>
+              </td>
+              <td style="padding:6px 8px;font-size:14px;white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-secondary" (click)="editAdmin(admin)" style="margin-right:6px;">Edit</button>
+                <button type="button" class="btn btn-sm btn-danger" (click)="deleteAdmin(admin)">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="orgAdmins.length === 0" style="text-align:center;color:#999;padding:12px 0 8px;">
+        No admins created yet for this organization. Use "Create Admin" to add one.
+      </div>
+      <button type="button" class="btn btn-secondary" (click)="closeAdminModal()" style="width:100%;margin-top:12px;">Close</button>
+    </div>
+    <!-- Create / Edit Admin popup -->
+    <div *ngIf="adminFormVisible" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:1100;">
+      <div style="background:white;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.25);width:90%;max-width:440px;padding:24px;">
+        <h3 style="margin:0 0 16px;font-size:18px;font-weight:700;">{{ editingAdminId ? 'Edit Admin' : 'Create New Admin' }}</h3>
+        <form (submit)="submitAdmin()" style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;color:#333;">Email *</label>
+            <input [(ngModel)]="adminFormData.email" name="email" type="email" placeholder="admin@example.com" [readonly]="!!editingAdminId" [style.opacity]="editingAdminId ? 0.6 : 1" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;" required>
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;color:#333;">Name *</label>
+            <input [(ngModel)]="adminFormData.name" name="name" type="text" placeholder="Admin Full Name" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;" required>
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;color:#333;">Password {{ editingAdminId ? '(leave blank to keep)' : '*' }}</label>
+            <input [(ngModel)]="adminFormData.password" name="password" type="password" placeholder="Secure password" [required]="!editingAdminId" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;color:#333;">Phone</label>
+            <input [(ngModel)]="adminFormData.phone" name="phone" type="tel" placeholder="+1 (555) 123-4567" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          </div>
+          <div *ngIf="editingAdminId">
+            <label style="font-weight:600;color:#333;"><input type="checkbox" [(ngModel)]="adminFormData.isActive" name="isActive"> Active</label>
+          </div>
+          <div style="display:flex;gap:8px;border-top:1px solid #e0e0e0;padding-top:16px;">
+            <button type="submit" class="btn btn-primary" style="flex:1;">{{ editingAdminId ? 'Update Admin' : 'Create Admin' }}</button>
+            <button type="button" class="btn btn-secondary" (click)="closeAdminForm()" style="flex:1;">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
