@@ -1,12 +1,15 @@
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\util\UserContext.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\exception\ResourceNotFoundException.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\DashboardController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\PlacementApplication.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\config\FileUploadConfig.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\StudentSubscriptionController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\bookmark\BookmarkResponseDTO.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\PaymentRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\PlacementDriveRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\LessonProgressController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\SubscriptionPlanRepository.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\OrganizationService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\LessonRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\auth\RegisterRequest.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\security\JwtAuthenticationFilter.java
@@ -14,6 +17,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\CourseServiceImpl.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\BookmarkRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Batch.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\FacultyDirectoryController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\security\JwtService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\NotificationResponse.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\ExamSubmissionRepository.java
@@ -25,7 +29,9 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\NoteController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\SubscriptionPlanController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Course.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\config\WebConfig.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\AssignmentRepository.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\OrgSubscriptionService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\QuizQuestionRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\MobileContentController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\QuestionRepository.java
@@ -40,6 +46,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\InterviewSlot.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\UserController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\CodingQuestion.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\util\OrganizationContext.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Enrollment.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\SystemConfigRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\StudentPlacement.java
@@ -52,6 +59,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\InterviewSlotController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\AuthService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\MobileContentService.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\OrgSubscription.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\AssignmentController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Progress.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\auth\LoginRequest.java
@@ -60,6 +68,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\ExamController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\LeaderboardController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\PushNotificationLog.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\GlobalEntity.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\LmsApplication.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\SystemConfigController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\course\ModuleRequest.java
@@ -85,6 +94,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\AttendanceController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\SubscriptionPlan.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\CourseRepository.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\util\TenantIdentifierResolverImpl.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Module.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\exception\ErrorResponse.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\BookmarkService.java
@@ -94,6 +104,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Institute.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\AnswerRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\StudentPlacementController.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\SaasStatsController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Subscription.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\SystemConfig.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\InterviewSlotRepository.java
@@ -102,6 +113,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\PlacementDriveController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\ExamResult.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\QuestionController.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\OrgSubscriptionController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\converter\LongListConverter.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\ModuleRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\AuthController.java
@@ -122,10 +134,12 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\config\AuditorAwareImpl.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\dashboard\RecentEnrollmentDTO.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\InstituteRepository.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\OrganizationRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\EventController.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\AttendanceRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\NotificationService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\CertificateRepository.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Organization.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Answer.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\QuizRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\user\StudentResponse.java
@@ -133,6 +147,7 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\FcmService.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Event.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\dto\course\CourseSectionDTO.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\OrgSubscriptionRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\AssignmentSubmission.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\repository\ExamRepository.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\CertificateController.java
@@ -146,3 +161,5 @@ C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\config\SecurityConfig.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\entity\Comment.java
 C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\service\UserService.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\controller\OrganizationController.java
+C:\Users\Nachireddy\Downloads\freeloop-source\lms-platform\backend\src\main\java\com\institute\lms\interceptor\TenantInterceptor.java

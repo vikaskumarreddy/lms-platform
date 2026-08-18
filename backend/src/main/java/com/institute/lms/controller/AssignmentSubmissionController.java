@@ -4,6 +4,7 @@ import com.institute.lms.entity.AssignmentSubmission;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.AssignmentSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,15 +16,26 @@ public class AssignmentSubmissionController {
 
     private final AssignmentSubmissionRepository submissionRepository;
     private final UserRepository userRepository;
+    private final UserContext userContext;
 
-    public AssignmentSubmissionController(AssignmentSubmissionRepository submissionRepository, UserRepository userRepository) {
+    public AssignmentSubmissionController(AssignmentSubmissionRepository submissionRepository, UserRepository userRepository,
+                                          UserContext userContext) {
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
+        this.userContext = userContext;
     }
 
     @GetMapping
     public List<AssignmentSubmission> getAllSubmissions() {
-        return submissionRepository.findAll();
+        List<AssignmentSubmission> all = submissionRepository.findAll();
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) return List.of();
+            return all.stream()
+                    .filter(s -> s.getUser() != null && batchId.equals(s.getUser().getBatchId()))
+                    .toList();
+        }
+        return all;
     }
 
     @GetMapping("/student/{studentId}")

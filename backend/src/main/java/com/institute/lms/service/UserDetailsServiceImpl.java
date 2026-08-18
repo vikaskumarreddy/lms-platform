@@ -21,7 +21,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(username)
+        // Credential lookup for JWT validation. This runs inside the Spring Security
+        // filter chain, BEFORE the MVC TenantInterceptor has resolved/set the org context,
+        // so the user table lookup MUST NOT be tenant-filtered (Hibernate's @TenantId
+        // DISCRIMINATOR would otherwise scope it to the "-1" no-tenant sentinel and find
+        // nothing). findAnyByEmail is a native query that bypasses the discriminator; the
+        // token's organization_id claim drives all per-org scoping downstream.
+        User user = userRepository.findAnyByEmail(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
 
         return new org.springframework.security.core.userdetails.User(

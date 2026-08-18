@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface LoginResponse {
   accessToken: string;
@@ -18,6 +19,18 @@ export interface LoginResponse {
 }
 
 /**
+ * The platform root domain (no subdomain). Tenant subdomains (e.g.
+ * axisora.placements.com, manyasree.placements.com) resolve to individual
+ * organizations; this bare domain is the platform admin entry point that shows
+ * the dedicated platform menu (Organizations, Org Subscriptions, ...).
+ */
+const ROOT_DOMAIN = 'placements.com';
+
+function isIpHost(hostname: string): boolean {
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+/**
  * Handles admin authentication: login, token storage, logout, and role checks.
  */
 @Injectable({ providedIn: 'root' })
@@ -25,8 +38,17 @@ export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
 
+  /**
+   * Mirrors ApiService.baseUrl: production uses window.location.origin so the
+   * login request carries the correct tenant sub-domain as the Host header,
+   * while local dev targets the backend's dev port.
+   */
+  private get baseUrl(): string {
+    return environment.production ? window.location.origin : 'http://localhost:8080';
+  }
+
   login(email: string, password: string) {
-    return this.http.post<LoginResponse>('http://localhost:8080/api/auth/login', { email, password }).pipe(
+    return this.http.post<LoginResponse>(`${this.baseUrl}/api/auth/login`, { email, password }).pipe(
       tap(response => {
         localStorage.setItem('access_token', response.accessToken);
         localStorage.setItem('refresh_token', response.refreshToken);
@@ -46,7 +68,45 @@ export class AuthService {
 
   get isAdmin(): boolean {
     const u = this.user;
-    return !!u && (u.roles?.includes('ADMIN') || u.role === 'ADMIN');
+    if (u && (u.roles?.includes('ADMIN') || u.role === 'ADMIN')) {
+      return true;
+    }
+    // Robust fallback: decode the JWT's `role` claim and treat admin accordingly.
+    // The access token is written to localStorage at the same moment as the user
+    // object, so even if the stored `user` is stale/missing its role fields, an
+    // ADMIN token still unlocks the admin-only menus. INSTITUTE_ADMIN tokens carry
+    // "INSTITUTE_ADMIN" here, so org admins still do NOT see the admin-only menus.
+    const role = this.jwtRoleClaim();
+    return role === 'ADMIN';
+  }
+
+  /** Decodes the `role` claim from the stored access token, or null. */
+  private jwtRoleClaim(): string | null {
+    const token = this.token;
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try {
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      return (payload && typeof payload.role === 'string') ? payload.role : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * True when the browser is on the platform root domain (placements.com, or
+   * localhost / a direct IP in dev), as opposed to a tenant subdomain
+   * (e.g. axisora.placements.com). Used to render the dedicated platform admin
+   * menu on the root domain vs the per-organization operational menu on tenants.
+   */
+  get isPlatformDomain(): boolean {
+    const h = window.location.hostname;
+    if (isIpHost(h)) {
+      return true;
+    }
+    return h === ROOT_DOMAIN;
   }
 
   isLoggedIn(): boolean {

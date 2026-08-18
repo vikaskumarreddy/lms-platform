@@ -3,24 +3,36 @@ package com.institute.lms.controller;
 import com.institute.lms.dto.user.StudentRequest;
 import com.institute.lms.dto.user.StudentResponse;
 import com.institute.lms.service.UserService;
+import com.institute.lms.util.UserContext;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/students")
 public class UserController {
 
     private final UserService userService;
+    private final UserContext userContext;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserContext userContext) {
         this.userService = userService;
+        this.userContext = userContext;
     }
 
     @GetMapping
     public List<StudentResponse> getAllStudents() {
+        // Faculty only see students in their own batch.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) return List.of();
+            return userService.getAllStudents().stream()
+                    .filter(s -> batchId.equals(s.getBatchId()))
+                    .collect(Collectors.toList());
+        }
         return userService.getAllStudents();
     }
 

@@ -22,7 +22,7 @@ public class AuthResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class UserInfo {
+        public static class UserInfo {
         private Long id;
         private String email;
         private String fullName;
@@ -30,5 +30,6 @@ public class AuthResponse {
         private List<String> roles;
         private Long planId;
         private Long batchId;
+        private Long organizationId;
     }
 }

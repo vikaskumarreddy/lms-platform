@@ -34,16 +34,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String username;
+
+        // Never run JWT validation for the public auth endpoints (login/register).
+        // Login must be reachable even when the browser still holds a stale/expired
+        // Bearer token in localStorage — otherwise the filter below would try to
+        // resolve that stale user and abort the request before AuthController runs.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            filterChain.doFilter(request, response);
+            return;
+        }
+        String path = request.getRequestURI();
+        if (path != null && path.startsWith("/api/auth/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
+        final String jwt = authHeader.substring(7);
 
+        String username;
         try {
             username = jwtService.extractUsername(jwt);
         } catch (Exception e) {
@@ -52,18 +66,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            var userDetails = userDetailsService.loadUserByUsername(username);
-            
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            // Loading/validating the user must never abort the whole request. A stale,
+            // expired, or already-revoked token should simply leave the request
+            // unauthenticated (the framework then enforces authorization for protected
+            // endpoints, and the original controller still serves permitAll endpoints).
+            try {
+                var userDetails = userDetailsService.loadUserByUsername(username);
+
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            } catch (Exception ignored) {
+                // Invalid/expired/unresolvable user for this token — continue unauthenticated.
             }
         }
         filterChain.doFilter(request, response);

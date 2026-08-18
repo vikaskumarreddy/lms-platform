@@ -6,6 +6,8 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.AssignmentRepository;
 import com.institute.lms.repository.AssignmentSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.OrganizationContext;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,23 +22,39 @@ public class AssignmentController {
     private final AssignmentRepository assignmentRepository;
     private final UserRepository userRepository;
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
+    private final UserContext userContext;
+    private final OrganizationContext organizationContext;
 
     public AssignmentController(AssignmentRepository assignmentRepository, 
                                UserRepository userRepository,
-                               AssignmentSubmissionRepository assignmentSubmissionRepository) {
+                               AssignmentSubmissionRepository assignmentSubmissionRepository,
+                               UserContext userContext,
+                               OrganizationContext organizationContext) {
         this.assignmentRepository = assignmentRepository;
         this.userRepository = userRepository;
         this.assignmentSubmissionRepository = assignmentSubmissionRepository;
+        this.userContext = userContext;
+        this.organizationContext = organizationContext;
     }
 
     @GetMapping
     public List<Assignment> getAllAssignments() {
+        // Faculty are scoped to the assignments visible to their own batch.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) {
+                return assignmentRepository.findAll().stream()
+                        .filter(a -> a.getBatchIds() == null || a.getBatchIds().isEmpty())
+                        .collect(Collectors.toList());
+            }
+            return assignmentRepository.findVisibleToBatch(batchId, organizationContext.getCurrentOrgId());
+        }
         return assignmentRepository.findAll();
     }
 
     @GetMapping("/batch/{batchId}")
     public List<Assignment> getAssignmentsByBatch(@PathVariable Long batchId) {
-        return assignmentRepository.findVisibleToBatch(batchId);
+        return assignmentRepository.findVisibleToBatch(batchId, organizationContext.getCurrentOrgId());
     }
 
     @GetMapping("/course/{courseId}")
@@ -54,7 +72,7 @@ public class AssignmentController {
         // student's own batch. Previously this returned an empty list whenever the student
         // had no batch assigned, hiding "All Batches" assignments entirely.
         List<Assignment> assignments = user.getBatchId() != null
-                ? assignmentRepository.findVisibleToBatch(user.getBatchId())
+                ? assignmentRepository.findVisibleToBatch(user.getBatchId(), organizationContext.getCurrentOrgId())
                 : assignmentRepository.findAll().stream()
                         .filter(a -> a.getBatchIds() == null || a.getBatchIds().isEmpty())
                         .collect(Collectors.toList());

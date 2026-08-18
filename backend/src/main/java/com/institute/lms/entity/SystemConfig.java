@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class SystemConfig extends BaseEntity {
+public class SystemConfig extends GlobalEntity {
 
     @Column(name = "config_key", nullable = false, unique = true)
     private String configKey;

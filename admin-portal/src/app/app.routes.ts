@@ -21,7 +21,9 @@ import { BatchesComponent } from './pages/batches/batches.component';
 import { GradingAdminComponent } from './pages/grading-admin/grading-admin.component';
 import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
-import { adminGuard } from './guards/admin.guard';
+import { OrganizationsComponent } from './pages/organizations/organizations.component';
+import { OrgSubscriptionsComponent } from './pages/org-subscriptions/org-subscriptions.component';
+import { adminGuard, adminOnlyGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -31,6 +33,8 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     children: [
       { path: '', component: DashboardComponent },
+      { path: 'organizations', component: OrganizationsComponent, canActivate: [adminOnlyGuard] },
+      { path: 'org-subscriptions', component: OrgSubscriptionsComponent, canActivate: [adminOnlyGuard] },
       { path: 'students', component: StudentsComponent },
       { path: 'courses', component: CoursesComponent },
       { path: 'courses/:id', component: CourseDetailComponent },

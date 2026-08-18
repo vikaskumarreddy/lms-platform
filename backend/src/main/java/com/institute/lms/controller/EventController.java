@@ -2,6 +2,7 @@ package com.institute.lms.controller;
 
 import com.institute.lms.entity.Event;
 import com.institute.lms.repository.EventRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,13 +13,20 @@ import java.util.List;
 public class EventController {
 
     private final EventRepository eventRepository;
+    private final UserContext userContext;
 
-    public EventController(EventRepository eventRepository) {
+    public EventController(EventRepository eventRepository, UserContext userContext) {
         this.eventRepository = eventRepository;
+        this.userContext = userContext;
     }
 
     @GetMapping
     public List<Event> getAllEvents() {
+        // Faculty are scoped to events for their own batch (plus shared events with no batch).
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            return batchId != null ? eventRepository.findByBatchIdIsNullOrBatchId(batchId) : eventRepository.findAll();
+        }
         return eventRepository.findAll();
     }
 

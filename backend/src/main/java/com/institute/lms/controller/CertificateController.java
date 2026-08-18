@@ -4,6 +4,7 @@ import com.institute.lms.entity.Certificate;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.CertificateRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,15 +19,31 @@ public class CertificateController {
 
     private final CertificateRepository certificateRepository;
     private final UserRepository userRepository;
+    private final UserContext userContext;
 
-    public CertificateController(CertificateRepository certificateRepository, UserRepository userRepository) {
+    public CertificateController(CertificateRepository certificateRepository, UserRepository userRepository,
+                                 UserContext userContext) {
         this.certificateRepository = certificateRepository;
         this.userRepository = userRepository;
+        this.userContext = userContext;
     }
 
     @GetMapping
     public List<Map<String, Object>> getAll() {
-        return certificateRepository.findAll().stream().map(this::toMap).collect(Collectors.toList());
+        List<Map<String, Object>> all = certificateRepository.findAll().stream().map(this::toMap).collect(Collectors.toList());
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) return List.of();
+            return all.stream()
+                    .filter(m -> {
+                        Object uid = m.get("userId");
+                        if (!(uid instanceof Number number)) return false;
+                        User u = userRepository.findById(number.longValue()).orElse(null);
+                        return u != null && batchId.equals(u.getBatchId());
+                    })
+                    .collect(Collectors.toList());
+        }
+        return all;
     }
 
     @GetMapping("/user/{userId}")

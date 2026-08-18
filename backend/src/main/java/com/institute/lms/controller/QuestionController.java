@@ -5,6 +5,7 @@ import com.institute.lms.entity.Question;
 import com.institute.lms.repository.AnswerRepository;
 import com.institute.lms.repository.QuestionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,17 +18,25 @@ public class QuestionController {
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final UserRepository userRepository;
+    private final UserContext userContext;
 
     public QuestionController(QuestionRepository questionRepository,
                               AnswerRepository answerRepository,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              UserContext userContext) {
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
-                this.userRepository = userRepository;
+        this.userRepository = userRepository;
+        this.userContext = userContext;
     }
 
     @GetMapping
     public List<Question> getAllQuestions() {
+        // Faculty are scoped to questions visible to their own batch (plus shared "All Batches" ones).
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            return batchId != null ? questionRepository.findVisibleToBatch(batchId) : questionRepository.findGeneralQuestions();
+        }
         return questionRepository.findAll();
     }
 

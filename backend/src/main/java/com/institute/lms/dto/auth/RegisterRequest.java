@@ -16,7 +16,8 @@ public class RegisterRequest {
     @NotBlank
     private String password;
 
-    private String phone;
+        private String phone;
 
     private String role;
+    private Long organizationId;
 }

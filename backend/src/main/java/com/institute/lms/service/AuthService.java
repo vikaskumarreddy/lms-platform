@@ -3,15 +3,20 @@ package com.institute.lms.service;
 import com.institute.lms.dto.auth.AuthResponse;
 import com.institute.lms.dto.auth.LoginRequest;
 import com.institute.lms.dto.auth.RegisterRequest;
+import com.institute.lms.entity.Organization;
 import com.institute.lms.entity.User;
+import com.institute.lms.repository.OrganizationRepository;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.security.JwtService;
+import com.institute.lms.util.OrganizationContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -23,18 +28,30 @@ public class AuthService {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+        private final OrganizationRepository organizationRepository;
+        private final OrganizationContext organizationContext;
+
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
+                         OrganizationRepository organizationRepository, OrganizationContext organizationContext) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.organizationRepository = organizationRepository;
+        this.organizationContext = organizationContext;
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+        User user = resolveUserForLogin(request.getEmail());
+        if (user == null) {
+            throw new RuntimeException("Invalid email or password");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid email or password");
+        }
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new RuntimeException("Account disabled");
         }
 
         // Update last login
@@ -44,8 +61,41 @@ public class AuthService {
         return buildAuthResponse(user);
     }
 
+    /** Resolves the login user scoped to the current tenant (from the domain/JWT context),
+     *  falling back to the platform standard account when no tenant context is available. */
+    private User resolveUserForLogin(String email) {
+        Long tenantOrgId = organizationContext.getCurrentOrgId();
+        if (tenantOrgId != null) {
+            var inTenant = userRepository.findByOrganizationIdAndEmail(tenantOrgId, email);
+            if (inTenant.isPresent()) {
+                return inTenant.get();
+            }
+        }
+        // Legacy fallback for the main platform account (admin@axisora.com in axisora org)
+        // and situations without a resolvable tenant (e.g. the platform super admin logging
+        // in at placements.com). findAnyByEmail is a NATIVE query so it is NOT scoped by the
+        // @TenantId discriminator (which would otherwise filter to the "-1" no-tenant sentinel
+        // and return nothing, making the super admin unable to log in).
+        return userRepository.findAnyByEmail(email).orElse(null);
+    }
+
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        // Resolve the target organization first: explicit request field wins, then the
+        // tenant resolved by TenantInterceptor for this request (JWT/header/subdomain),
+        // falling back to the default "axisora" org only when neither is available.
+        Long targetOrgId = request.getOrganizationId();
+        if (targetOrgId == null) {
+            targetOrgId = organizationContext.getCurrentOrgId();
+        }
+        if (targetOrgId == null) {
+            targetOrgId = organizationRepository.findBySlug("axisora").map(Organization::getId).orElse(null);
+        }
+
+        // Email uniqueness is scoped per-organization (see V28's uk_users_org_email),
+        // so check within the target org rather than globally.
+        if (targetOrgId != null
+                ? userRepository.existsByOrganizationIdAndEmail(targetOrgId, request.getEmail())
+                : userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already registered");
         }
 
@@ -66,14 +116,25 @@ public class AuthService {
         user.setRole(role);
         user.setIsActive(true);
         user.setIsEmailVerified(false);
+        user.setOrganizationId(targetOrgId);
 
         userRepository.save(user);
 
         return buildAuthResponse(user);
     }
 
-    private AuthResponse buildAuthResponse(User user) {
-        String accessToken = jwtService.generateToken(user);
+        private AuthResponse buildAuthResponse(User user) {
+        // Build JWT with organization_id claim for tenant resolution
+        Map<String, Object> extraClaims = new HashMap<>();
+        if (user.getOrganizationId() != null) {
+            extraClaims.put("organization_id", user.getOrganizationId());
+        }
+        // Included so TenantInterceptor can bypass tenant scoping for platform
+        // super-admins (ADMIN role), who need to see across every organization.
+        if (user.getRole() != null) {
+            extraClaims.put("role", user.getRole().name());
+        }
+        String accessToken = jwtService.generateToken(extraClaims, user);
         String refreshToken = jwtService.generateRefreshToken(user);
         String roleName = user.getRole() != null ? user.getRole().name() : "STUDENT";
 
@@ -90,6 +151,7 @@ public class AuthService {
                         .roles(List.of(roleName))
                         .planId(user.getPlanId())
                         .batchId(user.getBatchId())
+                        .organizationId(user.getOrganizationId())
                         .build())
                 .build();
     }

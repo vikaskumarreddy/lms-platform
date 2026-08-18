@@ -6,6 +6,7 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.BatchRepository;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.service.UserService;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,11 +20,14 @@ public class BatchController {
     private final BatchRepository batchRepository;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final UserContext userContext;
 
-    public BatchController(BatchRepository batchRepository, UserRepository userRepository, UserService userService) {
+    public BatchController(BatchRepository batchRepository, UserRepository userRepository, UserService userService,
+                           UserContext userContext) {
         this.batchRepository = batchRepository;
         this.userRepository = userRepository;
         this.userService = userService;
+        this.userContext = userContext;
     }
 
     @GetMapping("/{id}/students")
@@ -36,6 +40,12 @@ public class BatchController {
 
     @GetMapping
     public List<Batch> getAllBatches() {
+        // Faculty only see their own batch.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) return List.of();
+            return batchRepository.findById(batchId).map(List::of).orElse(List.of());
+        }
         return batchRepository.findAll();
     }
 

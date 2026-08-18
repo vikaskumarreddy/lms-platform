@@ -10,6 +10,7 @@ import com.institute.lms.repository.BatchRepository;
 import com.institute.lms.repository.StudentPlacementRepository;
 import com.institute.lms.repository.SubscriptionPlanRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.OrganizationContext;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,16 +27,19 @@ public class UserService {
     private final StudentPlacementRepository placementRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final BatchRepository batchRepository;
+    private final OrganizationContext organizationContext;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        StudentPlacementRepository placementRepository, SubscriptionPlanRepository subscriptionPlanRepository,
-                       BatchRepository batchRepository) {
+                       BatchRepository batchRepository, OrganizationContext organizationContext) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.placementRepository = placementRepository;
         this.subscriptionPlanRepository = subscriptionPlanRepository;
         this.batchRepository = batchRepository;
+        this.organizationContext = organizationContext;
     }
+
 
     public List<StudentResponse> getAllStudents() {
         return userRepository.findByRole(User.UserRole.STUDENT)
@@ -68,6 +72,11 @@ public class UserService {
             throw new RuntimeException("Username already taken");
         }
 
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId == null) {
+            throw new RuntimeException("No organization context set");
+        }
+
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
@@ -80,6 +89,7 @@ public class UserService {
         user.setIsEmailVerified(false);
         user.setPlanId(request.getPlanId());
         user.setBatchId(request.getBatchId());
+        user.setOrganizationId(orgId);
         user.setLinkedin(request.getLinkedin());
         user.setGithub(request.getGithub());
 
@@ -188,5 +198,99 @@ public class UserService {
         }
         
         return response;
+    }
+
+    // ============= Organization-Scoped Methods =============
+
+    /**
+     * Gets all faculty users in the current organization.
+     * Used by org admins to manage faculty.
+     */
+    public List<StudentResponse> getFacultyInCurrentOrganization() {
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId == null) {
+            throw new RuntimeException("No organization context set");
+        }
+        return userRepository.findByOrganizationIdAndRole(orgId, User.UserRole.INSTRUCTOR)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets all students in the current organization.
+     * Used by org admins to manage students.
+     */
+    public List<StudentResponse> getStudentsInCurrentOrganization() {
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId == null) {
+            throw new RuntimeException("No organization context set");
+        }
+        return userRepository.findByOrganizationIdAndRole(orgId, User.UserRole.STUDENT)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets all active users in the current organization.
+     */
+    public List<StudentResponse> getActiveUsersInCurrentOrganization() {
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId == null) {
+            throw new RuntimeException("No organization context set");
+        }
+        return userRepository.findByOrganizationIdAndIsActive(orgId, true)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Creates a new user in the current organization.
+     */
+    public User createUserInCurrentOrganization(String email, String name, String password,
+                                                String phone, User.UserRole role) {
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId == null) {
+            throw new RuntimeException("No organization context set");
+        }
+
+        if (userRepository.existsByEmail(email)) {
+            throw new RuntimeException("Email already registered");
+        }
+
+        User user = new User();
+        user.setEmail(email);
+        user.setName(name);
+        user.setPassword(passwordEncoder.encode(password != null ? password : "default123"));
+        user.setPhone(phone);
+        user.setRole(role);
+        user.setIsActive(true);
+        user.setIsEmailVerified(false);
+        user.setOrganizationId(orgId);
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * Creates an organization admin (INSTITUTE_ADMIN) in the current organization.
+     */
+    public User createOrgAdminInCurrentOrganization(String email, String name, String password, String phone) {
+        return createUserInCurrentOrganization(email, name, password, phone, User.UserRole.INSTITUTE_ADMIN);
+    }
+
+    /**
+     * Creates a faculty user in the current organization.
+     */
+    public User createFacultyInCurrentOrganization(String email, String name, String password, String phone) {
+        return createUserInCurrentOrganization(email, name, password, phone, User.UserRole.INSTRUCTOR);
+    }
+
+    /**
+     * Creates a student user in the current organization.
+     */
+    public User createStudentInCurrentOrganization(String email, String name, String password, String phone) {
+        return createUserInCurrentOrganization(email, name, password, phone, User.UserRole.STUDENT);
     }
 }

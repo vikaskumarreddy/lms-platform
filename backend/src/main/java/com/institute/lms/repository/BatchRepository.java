@@ -10,4 +10,5 @@ import java.util.List;
 public interface BatchRepository extends JpaRepository<Batch, Long> {
     List<Batch> findByIsActiveTrue();
     List<Batch> findByPlanId(Long planId);
+    List<Batch> findByMentorId(Long mentorId);
 }

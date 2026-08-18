@@ -49,11 +49,17 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
+                    
     @Column(name = "plan_id")
     private Long planId;
 
     @Column(name = "batch_id")
     private Long batchId;
+
+    /** Ghost platform super-admin (admin@axisora.com) auto-provisioned in every tenant.
+     *  Hidden from tenant admin lists and treated as the platform owner when present. */
+    @Column(name = "is_ghost")
+    private Boolean isGhost = false;
 
     @Column(name = "linkedin")
     private String linkedin;

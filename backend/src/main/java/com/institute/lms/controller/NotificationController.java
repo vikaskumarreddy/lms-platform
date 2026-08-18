@@ -5,12 +5,14 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.NotificationRepository;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.service.FcmService;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -20,12 +22,14 @@ public class NotificationController {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final FcmService fcmService;
+    private final UserContext userContext;
 
     public NotificationController(NotificationRepository notificationRepository, UserRepository userRepository,
-                                   FcmService fcmService) {
+                                   FcmService fcmService, UserContext userContext) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.fcmService = fcmService;
+        this.userContext = userContext;
     }
 
     /** Pushes a notification to a student's device (no-op if push isn't configured/enabled). */
@@ -37,7 +41,21 @@ public class NotificationController {
 
     @GetMapping
     public List<Notification> getAllNotifications() {
-        return notificationRepository.findAll();
+        List<Notification> all = notificationRepository.findAll();
+        // Faculty only see notifications broadcast to everyone, or targeted at their own batch/students.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            Set<Long> batchStudentIds = batchId != null
+                    ? userRepository.findByRoleAndBatchId(User.UserRole.STUDENT, batchId)
+                            .stream().map(User::getId).collect(Collectors.toSet())
+                    : Set.of();
+            return all.stream()
+                    .filter(n -> "ALL".equals(n.getTargetType())
+                            || (batchId != null && "BATCH".equals(n.getTargetType()) && batchId.equals(n.getTargetId()))
+                            || (n.getUserId() != null && batchStudentIds.contains(n.getUserId())))
+                    .collect(Collectors.toList());
+        }
+        return all;
     }
 
     @GetMapping("/broadcasts")

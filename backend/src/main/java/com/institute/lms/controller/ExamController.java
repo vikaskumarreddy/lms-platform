@@ -6,6 +6,8 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.ExamRepository;
 import com.institute.lms.repository.ExamSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.OrganizationContext;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,23 +22,39 @@ public class ExamController {
     private final ExamRepository examRepository;
     private final UserRepository userRepository;
     private final ExamSubmissionRepository examSubmissionRepository;
+    private final UserContext userContext;
+    private final OrganizationContext organizationContext;
 
     public ExamController(ExamRepository examRepository,
                          UserRepository userRepository,
-                         ExamSubmissionRepository examSubmissionRepository) {
+                         ExamSubmissionRepository examSubmissionRepository,
+                         UserContext userContext,
+                         OrganizationContext organizationContext) {
         this.examRepository = examRepository;
         this.userRepository = userRepository;
         this.examSubmissionRepository = examSubmissionRepository;
+        this.userContext = userContext;
+        this.organizationContext = organizationContext;
     }
 
     @GetMapping
     public List<Exam> getAllExams() {
+        // Faculty are scoped to the exams visible to their own batch.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) {
+                return examRepository.findAll().stream()
+                        .filter(e -> e.getBatchIds() == null || e.getBatchIds().isEmpty())
+                        .collect(Collectors.toList());
+            }
+            return examRepository.findVisibleToBatch(batchId, organizationContext.getCurrentOrgId());
+        }
         return examRepository.findAll();
     }
 
     @GetMapping("/batch/{batchId}")
     public List<Exam> getExamsByBatch(@PathVariable Long batchId) {
-        return examRepository.findVisibleToBatch(batchId);
+        return examRepository.findVisibleToBatch(batchId, organizationContext.getCurrentOrgId());
     }
 
     @GetMapping("/course/{courseId}")
@@ -54,7 +72,7 @@ public class ExamController {
         // batch. Previously this returned an empty list whenever the student had no batch
         // assigned, hiding "All Batches" exams entirely.
         List<Exam> exams = user.getBatchId() != null
-                ? examRepository.findVisibleToBatch(user.getBatchId())
+                ? examRepository.findVisibleToBatch(user.getBatchId(), organizationContext.getCurrentOrgId())
                 : examRepository.findAll().stream()
                         .filter(e -> e.getBatchIds() == null || e.getBatchIds().isEmpty())
                         .collect(Collectors.toList());
