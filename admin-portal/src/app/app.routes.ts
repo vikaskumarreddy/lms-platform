@@ -23,7 +23,10 @@ import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-ad
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
 import { OrganizationsComponent } from './pages/organizations/organizations.component';
 import { OrgSubscriptionsComponent } from './pages/org-subscriptions/org-subscriptions.component';
-import { adminGuard, adminOnlyGuard } from './guards/admin.guard';
+import { AccountComponent } from './pages/account/account.component';
+import { PlatformAddonsComponent } from './pages/platform-addons/platform-addons.component';
+import { PlatformBillingComponent } from './pages/platform-billing/platform-billing.component';
+import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -35,6 +38,12 @@ export const routes: Routes = [
       { path: '', component: DashboardComponent },
       { path: 'organizations', component: OrganizationsComponent, canActivate: [adminOnlyGuard] },
       { path: 'org-subscriptions', component: OrgSubscriptionsComponent, canActivate: [adminOnlyGuard] },
+      { path: 'platform-addons', component: PlatformAddonsComponent, canActivate: [adminOnlyGuard] },
+      { path: 'platform-billing', component: PlatformBillingComponent, canActivate: [adminOnlyGuard] },
+      // Account is the tenant's own billing surface. Guarded on ROLE, not hostname:
+      // in dev every host resolves to the platform domain, so a hostname check would
+      // hide this from the institute admins it exists for.
+      { path: 'account', component: AccountComponent, canActivate: [orgAdminGuard] },
       { path: 'students', component: StudentsComponent },
       { path: 'courses', component: CoursesComponent },
       { path: 'courses/:id', component: CourseDetailComponent },

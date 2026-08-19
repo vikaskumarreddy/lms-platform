@@ -42,3 +42,29 @@ export const adminOnlyGuard: CanActivateFn = () => {
   router.navigate(['/']);
   return false;
 };
+
+/**
+ * Allows anyone who administers an organization — the platform super admin or a
+ * tenant's own INSTITUTE_ADMIN. Used for the Account page, which both need: the
+ * tenant to manage their own subscription, and the platform admin to see exactly what
+ * the customer sees when supporting them.
+ *
+ * <p>Deliberately a ROLE check. The platform-versus-tenant menu split elsewhere keys
+ * off the hostname, and in local development every host resolves to the platform
+ * domain — so a hostname-based rule would hide the Account page from precisely the
+ * users it is built for whenever they are not on a production subdomain.
+ */
+export const orgAdminGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  const u = auth.user;
+  const hasRole = !!u && ADMIN_ROLES.some(r => (u.roles ?? []).includes(r) || u.role === r);
+
+  if (auth.isLoggedIn() && (hasRole || auth.isAdmin)) {
+    return true;
+  }
+
+  router.navigate(['/']);
+  return false;
+};

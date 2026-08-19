@@ -1,0 +1,500 @@
+<div class="account-page">
+
+  <div class="page-header">
+    <div>
+      <h1>Account</h1>
+      <p class="subtitle">Your organization, subscription and usage.</p>
+    </div>
+  </div>
+
+  <!-- Subscription notice: expiry, grace, overage, pilot. Absent when all is well,
+       so that a banner always means something. -->
+  @if (overview?.notice; as notice) {
+    <div class="notice" [class]="noticeClass()">
+      <div class="notice-body">
+        <div class="notice-title">{{ notice.title }}</div>
+        <div class="notice-message">{{ notice.message }}</div>
+      </div>
+      <button class="btn btn-primary" (click)="selectTab('plans')">{{ notice.actionLabel }}</button>
+    </div>
+  }
+
+  <!-- A pending plan change: shown prominently so the admin doesn't request it twice. -->
+  @if (overview?.pendingPlanChange; as pending) {
+    <div class="notice notice-info">
+      <div class="notice-body">
+        <div class="notice-title">{{ pending.requestKind | titlecase }} requested — awaiting confirmation</div>
+        <div class="notice-message">
+          You asked to move to <strong>{{ pending.requestedPlanName }}</strong>
+          ({{ pending.requestedBillingCycle | lowercase }}) on
+          {{ pending.createdAt | date:'MMM d, y' }}. We'll be in touch to arrange billing.
+        </div>
+      </div>
+      <button class="btn btn-danger" (click)="withdrawPendingChange()">Withdraw</button>
+    </div>
+  }
+
+  <div class="tabs">
+    <button [class.active]="activeTab === 'overview'" (click)="selectTab('overview')">Overview</button>
+    <button [class.active]="activeTab === 'plans'" (click)="selectTab('plans')">Plans</button>
+    <button [class.active]="activeTab === 'addons'" (click)="selectTab('addons')">Add-ons</button>
+    <button [class.active]="activeTab === 'billing'" (click)="selectTab('billing')">Billing history</button>
+  </div>
+
+  @if (loading) {
+    <div class="card"><p class="muted">Loading your account…</p></div>
+  }
+
+  <!-- ================= OVERVIEW ================= -->
+  @if (!loading && activeTab === 'overview' && overview) {
+
+    <div class="grid-2">
+
+      <!-- Current subscription -->
+      <div class="card">
+        <h2>Current subscription</h2>
+        @if (overview.subscription; as sub) {
+          <div class="plan-headline">
+            <span class="plan-name">{{ sub.planName }}</span>
+            <span class="badge"
+                  [class.badge-success]="sub.status === 'ACTIVE' || sub.status === 'TRIALING'"
+                  [class.badge-warning]="sub.status === 'GRACE' || sub.status === 'PAST_DUE' || sub.status === 'PILOT'"
+                  [class.badge-danger]="sub.accessLevel !== 'FULL'">
+              {{ sub.statusLabel }}
+            </span>
+          </div>
+
+          <dl class="detail-list">
+            <div><dt>Billing</dt><dd>{{ sub.billingCycleLabel }}</dd></div>
+            @if (sub.unitPrice != null) {
+              <div>
+                <dt>Price</dt>
+                <dd>
+                  ₹{{ sub.unitPrice | number:'1.0-2' }}
+                  <span class="muted">+ {{ sub.gstRatePct }}% GST</span>
+                  <div class="muted small">₹{{ sub.priceWithTax | number:'1.0-2' }} including tax</div>
+                </dd>
+              </div>
+            }
+            <div><dt>Started</dt><dd>{{ sub.periodStart | date:'MMM d, y' }}</dd></div>
+            <div>
+              <dt>Renews / ends</dt>
+              <dd>
+                {{ sub.periodEnd ? (sub.periodEnd | date:'MMM d, y') : 'No fixed end date' }}
+                @if (sub.daysRemaining != null && sub.daysRemaining >= 0) {
+                  <span class="muted">({{ sub.daysRemaining }} days left)</span>
+                }
+              </dd>
+            </div>
+            <div><dt>Auto-renew</dt><dd>{{ sub.autoRenew ? 'On' : 'Off' }}</dd></div>
+            @if (sub.limitsCustomised) {
+              <div><dt>Limits</dt><dd>Custom limits agreed for your organization</dd></div>
+            }
+            @if (sub.poNumber) {
+              <div><dt>PO number</dt><dd>{{ sub.poNumber }}</dd></div>
+            }
+          </dl>
+
+          <button class="btn btn-primary" (click)="selectTab('plans')">Compare plans</button>
+        } @else {
+          <p class="muted">
+            No plan is assigned to this organization yet. Contact your account manager to activate one.
+          </p>
+        }
+      </div>
+
+      <!-- Usage meters -->
+      <div class="card">
+        <h2>Usage this month</h2>
+        @for (meter of overview.usage; track meter.limitKey) {
+          <div class="meter">
+            <div class="meter-header">
+              <span class="meter-label">{{ meter.label }}</span>
+              <span class="meter-value">
+                {{ meter.used | number }}
+                @if (meter.unlimited) { <span class="muted">/ unlimited</span> }
+                @else { <span class="muted">/ {{ meter.limit | number }}</span> }
+              </span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill"
+                   [style.width]="meterWidth(meter)"
+                   [style.background]="meterColour(meter)"></div>
+            </div>
+            @if (meter.fromAddons > 0) {
+              <div class="meter-note muted">Includes {{ meter.fromAddons | number }} from add-ons</div>
+            }
+            @if (meter.note) {
+              <div class="meter-note muted">{{ meter.note }}</div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Organization details, exactly as captured when the tenant was created -->
+    <div class="card">
+      <h2>Organization details</h2>
+      <div class="grid-2">
+        <dl class="detail-list">
+          <div><dt>Name</dt><dd>{{ overview.organization.name }}</dd></div>
+          @if (overview.organization.legalName) {
+            <div><dt>Legal name</dt><dd>{{ overview.organization.legalName }}</dd></div>
+          }
+          <div><dt>Slug</dt><dd>{{ overview.organization.slug }}</dd></div>
+          <div><dt>Domain</dt><dd>{{ overview.organization.domain || '—' }}</dd></div>
+          <div>
+            <dt>Status</dt>
+            <dd>
+              <span class="badge"
+                    [class.badge-success]="overview.organization.status === 'ACTIVE'"
+                    [class.badge-danger]="overview.organization.status !== 'ACTIVE'">
+                {{ overview.organization.status }}
+              </span>
+            </dd>
+          </div>
+          <div><dt>Created</dt><dd>{{ overview.organization.createdAt | date:'MMM d, y' }}</dd></div>
+          <div><dt>Plan purchased</dt><dd>{{ overview.organization.purchaseDate | date:'MMM d, y' }}</dd></div>
+          <div><dt>Expires</dt><dd>{{ overview.organization.expiryDate | date:'MMM d, y' }}</dd></div>
+          <div><dt>Renewals</dt><dd>{{ overview.organization.renewalCount || 0 }}</dd></div>
+        </dl>
+
+        <dl class="detail-list">
+          <div><dt>GSTIN</dt><dd>{{ overview.organization.gstin || '—' }}</dd></div>
+          <div><dt>PAN</dt><dd>{{ overview.organization.pan || '—' }}</dd></div>
+          <div><dt>Place of supply</dt><dd>{{ overview.organization.placeOfSupply || '—' }}</dd></div>
+          <div><dt>Billing email</dt><dd>{{ overview.organization.billingEmail || '—' }}</dd></div>
+          <div><dt>Billing phone</dt><dd>{{ overview.organization.billingPhone || '—' }}</dd></div>
+          <div>
+            <dt>Address</dt>
+            <dd>
+              {{ overview.organization.billingAddress || '—' }}
+              @if (overview.organization.city) {
+                <div class="muted">
+                  {{ overview.organization.city }}{{ overview.organization.pincode ? ' ' + overview.organization.pincode : '' }}
+                </div>
+              }
+            </dd>
+          </div>
+          <div><dt>Contact person</dt><dd>{{ overview.organization.contactPerson || '—' }}</dd></div>
+          @if (overview.organization.poNumber) {
+            <div><dt>PO number</dt><dd>{{ overview.organization.poNumber }}</dd></div>
+          }
+          @if (overview.organization.salesOwner) {
+            <div><dt>Your account manager</dt><dd>{{ overview.organization.salesOwner }}</dd></div>
+          }
+        </dl>
+      </div>
+
+      @if (overview.organization.admins?.length) {
+        <h3>Administrators</h3>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @for (admin of overview.organization.admins; track admin.id) {
+              <tr>
+                <td>{{ admin.name }}</td>
+                <td>{{ admin.email }}</td>
+                <td>{{ admin.phone || '—' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="admin.isActive" [class.badge-secondary]="!admin.isActive">
+                    {{ admin.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+
+    <!-- What the plan includes -->
+    <div class="card">
+      <h2>What your plan includes</h2>
+      @for (group of entitlementCategories(); track group.key) {
+        <div class="entitlement-group">
+          <h3>{{ group.label }}</h3>
+          <ul class="entitlement-list">
+            @for (item of group.items; track item.key) {
+              <li [class.excluded]="!item.included">
+                <span class="tick">{{ item.included ? '✓' : '—' }}</span>
+                <span>
+                  {{ item.label }}
+                  @if (item.included && item.value !== true && item.value != null) {
+                    <strong>({{ item.value }})</strong>
+                  }
+                  <!-- Features we cannot self-provision are labelled honestly, so nobody
+                       expects an instant switch-on. -->
+                  @if (item.included && item.salesQualified) {
+                    <span class="muted small">— arranged with your account manager</span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ================= PLANS ================= -->
+  @if (!loading && activeTab === 'plans') {
+    <div class="card">
+      <div class="plans-header">
+        <div>
+          <h2>Plans</h2>
+          <p class="muted">All prices exclude {{ overview?.subscription?.gstRatePct || 18 }}% GST.</p>
+        </div>
+        <div class="cycle-toggle">
+          <button [class.active]="!showAnnual" (click)="showAnnual = false">Monthly</button>
+          <button [class.active]="showAnnual" (click)="showAnnual = true">Annual</button>
+        </div>
+      </div>
+
+      <div class="plan-grid">
+        @for (card of planCards; track card.plan.code) {
+          <div class="plan-card"
+               [class.plan-current]="card.isCurrent"
+               [class.plan-recommended]="card.recommended"
+               [class.plan-highlighted]="isHighlighted(card)">
+
+            @if (card.recommended) {
+              <div class="ribbon">Most popular</div>
+            }
+
+            <h3>{{ card.plan.name }}</h3>
+            <p class="plan-tagline">{{ card.plan.tagline }}</p>
+
+            <div class="plan-price">
+              @if (priceFor(card.plan) != null) {
+                <span class="amount">₹{{ priceFor(card.plan) | number:'1.0-0' }}</span>
+                <span class="period">{{ priceSuffix() }}</span>
+                @if (showAnnual && annualSaving(card.plan)) {
+                  <div class="saving">Save ₹{{ annualSaving(card.plan) | number:'1.0-0' }} a year</div>
+                }
+              } @else {
+                <span class="amount custom">Custom pricing</span>
+              }
+            </div>
+
+            <ul class="plan-limits">
+              @for (line of limitLine(card.plan); track line) {
+                <li>{{ line }}</li>
+              }
+            </ul>
+
+            <ul class="plan-features">
+              @for (feature of card.plan.features; track feature) {
+                <li>{{ feature }}</li>
+              }
+            </ul>
+
+            <!-- The applied plan renders a DISABLED button reading "Current Plan";
+                 every other plan offers a real action. -->
+            <button class="btn plan-action"
+                    [class.btn-primary]="!card.isCurrent && !card.blocked"
+                    [class.btn-current]="card.isCurrent"
+                    [disabled]="card.isCurrent || card.blocked"
+                    (click)="choosePlan(card)">
+              {{ card.actionLabel }}
+            </button>
+
+            @if (card.blocked && card.blockedReason) {
+              <p class="blocked-reason">{{ card.blockedReason }}</p>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ================= ADD-ONS ================= -->
+  @if (!loading && activeTab === 'addons') {
+    <div class="card">
+      <h2>Your add-ons</h2>
+      @if (overview?.addons?.length) {
+        <table>
+          <thead>
+            <tr><th>Add-on</th><th>Quantity</th><th>Price</th><th>Billing</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @for (addon of overview!.addons; track addon.id) {
+              <tr>
+                <td>{{ addon.addonName }}</td>
+                <td>{{ addon.qty }} {{ addon.unitLabel }}{{ addon.qty === 1 ? '' : 's' }}</td>
+                <td>{{ addon.unitPrice != null ? ('₹' + (addon.unitPrice | number:'1.0-2')) : 'To be quoted' }}</td>
+                <td>{{ addon.billingPeriod | titlecase }}</td>
+                <td>
+                  <span class="badge"
+                        [class.badge-success]="addon.status === 'ACTIVE'"
+                        [class.badge-warning]="addon.awaitingDecision"
+                        [class.badge-secondary]="addon.status === 'CANCELLED'">
+                    {{ addon.status | titlecase }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="muted">You have no add-ons yet.</p>
+      }
+    </div>
+
+    <div class="card">
+      <h2>Available add-ons</h2>
+      <div class="addon-grid">
+        @for (addon of availableAddons; track addon.code) {
+          <div class="addon-card" [class.plan-highlighted]="highlightAddon === addon.code">
+            <div class="addon-category">{{ addon.categoryLabel }}</div>
+            <h3>{{ addon.name }}</h3>
+            <p class="muted small">{{ addon.description }}</p>
+            <div class="addon-price">
+              @if (addon.defaultUnitPrice != null && !addon.requiresQuote) {
+                ₹{{ addon.defaultUnitPrice | number:'1.0-2' }}
+                <span class="muted">per {{ addon.unitLabel || 'unit' }}</span>
+              } @else {
+                <span class="muted">Priced on request</span>
+              }
+            </div>
+            <button class="btn btn-secondary" (click)="chooseAddon(addon)">
+              {{ addon.requiresQuote ? 'Request a quote' : 'Request' }}
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ================= BILLING HISTORY ================= -->
+  @if (!loading && activeTab === 'billing') {
+    <div class="card">
+      <h2>Subscription history</h2>
+      @if (subscriptionHistory.length) {
+        <table>
+          <thead>
+            <tr><th>Plan</th><th>Period</th><th>Price</th><th>Reason</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            @for (term of subscriptionHistory; track term.id) {
+              <tr>
+                <td>{{ term.planName }}</td>
+                <td>
+                  {{ term.periodStart | date:'MMM d, y' }} —
+                  {{ term.periodEnd ? (term.periodEnd | date:'MMM d, y') : 'open' }}
+                </td>
+                <td>{{ term.unitPrice != null ? ('₹' + (term.unitPrice | number:'1.0-2')) : '—' }}</td>
+                <td>{{ term.changeReason | titlecase }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="term.isCurrent" [class.badge-secondary]="!term.isCurrent">
+                    {{ term.isCurrent ? 'Current' : 'Past' }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="muted">No subscription history yet.</p>
+      }
+    </div>
+
+    <div class="card">
+      <h2>Activity</h2>
+      @if (billingEvents.length) {
+        <ul class="timeline">
+          @for (event of billingEvents; track event.id) {
+            <li>
+              <div class="timeline-date">{{ event.createdAt | date:'MMM d, y, h:mm a' }}</div>
+              <div class="timeline-body">
+                <strong>{{ event.eventType | titlecase }}</strong>
+                <div class="muted">{{ event.summary }}</div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">Nothing recorded yet.</p>
+      }
+    </div>
+  }
+
+  <!-- ================= CONFIRM PLAN CHANGE ================= -->
+  @if (confirmingPlan) {
+    <div class="modal-backdrop" (click)="cancelPlanChoice()">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h2>{{ confirmingPlan.actionLabel }} — {{ confirmingPlan.plan.name }}</h2>
+
+        @if (confirmingPlan.action === 'CONTACT_SALES') {
+          <p>
+            {{ confirmingPlan.plan.name }} is priced per organization. Send us a note and we'll
+            prepare a quotation for you.
+          </p>
+        } @else {
+          <p>
+            You're asking to move to <strong>{{ confirmingPlan.plan.name }}</strong>
+            on {{ showAnnual ? 'annual' : 'monthly' }} billing
+            @if (priceFor(confirmingPlan.plan) != null) {
+              at <strong>₹{{ priceFor(confirmingPlan.plan) | number:'1.0-0' }}{{ priceSuffix() }}</strong>
+              plus GST.
+            }
+          </p>
+          <p class="muted small">
+            We'll confirm and arrange billing before anything changes. If you're mid-term, the
+            unused part of your current plan is credited against the new one.
+          </p>
+        }
+
+        <label>
+          Anything we should know?
+          <textarea [(ngModel)]="requestNote" rows="3"
+                    placeholder="Optional — timing, batch sizes, questions"></textarea>
+        </label>
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" [disabled]="submitting" (click)="confirmPlanChange()">
+            {{ submitting ? 'Sending…' : 'Send request' }}
+          </button>
+          <button class="btn btn-secondary" (click)="cancelPlanChoice()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ================= CONFIRM ADD-ON ================= -->
+  @if (requestingAddon) {
+    <div class="modal-backdrop" (click)="cancelAddonChoice()">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h2>Request {{ requestingAddon.name }}</h2>
+        <p class="muted small">{{ requestingAddon.description }}</p>
+
+        @if (requestingAddon.quantified) {
+          <label>
+            How many {{ requestingAddon.unitLabel }}s?
+            <input type="number" [(ngModel)]="addonQty"
+                   [min]="requestingAddon.minQty"
+                   [step]="requestingAddon.qtyIncrement">
+          </label>
+          <p class="muted small">
+            Sold in blocks of {{ requestingAddon.qtyIncrement }}, minimum {{ requestingAddon.minQty }}.
+          </p>
+        }
+
+        @if (requestingAddon.requiresQuote) {
+          <p class="muted small">
+            This one needs scoping before we can price it, so we'll come back to you with a quotation.
+          </p>
+        }
+
+        <div class="modal-actions">
+          <button class="btn btn-primary" [disabled]="submitting" (click)="confirmAddonRequest()">
+            {{ submitting ? 'Sending…' : 'Send request' }}
+          </button>
+          <button class="btn btn-secondary" (click)="cancelAddonChoice()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

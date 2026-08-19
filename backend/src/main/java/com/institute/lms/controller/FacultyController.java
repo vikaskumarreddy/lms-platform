@@ -3,8 +3,13 @@ package com.institute.lms.controller;
 import com.institute.lms.dto.user.StudentRequest;
 import com.institute.lms.dto.user.StudentResponse;
 import com.institute.lms.entity.User;
+import com.institute.lms.exception.BadRequestException;
+import com.institute.lms.exception.DuplicateResourceException;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.service.UserService;
+import com.institute.lms.service.subscription.QuotaGuard;
+import com.institute.lms.subscription.LimitKey;
+import com.institute.lms.util.OrganizationContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +24,19 @@ public class FacultyController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
+    private final QuotaGuard quotaGuard;
+    private final OrganizationContext organizationContext;
 
-    public FacultyController(UserRepository userRepository, PasswordEncoder passwordEncoder, UserService userService) {
+    public FacultyController(UserRepository userRepository,
+                             PasswordEncoder passwordEncoder,
+                             UserService userService,
+                             QuotaGuard quotaGuard,
+                             OrganizationContext organizationContext) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userService = userService;
+        this.quotaGuard = quotaGuard;
+        this.organizationContext = organizationContext;
     }
 
     @GetMapping
@@ -34,10 +47,35 @@ public class FacultyController {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Creates a faculty account, consuming one faculty seat from the plan.
+     *
+     * <p>A faculty seat is a platform login and is not the same unit as a purchased
+     * training hour — the two are priced separately and must not be conflated.
+     *
+     * <p>Two bugs are fixed here relative to the original. The duplicate check used
+     * {@code existsByEmail}, a <em>global</em> lookup, even though email is unique per
+     * organization in the schema ({@code uk_users_org_email}, V28) — so creating faculty
+     * failed merely because a different academy already had that address. And both
+     * failure paths returned a bodiless 400, giving the admin no idea whether the
+     * problem was a duplicate, a limit, or something else.
+     */
     @PostMapping
     public ResponseEntity<StudentResponse> createFaculty(@RequestBody StudentRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest().build();
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw BadRequestException.field("email", "is required");
+        }
+
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId != null) {
+            quotaGuard.requireCapacity(orgId, LimitKey.MAX_FACULTY_ACCOUNTS, 1);
+            if (userRepository.existsEmailInOrg(orgId, request.getEmail())) {
+                throw DuplicateResourceException.of("Faculty member", "email", request.getEmail());
+            }
+        } else if (userRepository.existsByEmail(request.getEmail())) {
+            // No tenant context: a platform-level call, where the global check is the
+            // only one available.
+            throw DuplicateResourceException.of("Faculty member", "email", request.getEmail());
         }
 
         User user = new User();

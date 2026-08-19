@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
+import { RichTextToHtmlService } from '../../services/rich-text-to-html.service';
 
 interface Lesson {
   id: number;
@@ -80,11 +81,24 @@ export class CourseDetailComponent implements OnInit {
   showPreview = false;
   previewHtml: SafeHtml = '';
 
+  // ── Notes conversion (Word / plain text → HTML) ───────────────
+  /** Outcome of the last conversion, shown under the textarea. */
+  conversionMessage = '';
+  conversionWarnings: string[] = [];
+  conversionOk = false;
+  /**
+   * The content as it was before the last conversion, so a faculty member who
+   * dislikes the result can put it back. Without this, converting is a one-way
+   * door over someone's typed notes.
+   */
+  private contentBeforeConversion: string | null = null;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private api: ApiService,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private richText: RichTextToHtmlService
   ) {}
 
   ngOnInit() {
@@ -187,6 +201,7 @@ export class CourseDetailComponent implements OnInit {
       title: '', heading: '', content: '', videoUrl: '', thumbnailUrl: '', pdfNotesUrl: '',
       orderIndex: m.lessons.length, durationMinutes: 10, isLocked: false, isMandatory: true
     };
+    this.resetConversionState();
     this.showLessonModal = true;
   }
 
@@ -198,6 +213,7 @@ export class CourseDetailComponent implements OnInit {
       thumbnailUrl: l.thumbnailUrl || '', pdfNotesUrl: l.pdfNotesUrl || '', orderIndex: l.orderIndex ?? 0,
       durationMinutes: l.durationMinutes ?? 10, isLocked: !!l.isLocked, isMandatory: l.isMandatory !== false
     };
+    this.resetConversionState();
     this.showLessonModal = true;
   }
 
@@ -234,4 +250,112 @@ export class CourseDetailComponent implements OnInit {
   }
 
   closePreview() { this.showPreview = false; }
+
+  // ── Notes conversion ─────────────────────────────────────────
+
+  /**
+   * Intercepts a paste into the notes box to keep the formatting.
+   *
+   * <p>A plain textarea normally receives text only — the browser discards the
+   * clipboard's rich flavour, so headings, bold and bullets from a Word document are
+   * lost before any button could act on them. Reading {@code text/html} here is the
+   * only point at which that formatting still exists, which is why conversion happens
+   * on paste rather than only on demand.
+   *
+   * <p>Falls through to the browser's own handling when the clipboard holds no HTML,
+   * so typing and pasting plain text behave exactly as before.
+   */
+  onNotesPaste(event: ClipboardEvent) {
+    const clipboard = event.clipboardData;
+    if (!clipboard) {
+      return;
+    }
+    const html = clipboard.getData('text/html');
+    if (!html || !html.trim()) {
+      return; // plain text — let the browser paste it, the button can convert later
+    }
+
+    event.preventDefault();
+    const result = this.richText.fromHtml(html);
+    if (!result.html.trim()) {
+      return;
+    }
+
+    const textarea = event.target as HTMLTextAreaElement;
+    const existing = this.lessonForm.content || '';
+    this.contentBeforeConversion = existing;
+
+    // Insert at the cursor rather than replacing, so pasting a second section appends
+    // to the first instead of destroying it.
+    const start = textarea.selectionStart ?? existing.length;
+    const end = textarea.selectionEnd ?? existing.length;
+    const separator = existing.slice(0, start).trim() ? '\n' : '';
+    this.lessonForm.content = existing.slice(0, start) + separator + result.html + existing.slice(end);
+
+    this.conversionOk = true;
+    this.conversionMessage = result.source === 'word'
+      ? `Pasted from Word and converted. ${result.summary}`
+      : `Pasted and converted. ${result.summary}`;
+    this.conversionWarnings = result.warnings;
+  }
+
+  /**
+   * Converts whatever is currently in the box.
+   *
+   * <p>For content that is already there — typed by hand, or pasted as plain text —
+   * structure is inferred from how people actually write notes: dashes are bullets,
+   * a line ending in a colon introduces a section, a short line with no full stop is a
+   * heading.
+   */
+  convertNotesToHtml() {
+    const current = (this.lessonForm.content || '').trim();
+    if (!current) {
+      this.conversionOk = false;
+      this.conversionMessage = 'Paste or type your notes first, then convert.';
+      this.conversionWarnings = [];
+      return;
+    }
+
+    this.contentBeforeConversion = this.lessonForm.content;
+    const result = this.richText.convert(current);
+
+    if (!result.html.trim()) {
+      this.conversionOk = false;
+      this.conversionMessage = 'Could not find any structure to convert.';
+      this.conversionWarnings = [];
+      return;
+    }
+
+    this.lessonForm.content = result.html;
+    this.conversionOk = true;
+    this.conversionMessage = result.source === 'text'
+      ? `${result.summary} Check the preview and adjust anything that looks wrong.`
+      : `Cleaned up the pasted markup. ${result.summary}`;
+    this.conversionWarnings = result.warnings;
+  }
+
+  get canUndoConversion(): boolean {
+    return this.contentBeforeConversion !== null
+      && this.contentBeforeConversion !== this.lessonForm.content;
+  }
+
+  /** Restores the content as it was before the last conversion. */
+  undoConversion() {
+    if (this.contentBeforeConversion === null) {
+      return;
+    }
+    this.lessonForm.content = this.contentBeforeConversion;
+    this.contentBeforeConversion = null;
+    this.conversionOk = false;
+    this.conversionMessage = 'Reverted to what you had before.';
+    this.conversionWarnings = [];
+  }
+
+  /** Clears the conversion feedback when the modal opens or closes. */
+  private resetConversionState() {
+    this.conversionMessage = '';
+    this.conversionWarnings = [];
+    this.conversionOk = false;
+    this.contentBeforeConversion = null;
+  }
 }

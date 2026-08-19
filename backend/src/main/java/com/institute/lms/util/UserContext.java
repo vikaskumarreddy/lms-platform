@@ -68,6 +68,43 @@ public class UserContext {
         return u != null && u.getRole() == User.UserRole.ADMIN;
     }
 
+    /** Whether the current user is a tenant organization admin (INSTITUTE_ADMIN). */
+    public boolean isInstituteAdmin() {
+        User u = currentUser();
+        return u != null && u.getRole() == User.UserRole.INSTITUTE_ADMIN;
+    }
+
+    /**
+     * Whether the current user administers an organization — either the platform
+     * super admin or a tenant's own admin. This is the audience for the Account and
+     * billing surface.
+     */
+    public boolean isAnyAdmin() {
+        User u = currentUser();
+        return u != null && (u.getRole() == User.UserRole.ADMIN
+                || u.getRole() == User.UserRole.INSTITUTE_ADMIN);
+    }
+
+    /**
+     * Asserts platform super-admin access, throwing a typed 403.
+     *
+     * <p>Prefer this over {@code throw new RuntimeException("Access denied: ...")},
+     * which relies on {@code GlobalExceptionHandler} sniffing the message text to
+     * pick a status code.
+     */
+    public void requireSuperAdmin() {
+        if (!isAdmin()) {
+            throw com.institute.lms.exception.UnauthorizedException.requiresRole("Super Admin");
+        }
+    }
+
+    /** Asserts the caller administers an organization (super admin or tenant admin). */
+    public void requireOrgAdmin() {
+        if (!isAnyAdmin()) {
+            throw com.institute.lms.exception.UnauthorizedException.requiresRole("Organization Admin");
+        }
+    }
+
 
     /**
      * The batch id a Faculty user is scoped to, or {@code null} when the current

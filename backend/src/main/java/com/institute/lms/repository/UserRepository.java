@@ -93,6 +93,77 @@ public interface UserRepository extends JpaRepository<User, Long> {
         nativeQuery = true)
     boolean existsAdminEmailInOrg(@Param("orgId") Long orgId, @Param("email") String email);
 
+    // =========================================================================
+    // Seat counting for plan-limit enforcement.
+    //
+    // These MUST be native. Both the platform super admin (sentinel "-1" tenant)
+    // and the quota guard need a truthful count for a named organization, and a
+    // derived query such as countByOrganizationIdAndRole would have the tenant
+    // discriminator injected on top of the explicit organization_id predicate —
+    // returning 0 for the super admin and silently reporting that every tenant
+    // has used no seats at all.
+    //
+    // The ghost platform admin (admin@axisora.com, auto-provisioned into every
+    // tenant) is excluded throughout: it is our account, not a seat the customer
+    // bought, and counting it would quietly consume one of their faculty seats.
+    // =========================================================================
+
+    /**
+     * Faculty seats consumed in an organization. Counts INSTRUCTOR and
+     * INSTITUTE_ADMIN accounts, since both are staff logins the plan pays for,
+     * and excludes the ghost platform admin.
+     */
+    @Query(value =
+        "SELECT COUNT(*) FROM users " +
+        "WHERE organization_id = :orgId " +
+        "  AND role IN ('INSTRUCTOR', 'INSTITUTE_ADMIN') " +
+        "  AND (is_ghost IS NULL OR is_ghost = false)",
+        nativeQuery = true)
+    long countFacultySeatsInOrg(@Param("orgId") Long orgId);
+
+    /** Instructor accounts only, for reporting that distinguishes teachers from admins. */
+    @Query(value =
+        "SELECT COUNT(*) FROM users " +
+        "WHERE organization_id = :orgId AND role = 'INSTRUCTOR' " +
+        "  AND (is_ghost IS NULL OR is_ghost = false)",
+        nativeQuery = true)
+    long countInstructorsInOrg(@Param("orgId") Long orgId);
+
+    /**
+     * Total student records held by an organization, active or not.
+     *
+     * <p>Note this is <em>not</em> the billable figure — billing counts students who
+     * were active in the period, from {@code student_activity_period}. This count
+     * exists for the storage and fair-use view, and so the Account page can show
+     * "1,840 students on record, 312 active this month".
+     */
+    @Query(value =
+        "SELECT COUNT(*) FROM users " +
+        "WHERE organization_id = :orgId AND role = 'STUDENT'",
+        nativeQuery = true)
+    long countStudentRecordsInOrg(@Param("orgId") Long orgId);
+
+    @Query(value =
+        "SELECT COUNT(*) FROM users " +
+        "WHERE organization_id = :orgId AND role = 'STUDENT' AND is_active = true",
+        nativeQuery = true)
+    long countActiveStudentRecordsInOrg(@Param("orgId") Long orgId);
+
+    /**
+     * Native existence check for an email inside one organization, for any role.
+     *
+     * <p>This is the correct replacement for {@code existsByEmail} in tenant-facing
+     * create paths. Email is unique <em>per organization</em> in the schema
+     * ({@code uk_users_org_email}, added in V28), but the JPA field is still annotated
+     * {@code unique = true}; using the global check made faculty creation reject an
+     * address merely because a different academy already had it.
+     */
+    @Query(value =
+        "SELECT COUNT(*) > 0 FROM users " +
+        "WHERE organization_id = :orgId AND LOWER(email) = LOWER(:email)",
+        nativeQuery = true)
+    boolean existsEmailInOrg(@Param("orgId") Long orgId, @Param("email") String email);
+
     /**
      * Native INSERT of a new organizational admin for a specific org.
      * Bypasses JPA persistence (which would attempt to validate the entity's
@@ -114,6 +185,37 @@ public interface UserRepository extends JpaRepository<User, Long> {
                                  @Param("name") String name,
                                  @Param("phone") String phone,
                                  @Param("role") String role);
+
+    /**
+     * Native INSERT of the platform ghost super-admin into a tenant.
+     *
+     * <p>Must be native for the same reason as {@link #insertOrganizationAdmin}, but the
+     * failure it avoids is subtler and was previously fatal. Hibernate resolves the
+     * tenant identifier when the SESSION opens, not when the entity is saved — and with
+     * {@code open-in-view: true} the session is already open, bound to the super admin's
+     * "-1" sentinel, before any service code runs. So temporarily setting
+     * {@code OrganizationContext} and then calling {@code userRepository.save()} cannot
+     * work: the session tenant stays "-1" while the entity carries the real org id, and
+     * Hibernate rejects it with "assigned tenant id differs from current tenant id".
+     * That made creating an organization fail outright.
+     *
+     * <p>Differs from {@link #insertOrganizationAdmin} only in setting
+     * {@code is_ghost = TRUE}, which hides this account from the tenant's admin list.
+     */
+    @Modifying
+    @Transactional
+    @Query(value =
+        "INSERT INTO users " +
+        "(email, password, name, phone, username, role, is_active, is_email_verified, " +
+        " is_ghost, organization_id, created_at, updated_at, version) " +
+        "VALUES " +
+        "(:email, :password, :name, NULL, NULL, 'ADMIN', TRUE, TRUE, TRUE, :orgId, NOW(), NOW(), 0) " +
+        "ON CONFLICT (organization_id, email) DO NOTHING",
+        nativeQuery = true)
+    int insertGhostAdmin(@Param("orgId") Long orgId,
+                         @Param("email") String email,
+                         @Param("password") String password,
+                         @Param("name") String name);
 
     /**
      * Native SELECT of the generated id for a newly inserted org admin, found

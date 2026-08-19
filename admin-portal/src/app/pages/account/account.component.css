@@ -1,0 +1,104 @@
+/* Account page styles.
+   Shared primitives — page header, tabs, detail lists, notices, modals, form
+   fields and text utilities — live in the global styles.css, because the plan
+   editor, add-on editor and billing desk use exactly the same ones. Only what is
+   specific to this page is below. */
+
+.account-page { max-width: 1200px; }
+
+h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+h3 { font-size: 14px; font-weight: 700; margin: 18px 0 8px; }
+
+.plan-headline { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.plan-name { font-size: 20px; font-weight: 700; }
+
+/* ---- Usage meters -------------------------------------------------- */
+.meter { margin-bottom: 18px; }
+.meter-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+.meter-label { font-weight: 600; }
+.meter-track { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+.meter-note { font-size: 12px; margin-top: 6px; line-height: 1.45; }
+
+/* ---- Entitlements -------------------------------------------------- */
+.entitlement-group { margin-bottom: 8px; }
+.entitlement-list { list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 20px; }
+.entitlement-list li { display: flex; gap: 8px; font-size: 13px; align-items: flex-start; }
+.entitlement-list li.excluded { color: var(--text-secondary); opacity: .6; }
+.tick { color: #16A34A; font-weight: 700; width: 14px; flex-shrink: 0; }
+.entitlement-list li.excluded .tick { color: var(--text-secondary); }
+
+/* ---- Plan cards ---------------------------------------------------- */
+.plans-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+
+.cycle-toggle { display: flex; background: var(--bg); border-radius: 8px; padding: 4px; }
+.cycle-toggle button {
+  border: none; background: none; padding: 8px 16px; border-radius: 6px;
+  font-weight: 600; font-size: 13px; cursor: pointer; color: var(--text-secondary);
+}
+.cycle-toggle button.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; align-items: stretch; }
+
+.plan-card {
+  position: relative; border: 2px solid var(--border); border-radius: 12px;
+  padding: 24px 20px; display: flex; flex-direction: column; background: var(--surface);
+}
+.plan-card.plan-recommended { border-color: var(--secondary); }
+.plan-card.plan-current { border-color: var(--primary); background: #F8FAFC; }
+/* Applied when a toast sent the user here to look at one specific plan. */
+.plan-card.plan-highlighted { box-shadow: 0 0 0 4px rgba(234,179,8,.25); }
+
+.ribbon {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: var(--secondary); color: #000; font-size: 11px; font-weight: 700;
+  padding: 4px 14px; border-radius: 999px; white-space: nowrap;
+}
+
+.plan-card h3 { font-size: 18px; margin: 0 0 4px; }
+.plan-tagline { font-size: 13px; color: var(--text-secondary); min-height: 34px; }
+
+.plan-price { margin: 16px 0; }
+.plan-price .amount { font-size: 30px; font-weight: 700; }
+.plan-price .amount.custom { font-size: 20px; }
+.plan-price .period { color: var(--text-secondary); font-size: 14px; }
+.plan-price .saving { color: #16A34A; font-size: 12px; font-weight: 600; margin-top: 4px; }
+
+.plan-limits {
+  list-style: none; margin: 0 0 14px; padding: 14px 0;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.plan-limits li { font-size: 13px; font-weight: 600; padding: 3px 0; }
+
+.plan-features { list-style: none; margin: 0 0 20px; flex: 1; }
+.plan-features li {
+  font-size: 12px; color: var(--text-secondary); padding: 3px 0 3px 16px;
+  position: relative; line-height: 1.4;
+}
+.plan-features li::before { content: '✓'; position: absolute; left: 0; color: #16A34A; font-weight: 700; }
+
+.plan-action { width: 100%; margin-top: auto; }
+/* The current plan's button is disabled by design — it states a fact rather than
+   offering an action, so it is styled as a label, not a broken button. */
+.btn-current, .plan-action:disabled { background: var(--border); color: var(--text-secondary); cursor: default; }
+.blocked-reason { font-size: 12px; color: #B45309; margin-top: 8px; line-height: 1.4; }
+
+/* ---- Add-ons ------------------------------------------------------- */
+.addon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.addon-card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+.addon-category { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.addon-card h3 { margin: 0; font-size: 15px; }
+.addon-price { font-size: 16px; font-weight: 700; margin-top: auto; padding-top: 8px; }
+.addon-card .btn { width: 100%; }
+
+/* ---- Billing timeline ---------------------------------------------- */
+.timeline { list-style: none; }
+.timeline li { display: flex; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.timeline li:last-child { border-bottom: none; }
+.timeline-date { width: 170px; flex-shrink: 0; color: var(--text-secondary); font-size: 12px; }
+.timeline-body { flex: 1; }
+
+@media (max-width: 768px) {
+  .entitlement-list { grid-template-columns: 1fr; }
+  .timeline-date { width: 110px; }
+}

@@ -3,6 +3,8 @@ package com.institute.lms.controller;
 import com.institute.lms.dto.user.StudentRequest;
 import com.institute.lms.dto.user.StudentResponse;
 import com.institute.lms.service.UserService;
+import com.institute.lms.service.subscription.QuotaGuard;
+import com.institute.lms.util.OrganizationContext;
 import com.institute.lms.util.UserContext;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -17,10 +19,17 @@ public class UserController {
 
     private final UserService userService;
     private final UserContext userContext;
+    private final QuotaGuard quotaGuard;
+    private final OrganizationContext organizationContext;
 
-    public UserController(UserService userService, UserContext userContext) {
+    public UserController(UserService userService,
+                          UserContext userContext,
+                          QuotaGuard quotaGuard,
+                          OrganizationContext organizationContext) {
         this.userService = userService;
         this.userContext = userContext;
+        this.quotaGuard = quotaGuard;
+        this.organizationContext = organizationContext;
     }
 
     @GetMapping
@@ -50,13 +59,26 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Enrols a new student.
+     *
+     * <p>Guarded against the plan's student intake ceiling. Note the guard is not a cap
+     * on stored records — alumni and dormant accounts are meant to stay for free — it
+     * only refuses intake once the tenant has exhausted both their active-student
+     * allowance and the overage headroom their plan permits.
+     *
+     * <p>Exceptions are deliberately not caught here. The previous
+     * {@code catch (RuntimeException)} returned a bodiless 400, which would have thrown
+     * away the whole typed error envelope — the admin would see "Bad Request" instead of
+     * being told which limit they hit and what to upgrade to.
+     */
     @PostMapping
     public ResponseEntity<StudentResponse> createStudent(@Valid @RequestBody StudentRequest request) {
-        try {
-            return ResponseEntity.ok(userService.createStudent(request));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+        Long orgId = organizationContext.getCurrentOrgId();
+        if (orgId != null) {
+            quotaGuard.requireStudentIntake(orgId, 1);
         }
+        return ResponseEntity.ok(userService.createStudent(request));
     }
 
     @PutMapping("/{id}")

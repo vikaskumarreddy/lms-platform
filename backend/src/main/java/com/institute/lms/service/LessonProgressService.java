@@ -23,15 +23,18 @@ public class LessonProgressService {
     private final ProgressRepository progressRepository;
     private final BookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
+    private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
 
     public LessonProgressService(LessonRepository lessonRepository,
                                   ProgressRepository progressRepository,
                                   BookmarkRepository bookmarkRepository,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository,
+                                  com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
         this.lessonRepository = lessonRepository;
         this.progressRepository = progressRepository;
         this.bookmarkRepository = bookmarkRepository;
         this.userRepository = userRepository;
+        this.activityMeter = activityMeter;
     }
 
     private User getCurrentUser() {
@@ -51,6 +54,12 @@ public class LessonProgressService {
 
         Lesson lesson = lessonRepository.findById(lessonId).orElse(null);
         if (lesson == null) return false;
+
+        // Working through a lesson counts as activity for the billing month.
+        if (user.getRole() == User.UserRole.STUDENT) {
+            activityMeter.record(user.getOrganizationId(), user.getId(),
+                    com.institute.lms.subscription.ActivityType.CONTENT_ACCESS);
+        }
 
         Optional<Progress> existing = progressRepository
                 .findByUserIdAndLessonId(user.getId(), lessonId);

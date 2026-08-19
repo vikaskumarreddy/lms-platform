@@ -8,6 +8,7 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.OrganizationRepository;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.security.JwtService;
+import com.institute.lms.service.subscription.ActivityMeterService;
 import com.institute.lms.util.OrganizationContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,14 +31,17 @@ public class AuthService {
 
         private final OrganizationRepository organizationRepository;
         private final OrganizationContext organizationContext;
+        private final ActivityMeterService activityMeter;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
-                         OrganizationRepository organizationRepository, OrganizationContext organizationContext) {
+                         OrganizationRepository organizationRepository, OrganizationContext organizationContext,
+                         ActivityMeterService activityMeter) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.organizationRepository = organizationRepository;
         this.organizationContext = organizationContext;
+        this.activityMeter = activityMeter;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -57,6 +61,17 @@ public class AuthService {
         // Update last login
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
+
+        // Signing in makes a student billable for this month. Recorded here rather than
+        // relying on last_login, which is overwritten on every sign-in and so cannot
+        // answer "was this student active in July" once August arrives.
+        //
+        // The meter never throws and runs in its own transaction, so a metering problem
+        // cannot stop someone logging in — deliberately, because losing one metering row
+        // costs a fraction of a rupee while a failed login during an exam does not.
+        if (user.getRole() == User.UserRole.STUDENT) {
+            activityMeter.recordLogin(user.getOrganizationId(), user.getId());
+        }
 
         return buildAuthResponse(user);
     }

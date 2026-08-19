@@ -1,1 +1,76 @@
-﻿:root{--primary:#0F172A;--secondary:#EAB308;--bg:#FDFBF7;--surface:#FFFFFF;--text:#1E293B;--text-secondary:#64748B;--border:#E2E8F0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}.sidebar{width:250px;height:100vh;background:var(--primary);color:#fff;position:fixed;left:0;top:0;padding:20px 0;overflow-y:auto}.sidebar .logo{padding:0 20px 20px;font-size:20px;font-weight:700;border-bottom:1px solid rgba(255,255,255,.1)}.sidebar .nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:rgba(255,255,255,.7);text-decoration:none;transition:all .2s}.sidebar .nav-item:hover,.sidebar .nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left:3px solid var(--secondary)}.main-content{margin-left:250px;padding:24px}.card{background:var(--surface);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px}.stat-card{display:flex;align-items:center;gap:16px}.stat-card .icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--border)}th{font-weight:600;color:var(--text-secondary);font-size:14px}.badge{padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}.badge-success{background:#DCFCE7;color:#166534}.badge-warning{background:#FEF3C7;color:#92400E}.badge-danger{background:#FEE2E2;color:#991B1B}.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:600}.btn-primary{background:var(--primary);color:#fff}.btn-secondary{background:var(--secondary);color:#000}.btn-danger{background:#FEE2E2;color:#991B1B}.btn-danger:hover{background:#FCA5A5}.badge-info{background:#E0E7FF;color:#3730A3}.badge-secondary{background:#F1F5F9;color:#334155}.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}@media(max-width:768px){.grid-4,.grid-2{grid-template-columns:1fr}.sidebar{display:none}.main-content{margin-left:0}}
+:root{--primary:#0F172A;--secondary:#EAB308;--bg:#FDFBF7;--surface:#FFFFFF;--text:#1E293B;--text-secondary:#64748B;--border:#E2E8F0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}.sidebar{width:250px;height:100vh;background:var(--primary);color:#fff;position:fixed;left:0;top:0;padding:20px 0;overflow-y:auto}.sidebar .logo{padding:0 20px 20px;font-size:20px;font-weight:700;border-bottom:1px solid rgba(255,255,255,.1)}.sidebar .nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:rgba(255,255,255,.7);text-decoration:none;transition:all .2s}.sidebar .nav-item:hover,.sidebar .nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left:3px solid var(--secondary)}.main-content{margin-left:250px;padding:24px}.card{background:var(--surface);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px}.stat-card{display:flex;align-items:center;gap:16px}.stat-card .icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--border)}th{font-weight:600;color:var(--text-secondary);font-size:14px}.badge{padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}.badge-success{background:#DCFCE7;color:#166534}.badge-warning{background:#FEF3C7;color:#92400E}.badge-danger{background:#FEE2E2;color:#991B1B}.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:600}.btn-primary{background:var(--primary);color:#fff}.btn-secondary{background:var(--secondary);color:#000}.btn-danger{background:#FEE2E2;color:#991B1B}.btn-danger:hover{background:#FCA5A5}.badge-info{background:#E0E7FF;color:#3730A3}.badge-secondary{background:#F1F5F9;color:#334155}.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}@media(max-width:768px){.grid-4,.grid-2{grid-template-columns:1fr}.sidebar{display:none}.main-content{margin-left:0}}
+
+/* ===================================================================
+   Shared UI primitives.
+
+   These live here rather than in individual components because the
+   Account page, the plan editor, the add-on editor and the billing desk
+   all use the same modals, tabs and form fields. Keeping a copy in each
+   component duplicated roughly 2 kB of identical CSS four times over and
+   pushed account.component.css past Angular's per-component style budget.
+   =================================================================== */
+
+/* --- Text utilities --- */
+.muted{color:var(--text-secondary)}
+.small{font-size:12px}
+.warn-text{color:#B45309;font-weight:600}
+
+/* --- Page header --- */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:20px}
+.page-header h1{font-size:24px;font-weight:700}
+.page-header .subtitle,.page-header .muted{font-size:13px;margin-top:4px;max-width:640px}
+
+/* --- Small buttons, and disabled state --- */
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+
+/* --- Tabs --- */
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tabs button{background:none;border:none;padding:12px 18px;font-weight:600;font-size:14px;color:var(--text-secondary);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button.active{color:var(--primary);border-bottom-color:var(--secondary)}
+
+/* --- Definition lists, used for organization and subscription detail --- */
+.detail-list>div{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+.detail-list>div:last-child{border-bottom:none}
+.detail-list dt{width:150px;flex-shrink:0;color:var(--text-secondary);font-weight:600}
+.detail-list dd{flex:1}
+
+/* --- Notices: expiry, grace, overage, pilot --- */
+.notice{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:12px;margin-bottom:20px;border-left:4px solid}
+.notice-body{flex:1}
+.notice-title{font-weight:700;margin-bottom:4px}
+.notice-message{font-size:13px;line-height:1.5}
+.notice-critical{background:#FEE2E2;border-left-color:#DC2626;color:#7F1D1D}
+.notice-warning{background:#FEF3C7;border-left-color:#EAB308;color:#78350F}
+.notice-info{background:#E0E7FF;border-left-color:#4F46E5;color:#312E81}
+
+/* --- Callouts inside forms --- */
+.callout{background:#E0E7FF;color:#312E81;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+.callout-warn{background:#FEF3C7;color:#78350F}
+
+/* --- Modals --- */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:1500;padding:20px}
+.modal{background:var(--surface);border-radius:12px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal-wide{max-width:680px}
+.modal h2{margin-bottom:14px;font-size:18px}
+.modal p{font-size:14px;line-height:1.55;margin-bottom:12px}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+.modal-actions .btn{flex:1}
+
+/* --- Form fields inside cards and modals --- */
+.modal label,.form-field{display:block;font-size:13px;font-weight:600;margin-bottom:12px}
+.modal input,.modal select,.modal textarea,.form-field input,.form-field select,.form-field textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;margin-top:5px}
+.modal label.inline{display:flex;align-items:center;gap:8px;font-weight:600}
+.modal label.inline.block{display:block;margin-bottom:14px}
+.modal label.inline input[type=checkbox]{width:auto;margin:0}
+.hint{display:block;font-weight:400;font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4}
+.hint.block{margin-bottom:14px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.checkboxes{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px}
+
+@media(max-width:768px){
+  .form-grid,.form-grid-3{grid-template-columns:1fr}
+  .detail-list dt{width:120px}
+  .page-header{flex-direction:column}
+}

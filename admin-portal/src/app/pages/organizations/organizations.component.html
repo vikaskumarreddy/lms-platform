@@ -73,17 +73,151 @@
           <input [(ngModel)]="formData.isActive" name="isActive" type="checkbox"> Active
         </label>
       </div>
-      <div>
-        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Plan ID</label>
-        <input [(ngModel)]="formData.planId" name="planId" type="number" placeholder="Plan ID (optional)" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
-      </div>
-      <div>
-        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Org Subscription Plan</label>
-        <select [(ngModel)]="formData.orgSubscriptionId" name="orgSubscriptionId" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
-          <option [ngValue]="null">-- None --</option>
-          <option *ngFor="let sub of subscriptions" [value]="sub.id">{{ sub.name }} ({{ sub.price | number:'1.0-0' }} / {{ sub.period }})</option>
+      <!-- Plan selection. Choosing a plan here starts a real subscription term with a
+           frozen snapshot of its limits — not just a pointer at a catalog row — which
+           is what makes enforcement work from the moment the tenant is created. -->
+      <div style="border-top:1px solid #e0e0e0;padding-top:16px;">
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Subscription plan *</label>
+        <select [(ngModel)]="formData.orgSubscriptionId" name="orgSubscriptionId"
+                (ngModelChange)="onPlanSelected($event)"
+                style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          <option [ngValue]="null">-- No plan (organization cannot be used until one is set) --</option>
+          <option *ngFor="let sub of subscriptions" [ngValue]="sub.id">
+            {{ sub.name }}{{ sub.isCustomPriced ? ' (custom priced)' : ' — ₹' + (sub.priceMonthly | number:'1.0-0') + '/mo' }}
+          </option>
         </select>
+
+        <!-- Shows exactly what the chosen plan grants, so the limits are visible at the
+             moment of the decision rather than discovered later. -->
+        <div *ngIf="selectedPlan" style="background:#F8FAFC;border-radius:8px;padding:12px;margin-top:10px;font-size:13px;">
+          <div style="font-weight:600;margin-bottom:6px;">{{ selectedPlan.name }} includes</div>
+          <div style="color:#64748B;line-height:1.7;">
+            {{ selectedPlan.maxActiveStudents ?? 'Unlimited' }} active students ·
+            {{ selectedPlan.maxFacultyAccounts ?? 'Unlimited' }} faculty seats ·
+            {{ selectedPlan.maxBranches ?? 'Unlimited' }} branches ·
+            {{ selectedPlan.storageGb ?? 'Unlimited' }} GB storage
+            <span *ngIf="selectedPlan.includedTrainingHours > 0">
+              · {{ selectedPlan.includedTrainingHours }} training hrs/month
+            </span>
+          </div>
+          <div *ngIf="selectedPlan.overageStudentsAllowed > 0" style="color:#64748B;margin-top:4px;">
+            Up to {{ selectedPlan.overageStudentsAllowed }} extra students at
+            ₹{{ selectedPlan.overageStudentPrice | number:'1.0-0' }} each before an upgrade is needed.
+          </div>
+          <div *ngIf="selectedPlan.isCustomPriced" style="color:#B45309;margin-top:6px;">
+            Custom priced — enter the agreed price below.
+          </div>
+        </div>
       </div>
+
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Billing cycle</label>
+          <select [(ngModel)]="formData.billingCycle" name="billingCycle"
+                  style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Annual</option>
+            <option value="CUSTOM">Custom term</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">
+            Agreed price (₹)
+            <span style="font-weight:400;color:#64748B;font-size:12px;">— blank uses list price</span>
+          </label>
+          <input [(ngModel)]="formData.agreedPrice" name="agreedPrice" type="number"
+                 [placeholder]="listPricePlaceholder()"
+                 style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+        </div>
+      </div>
+
+      <!-- Custom limits, only offered on plans that permit them. Uses @if with an alias
+           so the template type-checker can narrow selectedPlan to non-null. -->
+      @if (selectedPlan; as plan) {
+        @if (plan.limitsConfigurable) {
+          <div style="background:#FFFBEB;border-radius:8px;padding:14px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:13px;">
+              Negotiated limits <span style="font-weight:400;color:#64748B;">— blank keeps the plan default</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;color:#64748B;">Active students</label>
+                <input [(ngModel)]="formData.limitStudents" name="limitStudents" type="number"
+                       [placeholder]="plan.maxActiveStudents ?? 'Unlimited'"
+                       style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#64748B;">Faculty seats</label>
+                <input [(ngModel)]="formData.limitFaculty" name="limitFaculty" type="number"
+                       [placeholder]="plan.maxFacultyAccounts ?? 'Unlimited'"
+                       style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#64748B;">Branches</label>
+                <input [(ngModel)]="formData.limitBranches" name="limitBranches" type="number"
+                       [placeholder]="plan.maxBranches ?? 'Unlimited'"
+                       style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#64748B;">Storage (GB)</label>
+                <input [(ngModel)]="formData.limitStorage" name="limitStorage" type="number"
+                       [placeholder]="plan.storageGb ?? 'Unlimited'"
+                       style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+              </div>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Sales context, echoed back to the tenant on their Account page. -->
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">PO number</label>
+          <input [(ngModel)]="formData.poNumber" name="poNumber" type="text" placeholder="Optional"
+                 style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Account manager</label>
+          <input [(ngModel)]="formData.salesOwner" name="salesOwner" type="text" placeholder="Optional"
+                 style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+        </div>
+      </div>
+
+      <!-- GST identity: required before a compliant invoice can be raised, so it is
+           captured at creation rather than chased later. -->
+      <details style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;">
+        <summary style="font-weight:600;cursor:pointer;font-size:14px;">Billing &amp; GST details</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div>
+            <label style="font-size:12px;color:#64748B;">Legal name</label>
+            <input [(ngModel)]="formData.legalName" name="legalName" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#64748B;">GSTIN</label>
+            <input [(ngModel)]="formData.gstin" name="gstin" maxlength="15" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#64748B;">Place of supply</label>
+            <input [(ngModel)]="formData.placeOfSupply" name="placeOfSupply" placeholder="Telangana" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#64748B;">State code</label>
+            <input [(ngModel)]="formData.stateCode" name="stateCode" maxlength="2" placeholder="36" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#64748B;">Billing email</label>
+            <input [(ngModel)]="formData.billingEmail" name="billingEmail" type="email" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;color:#64748B;">Billing phone</label>
+            <input [(ngModel)]="formData.billingPhone" name="billingPhone" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label style="font-size:12px;color:#64748B;">Billing address</label>
+          <textarea [(ngModel)]="formData.billingAddress" name="billingAddress" rows="2" style="width:100%;padding:7px 10px;border:1px solid #e0e0e0;border-radius:4px;"></textarea>
+        </div>
+      </details>
       <div>
         <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Status</label>
         <select [(ngModel)]="formData.status" name="status" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">

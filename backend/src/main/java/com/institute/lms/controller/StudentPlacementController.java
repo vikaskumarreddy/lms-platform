@@ -21,12 +21,15 @@ public class StudentPlacementController {
     private final StudentPlacementRepository placementRepository;
     private final UserRepository userRepository;
     private final PlacementDriveRepository placementDriveRepository;
+    private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
 
     public StudentPlacementController(StudentPlacementRepository placementRepository, UserRepository userRepository,
-                                       PlacementDriveRepository placementDriveRepository) {
+                                       PlacementDriveRepository placementDriveRepository,
+                                       com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
         this.placementRepository = placementRepository;
         this.userRepository = userRepository;
         this.placementDriveRepository = placementDriveRepository;
+        this.activityMeter = activityMeter;
     }
 
     @GetMapping
@@ -119,7 +122,14 @@ public class StudentPlacementController {
         application.setPackageAmount(drive.getPackageAmount() != null ? drive.getPackageAmount().doubleValue() : null);
         application.setStatus(StudentPlacement.Status.APPLIED);
         application.setIsPlaced(false);
-        return ResponseEntity.ok(placementRepository.save(application));
+        StudentPlacement saved = placementRepository.save(application);
+
+        // Applying to a placement drive counts as activity for the billing month.
+        if (user.getRole() == User.UserRole.STUDENT) {
+            activityMeter.record(user.getOrganizationId(), user.getId(),
+                    com.institute.lms.subscription.ActivityType.PLACEMENT_APPLICATION);
+        }
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping

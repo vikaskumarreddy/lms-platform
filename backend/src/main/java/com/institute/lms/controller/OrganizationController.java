@@ -3,10 +3,14 @@ package com.institute.lms.controller;
 import com.institute.lms.entity.Organization;
 import com.institute.lms.entity.OrgSubscription;
 import com.institute.lms.entity.User;
+import com.institute.lms.exception.BadRequestException;
 import com.institute.lms.repository.OrganizationRepository;
 import com.institute.lms.repository.OrgSubscriptionRepository;
 import com.institute.lms.repository.UserRepository;
 import com.institute.lms.service.OrganizationService;
+import com.institute.lms.service.subscription.SubscriptionLifecycleService;
+import com.institute.lms.subscription.BillingCycle;
+import com.institute.lms.subscription.LimitKey;
 import com.institute.lms.util.OrganizationContext;
 import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
@@ -48,12 +52,18 @@ public class OrganizationController {
     }
 
 
+    /**
+     * All organizations, mapped through {@link #toOrgMap} so the list carries the same
+     * fields as the single-organization endpoints — plan name, effective status and the
+     * billing details. Returning raw entities here left the UI without the plan name it
+     * displays, and without the GST fields the edit modal needs to round-trip.
+     */
     @GetMapping
-    public List<Organization> getAll() {
-        if (!userContext.isAdmin()) {
-            throw new RuntimeException("Access denied: Admin role required");
-        }
-        return organizationService.getAllOrganizations();
+    public List<Map<String, Object>> getAll() {
+        userContext.requireSuperAdmin();
+        return organizationService.getAllOrganizations().stream()
+                .map(this::toOrgMap)
+                .toList();
     }
 
     @GetMapping("/current")
@@ -72,42 +82,133 @@ public class OrganizationController {
         return ResponseEntity.ok(toOrgMap(org));
     }
 
+    /**
+     * Creates an organization and, when a plan is chosen, starts its subscription term.
+     *
+     * <p>The body is typed {@code Map<String,Object>} rather than {@code Map<String,String>}
+     * because the payload now carries numbers and a nested {@code limitOverrides} object —
+     * the previous string-only binding could not express either.
+     */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, String> body) {
-        if (!userContext.isAdmin()) {
-            throw new RuntimeException("Access denied: Admin role required");
+    public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
+        userContext.requireSuperAdmin();
+
+        String name = str(body.get("name"));
+        String slug = str(body.get("slug"));
+        if (name == null || name.isBlank()) {
+            throw BadRequestException.field("name", "is required");
         }
-        String name = body.get("name");
-        String slug = body.get("slug");
-        String domain = body.get("domain");
-        Long planId = body.get("planId") != null ? Long.valueOf(body.get("planId")) : null;
-        Long orgSubscriptionId = body.get("orgSubscriptionId") != null && !body.get("orgSubscriptionId").isEmpty()
-                ? Long.valueOf(body.get("orgSubscriptionId")) : null;
-        if (name == null || slug == null) {
-            return ResponseEntity.badRequest().build();
+        if (slug == null || slug.isBlank()) {
+            throw BadRequestException.field("slug", "is required");
         }
-                Organization org = organizationService.createOrganization(name, slug, domain, planId, orgSubscriptionId);
-        return ResponseEntity.ok(toOrgMap(org));
+
+        Long planId = asLong(body.get("planId"));
+        Long orgSubscriptionId = asLong(body.get("orgSubscriptionId"));
+
+        Organization org = organizationService.createOrganization(
+                name, slug, str(body.get("domain")), planId, orgSubscriptionId,
+                readSubscribeOptions(body));
+
+        // Billing identity is captured at creation so an invoice can be raised later
+        // without going back to the customer for a GSTIN.
+        organizationService.updateBillingDetails(org.getId(), billingFields(body));
+
+        return ResponseEntity.ok(toOrgMap(
+                organizationRepository.findById(org.getId()).orElse(org)));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        if (!userContext.isAdmin()) {
-            throw new RuntimeException("Access denied: Admin role required");
+    /** Reads the subscription terms from a create/update payload. */
+    private SubscriptionLifecycleService.SubscribeOptions readSubscribeOptions(Map<String, Object> body) {
+        SubscriptionLifecycleService.SubscribeOptions options =
+                new SubscriptionLifecycleService.SubscribeOptions();
+        User actor = userContext.currentUser();
+        options.actor = actor != null ? actor.getEmail() : "platform-admin";
+
+        if (body.get("billingCycle") != null) {
+            options.billingCycle = BillingCycle.fromName(body.get("billingCycle").toString());
+        }
+        if (body.get("agreedPrice") != null && !body.get("agreedPrice").toString().isBlank()) {
+            options.agreedPrice = new java.math.BigDecimal(body.get("agreedPrice").toString());
+        }
+        options.poNumber = str(body.get("poNumber"));
+        options.salesOwner = str(body.get("salesOwner"));
+
+        Object overrides = body.get("limitOverrides");
+        if (overrides instanceof Map<?, ?> raw && !raw.isEmpty()) {
+            Map<LimitKey, Long> parsed = new LinkedHashMap<>();
+            raw.forEach((key, value) -> {
+                LimitKey limitKey = LimitKey.fromKey(String.valueOf(key));
+                if (limitKey != null && value != null) {
+                    parsed.put(limitKey, asLong(value));
+                }
+            });
+            options.limitOverrides = parsed;
+        }
+        return options;
+    }
+
+    /** Extracts only the billing/contact keys actually present, so absent ones stay untouched. */
+    private Map<String, String> billingFields(Map<String, Object> body) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (String key : List.of("legalName", "gstin", "pan", "billingEmail", "billingPhone",
+                "billingAddress", "city", "stateCode", "placeOfSupply", "pincode", "country",
+                "contactPerson", "poNumber", "salesOwner", "notes")) {
+            if (body.containsKey(key)) {
+                fields.put(key, str(body.get(key)));
+            }
+        }
+        return fields;
+    }
+
+    private String str(Object value) {
+        return value != null ? value.toString() : null;
+    }
+
+    private Long asLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (raw.isEmpty()) {
+            return null;
         }
         try {
-            Boolean isActive = body.containsKey("isActive") ? Boolean.parseBoolean(body.get("isActive")) : true;
-            Long planId = body.get("planId") != null && !body.get("planId").isEmpty()
-                    ? Long.valueOf(body.get("planId")) : null;
-            Long orgSubscriptionId = body.get("orgSubscriptionId") != null && !body.get("orgSubscriptionId").isEmpty()
-                    ? Long.valueOf(body.get("orgSubscriptionId")) : null;
-            Organization org = organizationService.updateOrganization(
-                    id, body.get("name"), body.get("slug"), body.get("domain"), isActive, planId, orgSubscriptionId,
-                    body.get("status"), parseDate(body.get("purchaseDate")), parseDate(body.get("expiryDate")));
-            return ResponseEntity.ok(toOrgMap(org));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            return null;
         }
+    }
+
+    /**
+     * Updates an organization. Absent keys are left untouched.
+     *
+     * <p>Two things changed here. {@code isActive} no longer defaults to {@code true}
+     * when the key is missing — that quietly reactivated suspended tenants on any
+     * partial update. And exceptions are no longer swallowed into a bare 404: a
+     * validation failure now reaches the caller as itself, rather than claiming the
+     * organization does not exist.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        userContext.requireSuperAdmin();
+
+        Boolean isActive = body.containsKey("isActive")
+                ? Boolean.parseBoolean(String.valueOf(body.get("isActive"))) : null;
+
+        // The same subscription terms the create form sends — billing cycle, agreed
+        // price, PO, negotiated limits — so assigning or changing a plan from the editor
+        // starts a properly-termed subscription rather than only setting a column.
+        Organization org = organizationService.updateOrganization(
+                id, str(body.get("name")), str(body.get("slug")), str(body.get("domain")),
+                isActive, asLong(body.get("planId")), asLong(body.get("orgSubscriptionId")),
+                str(body.get("status")), parseDate(str(body.get("purchaseDate"))),
+                parseDate(str(body.get("expiryDate"))), readSubscribeOptions(body));
+
+        Map<String, String> billing = billingFields(body);
+        if (!billing.isEmpty()) {
+            org = organizationService.updateBillingDetails(id, billing);
+        }
+        return ResponseEntity.ok(toOrgMap(org));
     }
 
     /**
@@ -207,6 +308,24 @@ public class OrganizationController {
         map.put("settings", org.getSettings());
         map.put("createdAt", org.getCreatedAt());
         map.put("updatedAt", org.getUpdatedAt());
+
+        // Billing identity and sales context, so the edit modal can round-trip them
+        // rather than blanking fields it never received.
+        map.put("legalName", org.getLegalName());
+        map.put("gstin", org.getGstin());
+        map.put("pan", org.getPan());
+        map.put("billingEmail", org.getBillingEmail());
+        map.put("billingPhone", org.getBillingPhone());
+        map.put("billingAddress", org.getBillingAddress());
+        map.put("city", org.getCity());
+        map.put("stateCode", org.getStateCode());
+        map.put("placeOfSupply", org.getPlaceOfSupply());
+        map.put("pincode", org.getPincode());
+        map.put("country", org.getCountry());
+        map.put("contactPerson", org.getContactPerson());
+        map.put("poNumber", org.getPoNumber());
+        map.put("salesOwner", org.getSalesOwner());
+        map.put("storageBytesUsed", org.getStorageBytesUsed());
         return map;
     }
 

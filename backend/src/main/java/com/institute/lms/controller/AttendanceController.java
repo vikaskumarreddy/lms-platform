@@ -20,12 +20,15 @@ public class AttendanceController {
     private final AttendanceRepository attendanceRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
 
     public AttendanceController(AttendanceRepository attendanceRepository, EventRepository eventRepository,
-                                 UserRepository userRepository) {
+                                 UserRepository userRepository,
+                                 com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
         this.attendanceRepository = attendanceRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
+        this.activityMeter = activityMeter;
     }
 
     /** All attendance records for an event, including students who are not yet marked. */
@@ -86,6 +89,14 @@ public class AttendanceController {
                 attendance.setPresent(present);
                 attendance.setRemarks(remarks);
                 saved.add(attendanceRepository.save(attendance));
+
+                // Attending a class counts as activity for the billing month. Only
+                // students actually marked present are metered — recording an absence
+                // would bill an academy for a student who did not turn up.
+                if (present && user.getRole() == User.UserRole.STUDENT) {
+                    activityMeter.record(user.getOrganizationId(), user.getId(),
+                            com.institute.lms.subscription.ActivityType.CLASS_ATTENDANCE);
+                }
             }
         }
         return ResponseEntity.ok(saved);

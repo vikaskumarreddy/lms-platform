@@ -17,12 +17,15 @@ public class AssignmentSubmissionController {
     private final AssignmentSubmissionRepository submissionRepository;
     private final UserRepository userRepository;
     private final UserContext userContext;
+    private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
 
     public AssignmentSubmissionController(AssignmentSubmissionRepository submissionRepository, UserRepository userRepository,
-                                          UserContext userContext) {
+                                          UserContext userContext,
+                                          com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.userContext = userContext;
+        this.activityMeter = activityMeter;
     }
 
     @GetMapping
@@ -54,7 +57,16 @@ public class AssignmentSubmissionController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         submission.setUser(user);
         submission.setSubmittedAt(java.time.LocalDateTime.now());
-        return ResponseEntity.ok(submissionRepository.save(submission));
+        AssignmentSubmission saved = submissionRepository.save(submission);
+
+        // Submitting an assessment counts as activity for the billing month. Metered
+        // after the save so a metering problem can never cost a student their
+        // submission.
+        if (user.getRole() == User.UserRole.STUDENT) {
+            activityMeter.record(user.getOrganizationId(), user.getId(),
+                    com.institute.lms.subscription.ActivityType.ASSESSMENT_SUBMISSION);
+        }
+        return ResponseEntity.ok(saved);
     }
 
     @PutMapping("/{id}")

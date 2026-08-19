@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Organization {
   id?: number;
@@ -20,6 +21,19 @@ interface Organization {
   settings?: Record<string, string>;
   createdAt?: string;
   updatedAt?: string;
+
+  /** Sales context. */
+  poNumber?: string;
+  salesOwner?: string;
+
+  /** GST identity, captured at creation so invoices can be raised without chasing it. */
+  legalName?: string;
+  gstin?: string;
+  placeOfSupply?: string;
+  stateCode?: string;
+  billingEmail?: string;
+  billingPhone?: string;
+  billingAddress?: string;
 }
 
 interface OrgFormData {
@@ -32,6 +46,29 @@ interface OrgFormData {
   expiryDate: string;
   planId: number | null;
   orgSubscriptionId: number | null;
+
+  /** Subscription terms agreed at creation. */
+  billingCycle: string;
+  agreedPrice: number | null;
+
+  /** Negotiated limits — only sent for plans that allow them. */
+  limitStudents: number | null;
+  limitFaculty: number | null;
+  limitBranches: number | null;
+  limitStorage: number | null;
+
+  /** Sales context, shown back to the tenant on their Account page. */
+  poNumber: string;
+  salesOwner: string;
+
+  /** GST identity, needed before a compliant invoice can be raised. */
+  legalName: string;
+  gstin: string;
+  placeOfSupply: string;
+  stateCode: string;
+  billingEmail: string;
+  billingPhone: string;
+  billingAddress: string;
 }
 
 interface AdminFormData {
@@ -52,10 +89,22 @@ interface OrgAdmin {
 
 interface OrgSubscriptionOpt {
   id: number;
+  code: string;
   name: string;
   price: number;
+  priceMonthly: number | null;
+  priceYearly: number | null;
   period: string;
   isActive: boolean;
+  isCustomPriced: boolean;
+  limitsConfigurable: boolean;
+  maxActiveStudents: number | null;
+  maxFacultyAccounts: number | null;
+  maxBranches: number | null;
+  storageGb: number | null;
+  includedTrainingHours: number;
+  overageStudentsAllowed: number;
+  overageStudentPrice: number | null;
 }
 
 @Component({
@@ -67,6 +116,7 @@ interface OrgSubscriptionOpt {
 })
 export class OrganizationsComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
 
   organizations: Organization[] = [];
   subscriptions: OrgSubscriptionOpt[] = [];
@@ -76,17 +126,10 @@ export class OrganizationsComponent implements OnInit {
   selectedOrgId: number | null = null;
   editingId: number | null = null;
   editingAdminId: number | null = null;
-  formData: OrgFormData = {
-    name: '',
-    slug: '',
-    domain: '',
-    isActive: true,
-    status: 'ACTIVE',
-    purchaseDate: '',
-    expiryDate: '',
-    planId: null,
-    orgSubscriptionId: null
-  };
+  formData: OrgFormData = this.blankForm();
+
+  /** The plan currently chosen in the modal, so its limits can be previewed. */
+  selectedPlan: OrgSubscriptionOpt | null = null;
   adminFormData: AdminFormData = {
     email: '',
     name: '',
@@ -119,15 +162,29 @@ export class OrganizationsComponent implements OnInit {
     });
   }
 
+  private blankForm(): OrgFormData {
+    return {
+      name: '', slug: '', domain: '', isActive: true, status: 'ACTIVE',
+      purchaseDate: '', expiryDate: '', planId: null, orgSubscriptionId: null,
+      billingCycle: 'MONTHLY', agreedPrice: null,
+      limitStudents: null, limitFaculty: null, limitBranches: null, limitStorage: null,
+      poNumber: '', salesOwner: '',
+      legalName: '', gstin: '', placeOfSupply: '', stateCode: '',
+      billingEmail: '', billingPhone: '', billingAddress: ''
+    };
+  }
+
   openAddModal() {
     this.editingId = null;
-    this.formData = { name: '', slug: '', domain: '', isActive: true, status: 'ACTIVE', purchaseDate: '', expiryDate: '', planId: null, orgSubscriptionId: null };
+    this.formData = this.blankForm();
+    this.selectedPlan = null;
     this.showModal = true;
   }
 
   openEditModal(org: Organization) {
     this.editingId = org.id || null;
     this.formData = {
+      ...this.blankForm(),
       name: org.name,
       slug: org.slug,
       domain: org.domain || '',
@@ -136,9 +193,40 @@ export class OrganizationsComponent implements OnInit {
       purchaseDate: (org.purchaseDate || '').slice(0, 16),
       expiryDate: (org.expiryDate || '').slice(0, 16),
       planId: org.planId || null,
-      orgSubscriptionId: org.orgSubscriptionId || null
+      orgSubscriptionId: org.orgSubscriptionId || null,
+      poNumber: org.poNumber || '',
+      salesOwner: org.salesOwner || '',
+      legalName: org.legalName || '',
+      gstin: org.gstin || '',
+      placeOfSupply: org.placeOfSupply || '',
+      stateCode: org.stateCode || '',
+      billingEmail: org.billingEmail || '',
+      billingPhone: org.billingPhone || '',
+      billingAddress: org.billingAddress || ''
     };
+    this.onPlanSelected(this.formData.orgSubscriptionId);
     this.showModal = true;
+  }
+
+  /** Keeps the limits preview in step with the chosen plan. */
+  onPlanSelected(planId: number | null) {
+    this.selectedPlan = planId != null
+      ? this.subscriptions.find(s => s.id === Number(planId)) ?? null
+      : null;
+  }
+
+  /** Hint text for the agreed-price field: the plan's list price for the chosen cycle. */
+  listPricePlaceholder(): string {
+    if (!this.selectedPlan) {
+      return 'Select a plan first';
+    }
+    if (this.selectedPlan.isCustomPriced) {
+      return 'Required — this plan is quoted';
+    }
+    const price = this.formData.billingCycle === 'YEARLY'
+      ? this.selectedPlan.priceYearly
+      : this.selectedPlan.priceMonthly;
+    return price != null ? String(price) : 'No list price set';
   }
 
   closeModal() {
@@ -147,11 +235,19 @@ export class OrganizationsComponent implements OnInit {
 
   saveOrganization() {
     if (!this.formData.name.trim() || !this.formData.slug.trim()) {
-      alert('Name and Slug are required');
+      this.errors.info('Name and slug are both required.', 'Almost there');
+      return;
+    }
+    // A custom-priced plan has no list price to fall back on, so refusing here beats
+    // letting the server reject it after the form has been dismissed.
+    if (this.selectedPlan?.isCustomPriced && !this.formData.agreedPrice) {
+      this.errors.info(
+        `${this.selectedPlan.name} is priced per organization — enter the agreed price.`,
+        'Price needed');
       return;
     }
 
-    const payload = {
+    const payload: any = {
       name: this.formData.name,
       slug: this.formData.slug,
       domain: this.formData.domain,
@@ -160,26 +256,46 @@ export class OrganizationsComponent implements OnInit {
       purchaseDate: this.formData.purchaseDate,
       expiryDate: this.formData.expiryDate,
       planId: this.formData.planId,
-      orgSubscriptionId: this.formData.orgSubscriptionId
+      orgSubscriptionId: this.formData.orgSubscriptionId,
+
+      billingCycle: this.formData.billingCycle,
+      agreedPrice: this.formData.agreedPrice,
+      poNumber: this.formData.poNumber,
+      salesOwner: this.formData.salesOwner,
+
+      legalName: this.formData.legalName,
+      gstin: this.formData.gstin,
+      placeOfSupply: this.formData.placeOfSupply,
+      stateCode: this.formData.stateCode,
+      billingEmail: this.formData.billingEmail,
+      billingPhone: this.formData.billingPhone,
+      billingAddress: this.formData.billingAddress
     };
 
-    if (this.editingId) {
-      this.api.put(`/api/organizations/${this.editingId}`, payload).subscribe({
-        next: () => {
-          this.closeModal();
-          this.loadOrganizations();
-        },
-        error: (err) => console.error('Failed to update organization:', err)
-      });
-    } else {
-      this.api.post('/api/organizations', payload).subscribe({
-        next: () => {
-          this.closeModal();
-          this.loadOrganizations();
-        },
-        error: (err) => console.error('Failed to create organization:', err)
-      });
+    // Only sent for plans that permit negotiated limits; the server rejects them otherwise.
+    if (this.selectedPlan?.limitsConfigurable) {
+      const overrides: Record<string, number> = {};
+      if (this.formData.limitStudents) overrides['MAX_ACTIVE_STUDENTS'] = this.formData.limitStudents;
+      if (this.formData.limitFaculty) overrides['MAX_FACULTY_ACCOUNTS'] = this.formData.limitFaculty;
+      if (this.formData.limitBranches) overrides['MAX_BRANCHES'] = this.formData.limitBranches;
+      if (this.formData.limitStorage) overrides['STORAGE_GB'] = this.formData.limitStorage;
+      if (Object.keys(overrides).length > 0) {
+        payload.limitOverrides = overrides;
+      }
     }
+
+    const request = this.editingId
+      ? this.api.put(`/api/organizations/${this.editingId}`, payload)
+      : this.api.post('/api/organizations', payload);
+
+    request.subscribe({
+      next: () => {
+        this.closeModal();
+        this.errors.success(this.editingId ? 'Organization updated.' : 'Organization created.');
+        this.loadOrganizations();
+      },
+      error: (err) => this.errors.show(err, 'Could not save that organization')
+    });
   }
 
   onLogoSelect() {
