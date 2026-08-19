@@ -213,6 +213,11 @@ public class OrganizationController {
     /**
      * Creates an organization admin (INSTITUTE_ADMIN) for a specific organization.
      * Only super admins (ADMIN role) can create org admins.
+     *
+     * <p>Uses native JDBC queries so the super-admin thread's Hibernate session
+     * (bound to the "-1" sentinel tenant) does not trigger Hibernate's
+     * {@code assigned tenant id differs from current tenant id} validation when
+     * the entity's {@code organizationId} differs from the session tenant.</p>
      */
     @PostMapping("/{id}/admin")
     public ResponseEntity<Map<String, Object>> createOrgAdmin(@PathVariable Long id,
@@ -235,52 +240,50 @@ public class OrganizationController {
             return ResponseEntity.badRequest().body(Map.of("error", "Email already exists"));
         }
 
-                // Organization is NOT a BaseEntity (no @TenantId), so existsById is safe
+        // Organization is NOT a BaseEntity (no @TenantId), so existsById is safe
         // even when the super-admin thread carries the "-1" sentinel tenant.
         if (!organizationRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
 
-        // Fetch the org and set the tenant context so Hibernate's @TenantId
-        // DISCRIMINATOR predicate matches the organizationId we are about to
-        // write on the User entity. Without this the super-admin thread's "-1"
-        // sentinel causes existsByOrganizationIdAndEmail to always return
-        // false and userRepository.save to throw PropertyValueException.
-        Organization org = organizationRepository.findById(id).orElse(null);
-        if (org == null) {
-            return ResponseEntity.notFound().build();
-        }
-        organizationContext.setCurrentOrganization(org);
         try {
-            if (userRepository.existsByOrganizationIdAndEmail(id, email)) {
+            // Native existence check — bypasses the "-1" tenant discriminator so
+            // the super admin can see the target org's existing users.
+            if (userRepository.existsAdminEmailInOrg(id, email)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Email already exists in this organization"));
             }
 
-            // Create INSTITUTE_ADMIN user for this organization
-            User admin = new User();
-            admin.setEmail(email);
-            admin.setName(name);
-            admin.setPassword(passwordEncoder.encode(password));
-            admin.setPhone(phone);
-            admin.setRole(User.UserRole.INSTITUTE_ADMIN);
-            admin.setIsActive(true);
-            admin.setIsEmailVerified(false);
-            admin.setOrganizationId(id);
+            // Native INSERT — bypasses JPA's @TenantId validation entirely,
+            // which would otherwise reject this entity because the super-admin
+            // session is bound to tenant "-1" but the row's org is the target id.
+            int inserted = userRepository.insertOrganizationAdmin(
+                    id,
+                    email,
+                    passwordEncoder.encode(password),
+                    name,
+                    phone,
+                    User.UserRole.INSTITUTE_ADMIN.name());
 
-            User savedAdmin = userRepository.save(admin);
+            if (inserted != 1) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Failed to create organization admin"));
+            }
+
+            // Read back the generated id (identity column) so the response has it.
+            Long newId = userRepository.findOrgAdminIdByEmail(id, email);
+            if (newId == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Failed to create organization admin"));
+            }
 
             return ResponseEntity.ok(Map.of(
-                    "id", savedAdmin.getId(),
-                    "email", savedAdmin.getEmail(),
-                    "name", savedAdmin.getName(),
+                    "id", newId,
+                    "email", email,
+                    "name", name,
                     "role", "INSTITUTE_ADMIN",
                     "organizationId", id,
                     "message", "Organization admin created successfully"
             ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        } finally {
-            organizationContext.clear();
         }
     }
 
@@ -298,47 +301,47 @@ public class OrganizationController {
         if (!userContext.isAdmin()) {
             throw new RuntimeException("Access denied: Super Admin role required to update org admins");
         }
-        Organization org = organizationRepository.findById(id).orElse(null);
-        if (org == null) {
+        if (!organizationRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-        organizationContext.setCurrentOrganization(org);
-        try {
-            User admin = userRepository.findById(adminId).orElse(null);
-            if (admin == null || admin.getRole() != User.UserRole.INSTITUTE_ADMIN
-                    || Boolean.TRUE.equals(admin.getIsGhost())) {
-                return ResponseEntity.notFound().build();
-            }
-            if (body.get("name") != null && !body.get("name").isBlank()) {
-                admin.setName(body.get("name"));
-            }
-            if (body.containsKey("phone")) {
-                admin.setPhone(body.get("phone"));
-            }
-            if (body.containsKey("isActive")) {
-                admin.setIsActive(Boolean.parseBoolean(body.get("isActive")));
-            }
-            if (body.get("password") != null && !body.get("password").isBlank()) {
-                admin.setPassword(passwordEncoder.encode(body.get("password")));
-            }
-            User saved = userRepository.save(admin);
-            return ResponseEntity.ok(Map.of(
-                    "id", saved.getId(),
-                    "email", saved.getEmail() != null ? saved.getEmail() : "",
-                    "name", saved.getName() != null ? saved.getName() : "",
-                    "phone", saved.getPhone() != null ? saved.getPhone() : "",
-                    "role", "INSTITUTE_ADMIN",
-                    "organizationId", id,
-                    "message", "Organization admin updated successfully"
-            ));
-        } finally {
-            organizationContext.clear();
+
+        // Native read — bypasses Hibernate's @TenantId DISCRIMINATOR so the
+        // super-admin's "-1" session tenant can still see the target org's rows.
+        User admin = userRepository.findOrgAdminById(id, adminId).orElse(null);
+        if (admin == null || Boolean.TRUE.equals(admin.getIsGhost())) {
+            return ResponseEntity.notFound().build();
         }
+
+        String name = body.get("name") != null && !body.get("name").isBlank() ? body.get("name") : null;
+        String phone = body.containsKey("phone") ? body.get("phone") : null;
+        Boolean isActive = body.containsKey("isActive") ? Boolean.parseBoolean(body.get("isActive")) : null;
+        String encodedPassword = body.get("password") != null && !body.get("password").isBlank()
+                ? passwordEncoder.encode(body.get("password")) : null;
+
+        int updated = userRepository.updateOrganizationAdmin(id, adminId, name, phone, encodedPassword, isActive);
+        if (updated == 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Re-read via native query so the response reflects the persisted state.
+        User saved = userRepository.findOrgAdminById(id, adminId).orElse(admin);
+        return ResponseEntity.ok(Map.of(
+                "id", saved.getId(),
+                "email", saved.getEmail() != null ? saved.getEmail() : "",
+                "name", saved.getName() != null ? saved.getName() : "",
+                "phone", saved.getPhone() != null ? saved.getPhone() : "",
+                "role", "INSTITUTE_ADMIN",
+                "organizationId", id,
+                "message", "Organization admin updated successfully"
+        ));
     }
 
     /**
      * Deletes an existing organization admin (INSTITUTE_ADMIN) for a specific organization.
      * Only super admins (ADMIN role) can delete org admins.
+     *
+     * <p>Uses native JDBC to bypass Hibernate's @TenantId DISCRIMINATOR so the
+     * super-admin's "-1" session tenant can still reach the target org's rows.</p>
      */
     @DeleteMapping("/{id}/admin/{adminId}")
     public ResponseEntity<?> deleteOrgAdmin(@PathVariable Long id,
@@ -346,22 +349,21 @@ public class OrganizationController {
         if (!userContext.isAdmin()) {
             throw new RuntimeException("Access denied: Super Admin role required to delete org admins");
         }
-        Organization org = organizationRepository.findById(id).orElse(null);
-        if (org == null) {
+        if (!organizationRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-        organizationContext.setCurrentOrganization(org);
-        try {
-            User admin = userRepository.findById(adminId).orElse(null);
-            if (admin == null || admin.getRole() != User.UserRole.INSTITUTE_ADMIN
-                    || Boolean.TRUE.equals(admin.getIsGhost())) {
-                return ResponseEntity.notFound().build();
-            }
-            userRepository.delete(admin);
-            return ResponseEntity.ok(Map.of("message", "Organization admin deleted successfully"));
-        } finally {
-            organizationContext.clear();
+
+        // Native check that the target user is a real admin in this org.
+        User admin = userRepository.findOrgAdminById(id, adminId).orElse(null);
+        if (admin == null || Boolean.TRUE.equals(admin.getIsGhost())) {
+            return ResponseEntity.notFound().build();
         }
+
+        int deleted = userRepository.deleteOrganizationAdmin(id, adminId);
+        if (deleted == 0) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("message", "Organization admin deleted successfully"));
     }
 
     /**
@@ -377,7 +379,7 @@ public class OrganizationController {
             return ResponseEntity.notFound().build();
         }
                 List<Map<String, Object>> admins = userRepository
-                .findNonGhostAdminsByOrganizationId(id, User.UserRole.INSTITUTE_ADMIN)
+                .findNonGhostAdminsByOrganizationId(id, User.UserRole.INSTITUTE_ADMIN.name())
                 .stream()
                 .filter(u -> !Boolean.TRUE.equals(u.getIsGhost()))
                 .map(u -> {
