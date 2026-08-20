@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -89,88 +89,94 @@ interface Batch {
       </table>
     </div>
 
-    <!-- Student Modal -->
+    <!-- Student Modal (Fieldset + Legend with Tabbed content) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
-      <div class="modal-content" style="width:90%;max-width:520px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">{{editingStudent ? 'Edit Student' : 'Add New Student'}}</h2>
-          <button class="btn btn-secondary" (click)="closeModal()">✕</button>
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="studentTab === 'basic'" [class.completed]="studentTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="studentTab === 'details'"></div>
+          <div class="popup-step" [class.active]="studentTab === 'details'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button [class.active]="studentTab === 'basic'" (click)="studentTab = 'basic'">🔑 Basic Details</button>
+          <button [class.active]="studentTab === 'details'" (click)="studentTab = 'details'">👤 Profile & Social</button>
         </div>
 
         <form (ngSubmit)="saveStudent()">
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Full Name</label>
-            <input type="text" [(ngModel)]="studentForm.name" name="name" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="Enter student name">
-          </div>
+          <!-- Basic tab -->
+          <fieldset *ngIf="studentTab === 'basic'">
+            <legend>{{editingStudent ? 'Edit Student' : 'Add New Student'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Full Name</label>
+                <input type="text" [(ngModel)]="studentForm.name" name="name" required placeholder="Enter student name">
+              </div>
+              <div>
+                <label>Email</label>
+                <input type="email" [(ngModel)]="studentForm.email" name="email" required placeholder="student@example.com">
+              </div>
+              <div>
+                <label>Phone</label>
+                <input type="text" [(ngModel)]="studentForm.phone" name="phone" placeholder="+91 98765 43210">
+              </div>
+              <div>
+                <label>Password</label>
+                <input type="password" [(ngModel)]="studentForm.password" name="password" [required]="!editingStudent"
+                       placeholder="{{editingStudent ? 'Leave blank to keep current' : 'Enter password'}}">
+              </div>
+            </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Email</label>
-            <input type="email" [(ngModel)]="studentForm.email" name="email" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="student@example.com">
-          </div>
+          <!-- Profile & Social tab -->
+          <fieldset *ngIf="studentTab === 'details'">
+            <legend>Profile & Social</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Batch</label>
+                <select [(ngModel)]="studentForm.batchId" name="batchId">
+                  <option [ngValue]="null">No batch</option>
+                  <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}{{b.isActive ? '' : ' (Inactive)'}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="studentForm.planId" name="planId">
+                  <option [ngValue]="null">No plan (free access)</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+                </select>
+              </div>
+              <div class="full-width">
+                <label>LinkedIn</label>
+                <input type="text" [(ngModel)]="studentForm.linkedin" name="linkedin" placeholder="linkedin.com/in/username">
+              </div>
+              <div class="full-width">
+                <label>GitHub</label>
+                <input type="text" [(ngModel)]="studentForm.github" name="github" placeholder="github.com/username">
+              </div>
+              <div>
+                <label>Status</label>
+                <select [(ngModel)]="studentForm.isActive" name="isActive">
+                  <option [ngValue]="true">Active</option>
+                  <option [ngValue]="false">Inactive</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Phone</label>
-            <input type="text" [(ngModel)]="studentForm.phone" name="phone"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="+91 98765 43210">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Password</label>
-            <input type="password" [(ngModel)]="studentForm.password" name="password"
-                   [required]="!editingStudent"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="{{editingStudent ? 'Leave blank to keep current' : 'Enter password'}}">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Batch</label>
-            <select [(ngModel)]="studentForm.batchId" name="batchId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No batch</option>
-              <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}{{b.isActive ? '' : ' (Inactive)'}}</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Subscription Plan (for access control)</label>
-            <select [(ngModel)]="studentForm.planId" name="planId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No plan (free access)</option>
-              <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">LinkedIn</label>
-            <input type="text" [(ngModel)]="studentForm.linkedin" name="linkedin"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="linkedin.com/in/username">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">GitHub</label>
-            <input type="text" [(ngModel)]="studentForm.github" name="github"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="github.com/username">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Status</label>
-            <select [(ngModel)]="studentForm.isActive" name="isActive"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="true">Active</option>
-              <option [ngValue]="false">Inactive</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="loading">{{loading ? 'Saving...' : (editingStudent ? 'Update Student' : 'Create Student')}}</button>
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="studentTab === 'details'" (click)="studentTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="studentTab === 'basic'" (click)="studentTab = 'details'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="studentTab === 'details'" [disabled]="loading">{{loading ? 'Saving...' : (editingStudent ? 'Update Student' : 'Create Student')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
           </div>
         </form>
 
@@ -208,6 +214,7 @@ export class StudentsComponent implements OnInit {
   editingStudent: Student | null = null;
   loading = false;
   errorMessage = '';
+  studentTab: 'basic' | 'details' = 'basic';
 
   studentForm: any = {
     name: '',
@@ -284,6 +291,7 @@ export class StudentsComponent implements OnInit {
   openAddModal() {
     this.editingStudent = null;
     this.errorMessage = '';
+    this.studentTab = 'basic';
     this.studentForm = {
       name: '',
       email: '',
@@ -301,6 +309,7 @@ export class StudentsComponent implements OnInit {
   openEditModal(student: Student) {
     this.editingStudent = student;
     this.errorMessage = '';
+    this.studentTab = 'basic';
     this.studentForm = {
       name: student.name,
       email: student.email,

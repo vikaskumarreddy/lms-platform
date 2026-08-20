@@ -14,9 +14,9 @@ interface Batch { id: number; name: string; isActive: boolean; }
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">📋 Exams</h1>
-      <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Exam'}}</button>
+      <button class="btn btn-primary" (click)="showModal = !showModal">{{ showModal ? 'Cancel' : '+ Add Exam'}}</button>
     </div>
-    <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
+    <div class="card" *ngIf="showModal" style="margin-bottom:20px;">
       <h3 style="margin-bottom:16px;">{{editingId ? 'Edit' : 'Add New'}} Exam</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <input [(ngModel)]="formData.title" placeholder="Exam Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
@@ -43,7 +43,7 @@ interface Batch { id: number; name: string; isActive: boolean; }
         <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
       </div>
     </div>
-    <div class="card" *ngIf="!showForm">
+    <div class="card" *ngIf="!showModal">
       <table><thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Duration</th><th>Subscription</th><th>Batch</th><th>Marks</th><th>Link</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let e of exams">
@@ -70,11 +70,14 @@ interface Batch { id: number; name: string; isActive: boolean; }
 })
 export class ExamsAdminComponent implements OnInit {
   private api = inject(ApiService);
-  showForm = false; editingId: number | null = null;
+  showModal = false; editingId: number | null = null;
+  examTab: 'basic' | 'details' = 'basic';
+  saving = false;
+  errorMessage = '';
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   selectedBatchIds: number[] = [];
-  formData: any = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, batchIds: [] };
+  formData: any = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, batchIds: [], link: '' };
   exams: any[] = [];
 
   ngOnInit() {
@@ -166,7 +169,7 @@ export class ExamsAdminComponent implements OnInit {
       link: e.link || ''
     };
     this.selectedBatchIds = e.batchIds || [];
-    this.showForm = true;
+    this.showModal = true;
   }
 
   delete(e: any) {
@@ -186,7 +189,7 @@ export class ExamsAdminComponent implements OnInit {
     this.formData = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, link: '', batchIds: [] };
     this.selectedBatchIds = [];
     this.editingId = null;
-    this.showForm = false;
+    this.showModal = false;
   }
 
 }

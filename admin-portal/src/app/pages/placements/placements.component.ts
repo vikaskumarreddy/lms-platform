@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -142,100 +142,101 @@ interface SubscriptionPlan {
       </table>
     </div>
 
-    <!-- Drive Modal -->
+    <!-- Drive Modal: Fieldset + Legend with Tabbed content to avoid vertical scroll -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
-      <div class="modal-content" style="width:90%;max-width:520px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">{{editingDrive ? 'Edit Drive' : 'Add New Drive'}}</h2>
-          <button class="btn btn-secondary" (click)="closeModal()">✕</button>
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="driveTab === 'basic'" [class.completed]="driveTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="driveTab === 'details'"></div>
+          <div class="popup-step" [class.active]="driveTab === 'details'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button [class.active]="driveTab === 'basic'" (click)="driveTab = 'basic'">🔑 Basic Details</button>
+          <button [class.active]="driveTab === 'details'" (click)="driveTab = 'details'">📋 Full Details</button>
         </div>
 
         <form (ngSubmit)="saveDrive()">
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Company Name</label>
-            <input type="text" [(ngModel)]="driveForm.companyName" name="companyName" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="Enter company name">
-          </div>
+          <!-- Basic tab -->
+          <fieldset *ngIf="driveTab === 'basic'">
+            <legend>{{editingDrive ? 'Edit Drive' : 'Add New Drive'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Company Name</label>
+                <input type="text" [(ngModel)]="driveForm.companyName" name="companyName" required placeholder="Enter company name">
+              </div>
+              <div>
+                <label>Role</label>
+                <input type="text" [(ngModel)]="driveForm.role" name="role" required placeholder="e.g. SDE-1">
+              </div>
+              <div>
+                <label>Drive Type</label>
+                <select [(ngModel)]="driveForm.driveType" name="driveType">
+                  <option value="EXTERNAL">🌐 External (company-run)</option>
+                  <option value="INTERNAL">🏢 Internal (institute-run)</option>
+                </select>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="driveForm.planId" name="planId">
+                  <option [ngValue]="null">No plan (free access)</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Role</label>
-            <input type="text" [(ngModel)]="driveForm.role" name="role" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="e.g. SDE-1">
-          </div>
+          <!-- Details tab -->
+          <fieldset *ngIf="driveTab === 'details'">
+            <legend>Drive Details</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Package (LPA)</label>
+                <input type="number" [(ngModel)]="driveForm.packageAmount" name="packageAmount" placeholder="e.g. 25">
+              </div>
+              <div>
+                <label>Location</label>
+                <input type="text" [(ngModel)]="driveForm.location" name="location" placeholder="e.g. Bangalore">
+              </div>
+              <div>
+                <label>Deadline</label>
+                <input type="datetime-local" [(ngModel)]="driveForm.deadline" name="deadline">
+              </div>
+              <div>
+                <label>Status</label>
+                <select [(ngModel)]="driveForm.isActive" name="isActive">
+                  <option [ngValue]="true">Active</option>
+                  <option [ngValue]="false">Inactive</option>
+                </select>
+              </div>
+              <div class="full-width">
+                <label>Eligibility</label>
+                <textarea [(ngModel)]="driveForm.eligibility" name="eligibility" rows="2" placeholder="Eligibility criteria"></textarea>
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="driveForm.description" name="description" rows="3" placeholder="Job description"></textarea>
+              </div>
+              <div class="full-width">
+                <label>Apply Link</label>
+                <input type="text" [(ngModel)]="driveForm.applyLink" name="applyLink" placeholder="https://...">
+              </div>
+            </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Drive Type</label>
-            <select [(ngModel)]="driveForm.driveType" name="driveType"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option value="EXTERNAL">🌐 External (company-run, apply link only)</option>
-              <option value="INTERNAL">🏢 Internal (institute-run, schedulable interview slots)</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Package (LPA)</label>
-            <input type="number" [(ngModel)]="driveForm.packageAmount" name="packageAmount"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="e.g. 25">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Location</label>
-            <input type="text" [(ngModel)]="driveForm.location" name="location"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="e.g. Bangalore">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Subscription Plan (for access control)</label>
-            <select [(ngModel)]="driveForm.planId" name="planId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No plan (free access)</option>
-              <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Deadline</label>
-            <input type="datetime-local" [(ngModel)]="driveForm.deadline" name="deadline"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Eligibility</label>
-            <textarea [(ngModel)]="driveForm.eligibility" name="eligibility" rows="2"
-                      style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;resize:vertical;"
-                      placeholder="Eligibility criteria"></textarea>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Description</label>
-            <textarea [(ngModel)]="driveForm.description" name="description" rows="3"
-                      style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;resize:vertical;"
-                      placeholder="Job description"></textarea>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Apply Link</label>
-            <input type="text" [(ngModel)]="driveForm.applyLink" name="applyLink"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="https://...">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Status</label>
-            <select [(ngModel)]="driveForm.isActive" name="isActive"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="true">Active</option>
-              <option [ngValue]="false">Inactive</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="saving">{{saving ? 'Saving...' : (editingDrive ? 'Update Drive' : 'Create Drive')}}</button>
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="driveTab === 'details'" (click)="driveTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="driveTab === 'basic'" (click)="driveTab = 'details'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="driveTab === 'details'" [disabled]="saving">{{saving ? 'Saving...' : (editingDrive ? 'Update Drive' : 'Create Drive')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
           </div>
         </form>
 
@@ -248,80 +249,77 @@ interface SubscriptionPlan {
     <!-- Interview Slots Modal (INTERNAL drives) -->
     <div class="modal-overlay" *ngIf="showSlotsModal" (click)="closeSlotsModal()">
       <div class="modal-content" style="width:90%;max-width:640px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">Interview Slots — {{ slotsForDrive?.companyName }}</h2>
-          <button class="btn btn-secondary" (click)="closeSlotsModal()">✕</button>
-        </div>
+        <fieldset>
+          <legend>Interview Slots — {{ slotsForDrive?.companyName }}</legend>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <input type="datetime-local" [(ngModel)]="newSlot.slotTime" name="slotTime" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+            <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Room 204 / Google Meet)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+            <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)" style="grid-column:1/-1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          </div>
+          <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Slot
+          </button>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-          <input type="datetime-local" [(ngModel)]="newSlot.slotTime" name="slotTime"
-                 style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-          <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Room 204 / Google Meet)"
-                 style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-          <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)"
-                 style="grid-column:1/-1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <table>
+            <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By (User ID)</th><th></th></tr></thead>
+            <tbody>
+              <tr *ngFor="let s of slots">
+                <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
+                <td>{{ s.location || '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
+                </td>
+                <td>{{ s.bookedByUserId || '-' }}</td>
+                <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button></td>
+              </tr>
+              <tr *ngIf="slots.length === 0">
+                <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
+              </tr>
+            </tbody>
+          </table>
+        </fieldset>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn btn-secondary" (click)="closeSlotsModal()">Close</button>
         </div>
-        <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Slot
-        </button>
-
-        <table>
-          <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By (User ID)</th><th></th></tr></thead>
-          <tbody>
-            <tr *ngFor="let s of slots">
-              <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
-              <td>{{ s.location || '-' }}</td>
-              <td>
-                <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
-              </td>
-              <td>{{ s.bookedByUserId || '-' }}</td>
-              <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button></td>
-            </tr>
-            <tr *ngIf="slots.length === 0">
-              <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
 
     <!-- Eligibility Criteria Modal -->
     <div class="modal-overlay" *ngIf="showCriteriaModal" (click)="closeCriteriaModal()">
       <div class="modal-content" style="width:90%;max-width:520px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h2 style="font-size:20px;font-weight:700;">Eligibility Criteria — {{ criteriaDrive?.companyName }}</h2>
-          <button class="btn btn-secondary" (click)="closeCriteriaModal()">✕</button>
-        </div>
-        <p style="font-size:12px;color:#64748B;margin-bottom:16px;">
-          Optional minimum thresholds (%). A student who does not meet any set
-          threshold will see "Not eligible" instead of Apply in the app. Leave blank to skip a rule.
-        </p>
-        <div class="form-grid" style="font-size:13px;">
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Attendance (%)</label>
-            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAttendance"
-                   name="criteriaAttendance" placeholder="e.g. 75">
+        <fieldset>
+          <legend>Eligibility Criteria — {{ criteriaDrive?.companyName }}</legend>
+          <p style="font-size:12px;color:#64748B;margin-bottom:16px;">
+            Optional minimum thresholds (%). A student who does not meet any set
+            threshold will see "Not eligible" instead of Apply in the app. Leave blank to skip a rule.
+          </p>
+          <div class="popup-form-grid" style="font-size:13px;">
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Attendance (%)</label>
+              <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAttendance"
+                     name="criteriaAttendance" placeholder="e.g. 75">
+            </div>
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Course Completion (%)</label>
+              <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minCourseCompletion"
+                     name="criteriaCourseCompletion" placeholder="e.g. 80">
+            </div>
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Assignments Avg Score (%)</label>
+              <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAssignmentAvg"
+                     name="criteriaAssignmentAvg" placeholder="e.g. 70">
+            </div>
+            <div>
+              <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Exam Avg Score (%)</label>
+              <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minExamAvg"
+                     name="criteriaExamAvg" placeholder="e.g. 70">
+            </div>
           </div>
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Course Completion (%)</label>
-            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minCourseCompletion"
-                   name="criteriaCourseCompletion" placeholder="e.g. 80">
-          </div>
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Assignments Avg Score (%)</label>
-            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAssignmentAvg"
-                   name="criteriaAssignmentAvg" placeholder="e.g. 70">
-          </div>
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Exam Avg Score (%)</label>
-            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minExamAvg"
-                   name="criteriaExamAvg" placeholder="e.g. 70">
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+        </fieldset>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
           <button type="button" class="btn btn-secondary" (click)="closeCriteriaModal()">Cancel</button>
           <button type="button" class="btn btn-primary" [disabled]="savingCriteria" (click)="saveCriteria()">{{savingCriteria ? 'Saving...' : 'Save Criteria'}}</button>
         </div>
@@ -349,6 +347,14 @@ interface SubscriptionPlan {
       max-height: 90vh;
       overflow-y: auto;
     }
+    /* Fieldset/legend styling */
+    .modal-overlay fieldset { border: 2px solid var(--border); border-radius: var(--radius); padding: 24px 20px 20px; margin: 0 0 20px; }
+    .modal-overlay fieldset legend { background: var(--surface); padding: 0 12px; margin: 0 auto; font-size: 15px; font-weight: 700; color: var(--primary); letter-spacing: .3px; white-space: nowrap; text-align: center; }
+    .modal-overlay fieldset label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+    .modal-overlay fieldset input, .modal-overlay fieldset select, .modal-overlay fieldset textarea {
+      width: 100%; padding: 10px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 14px; font-family: inherit;
+    }
+    .modal-overlay fieldset textarea { resize: vertical; }
     /* Icon-only action buttons */
     .icon-btn{
       display: inline-flex;
@@ -385,6 +391,7 @@ export class PlacementsComponent implements OnInit {
   editingDrive: Drive | null = null;
   saving = false;
   errorMessage = '';
+  driveTab: 'basic' | 'details' = 'basic';
 
   driveForm: any = {
     companyName: '',
@@ -471,6 +478,7 @@ export class PlacementsComponent implements OnInit {
   openAddModal() {
     this.editingDrive = null;
     this.errorMessage = '';
+    this.driveTab = 'basic';
     this.driveForm = {
       companyName: '',
       role: '',
@@ -490,6 +498,7 @@ export class PlacementsComponent implements OnInit {
   openEditModal(drive: Drive) {
     this.editingDrive = drive;
     this.errorMessage = '';
+    this.driveTab = 'basic';
     this.driveForm = {
       companyName: drive.companyName,
       role: drive.role,

@@ -100,87 +100,93 @@ interface SubscriptionPlan {
       </table>
     </div>
 
-    <!-- Batch Form Modal -->
+    <!-- Batch Form Modal (Fieldset + Legend with Tabbed content) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
-      <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">{{editingBatch ? 'Edit Batch' : 'Create New Batch'}}</h2>
-          <button class="btn btn-secondary" (click)="closeModal()">✕</button>
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="batchTab === 'basic'" [class.completed]="batchTab === 'schedule'">1</div>
+          <div class="popup-step-line" [class.completed]="batchTab === 'schedule'"></div>
+          <div class="popup-step" [class.active]="batchTab === 'schedule'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button [class.active]="batchTab === 'basic'" (click)="batchTab = 'basic'">🔑 Basic Details</button>
+          <button [class.active]="batchTab === 'schedule'" (click)="batchTab = 'schedule'">📅 Schedule & Access</button>
         </div>
 
         <form (ngSubmit)="saveBatch()">
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Batch Name *</label>
-            <input type="text" [(ngModel)]="batchForm.name" name="name" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="e.g. Java Full Stack - Jan 2026">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Description</label>
-            <textarea [(ngModel)]="batchForm.description" name="description" rows="2"
-                      style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                      placeholder="Batch description"></textarea>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Subscription Plan</label>
-            <select [(ngModel)]="batchForm.planId" name="planId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No plan</option>
-              <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Mentor / Faculty</label>
-            <select [(ngModel)]="batchForm.mentorId" name="mentorId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No mentor assigned</option>
-              <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
-            </select>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-            <div>
-              <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Start Date</label>
-              <input type="datetime-local" [(ngModel)]="batchForm.startDate" name="startDate"
-                     style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;">
+          <!-- Basic tab -->
+          <fieldset *ngIf="batchTab === 'basic'">
+            <legend>{{editingBatch ? 'Edit Batch' : 'Create New Batch'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Batch Name *</label>
+                <input type="text" [(ngModel)]="batchForm.name" name="name" required placeholder="e.g. Java Full Stack - Jan 2026">
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="batchForm.description" name="description" rows="2" placeholder="Batch description"></textarea>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="batchForm.planId" name="planId">
+                  <option [ngValue]="null">No plan</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Mentor / Faculty</label>
+                <select [(ngModel)]="batchForm.mentorId" name="mentorId">
+                  <option [ngValue]="null">No mentor assigned</option>
+                  <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">End Date</label>
-              <input type="datetime-local" [(ngModel)]="batchForm.endDate" name="endDate"
-                     style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;">
-            </div>
-          </div>
+          </fieldset>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-            <div>
-              <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Max Students</label>
-              <input type="number" [(ngModel)]="batchForm.maxStudents" name="maxStudents"
-                     style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                     placeholder="e.g. 50">
+          <!-- Schedule & Access tab -->
+          <fieldset *ngIf="batchTab === 'schedule'">
+            <legend>Schedule & Access</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Start Date</label>
+                <input type="datetime-local" [(ngModel)]="batchForm.startDate" name="startDate">
+              </div>
+              <div>
+                <label>End Date</label>
+                <input type="datetime-local" [(ngModel)]="batchForm.endDate" name="endDate">
+              </div>
+              <div>
+                <label>Max Students</label>
+                <input type="number" [(ngModel)]="batchForm.maxStudents" name="maxStudents" placeholder="e.g. 50">
+              </div>
+              <div>
+                <label>Schedule</label>
+                <input type="text" [(ngModel)]="batchForm.schedule" name="schedule" placeholder="e.g. Mon/Wed/Fri 10am-12pm">
+              </div>
+              <div class="full-width">
+                <label>Status</label>
+                <select [(ngModel)]="batchForm.isActive" name="isActive">
+                  <option [ngValue]="true">Active</option>
+                  <option [ngValue]="false">Inactive</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Schedule</label>
-              <input type="text" [(ngModel)]="batchForm.schedule" name="schedule"
-                     style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                     placeholder="e.g. Mon/Wed/Fri 10am-12pm">
-            </div>
-          </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Status</label>
-            <select [(ngModel)]="batchForm.isActive" name="isActive"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="true">Active</option>
-              <option [ngValue]="false">Inactive</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="loading">{{loading ? 'Saving...' : (editingBatch ? 'Update Batch' : 'Create Batch')}}</button>
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="batchTab === 'schedule'" (click)="batchTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="batchTab === 'basic'" (click)="batchTab = 'schedule'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="batchTab === 'schedule'" [disabled]="loading">{{loading ? 'Saving...' : (editingBatch ? 'Update Batch' : 'Create Batch')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
           </div>
         </form>
 
@@ -299,6 +305,7 @@ export class BatchesComponent implements OnInit {
   editingBatch: Batch | null = null;
   loading = false;
   errorMessage = '';
+  batchTab: 'basic' | 'schedule' = 'basic';
 
   batchForm: any = {
     name: '',
@@ -382,6 +389,7 @@ export class BatchesComponent implements OnInit {
   openAddModal() {
     this.editingBatch = null;
     this.errorMessage = '';
+    this.batchTab = 'basic';
     this.batchForm = {
       name: '',
       description: '',
@@ -399,6 +407,7 @@ export class BatchesComponent implements OnInit {
   openEditModal(batch: Batch) {
     this.editingBatch = batch;
     this.errorMessage = '';
+    this.batchTab = 'basic';
     this.batchForm = {
       name: batch.name,
       description: batch.description || '',

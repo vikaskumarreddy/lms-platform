@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -46,56 +46,48 @@ interface Faculty {
       </table>
     </div>
 
-    <!-- Faculty Modal -->
+    <!-- Faculty Modal (Fieldset + Legend) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
-      <div class="modal-content" style="width:90%;max-width:520px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">{{editingFaculty ? 'Edit Faculty' : 'Add New Faculty'}}</h2>
-          <button class="btn btn-secondary" (click)="closeModal()">✕</button>
+      <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
 
         <form (ngSubmit)="saveFaculty()">
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Full Name</label>
-            <input type="text" [(ngModel)]="facultyForm.name" name="name" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="Enter faculty name">
-          </div>
+          <fieldset>
+            <legend>{{editingFaculty ? 'Edit Faculty' : 'Add New Faculty'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Full Name</label>
+                <input type="text" [(ngModel)]="facultyForm.name" name="name" required placeholder="Enter faculty name">
+              </div>
+              <div>
+                <label>Email</label>
+                <input type="email" [(ngModel)]="facultyForm.email" name="email" required placeholder="faculty@example.com">
+              </div>
+              <div>
+                <label>Phone</label>
+                <input type="text" [(ngModel)]="facultyForm.phone" name="phone" placeholder="+91 98765 43210">
+              </div>
+              <div>
+                <label>Password</label>
+                <input type="password" [(ngModel)]="facultyForm.password" name="password" [required]="!editingFaculty"
+                       placeholder="{{editingFaculty ? 'Leave blank to keep current' : 'Enter password'}}">
+              </div>
+              <div>
+                <label>Status</label>
+                <select [(ngModel)]="facultyForm.isActive" name="isActive">
+                  <option [ngValue]="true">Active</option>
+                  <option [ngValue]="false">Inactive</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Email</label>
-            <input type="email" [(ngModel)]="facultyForm.email" name="email" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="faculty@example.com">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Phone</label>
-            <input type="text" [(ngModel)]="facultyForm.phone" name="phone"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="+91 98765 43210">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Password</label>
-            <input type="password" [(ngModel)]="facultyForm.password" name="password"
-                   [required]="!editingFaculty"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="{{editingFaculty ? 'Leave blank to keep current' : 'Enter password'}}">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Status</label>
-            <select [(ngModel)]="facultyForm.isActive" name="isActive"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="true">Active</option>
-              <option [ngValue]="false">Inactive</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="loading">{{loading ? 'Saving...' : (editingFaculty ? 'Update Faculty' : 'Create Faculty')}}</button>
+          <div class="popup-nav">
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-accent" [disabled]="loading">{{loading ? 'Saving...' : (editingFaculty ? 'Update Faculty' : 'Create Faculty')}}</button>
           </div>
         </form>
 

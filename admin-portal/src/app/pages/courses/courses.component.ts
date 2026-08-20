@@ -77,64 +77,58 @@ interface Faculty {
       </div>
     </div>
 
-    <!-- Course Modal (metadata only — modules/lessons are managed on the Course Detail page) -->
+    <!-- Course Modal (Fieldset + Legend) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
-      <div class="modal-content" style="width:90%;max-width:560px;max-height:90vh;overflow-y:auto;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-          <h2 style="font-size:20px;font-weight:700;">{{editingCourse ? 'Edit Course' : 'Add New Course'}}</h2>
-          <button class="btn btn-secondary" (click)="closeModal()">✕</button>
+      <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
 
         <form (ngSubmit)="saveCourse()">
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Course Title</label>
-            <input type="text" [(ngModel)]="courseForm.title" name="title" required
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="Enter course title">
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Description</label>
-            <textarea [(ngModel)]="courseForm.description" name="description" rows="3"
-                      style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;resize:vertical;"
-                      placeholder="Enter course description"></textarea>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Thumbnail URL</label>
-            <input type="text" [(ngModel)]="courseForm.thumbnailUrl" name="thumbnailUrl"
-                   style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;"
-                   placeholder="https://example.com/image.jpg">
-            <div *ngIf="courseForm.thumbnailUrl" style="margin-top:8px;">
-              <img [src]="courseForm.thumbnailUrl" alt="Thumbnail preview" style="max-width:200px;max-height:100px;border-radius:8px;object-fit:cover;" (error)="onThumbError($event)">
+          <fieldset>
+            <legend>{{editingCourse ? 'Edit Course' : 'Add New Course'}}</legend>
+            <div class="popup-form-grid">
+              <div class="full-width">
+                <label>Course Title</label>
+                <input type="text" [(ngModel)]="courseForm.title" name="title" required placeholder="Enter course title">
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="courseForm.description" name="description" rows="3" placeholder="Enter course description"></textarea>
+              </div>
+              <div>
+                <label>Thumbnail URL</label>
+                <input type="text" [(ngModel)]="courseForm.thumbnailUrl" name="thumbnailUrl" placeholder="https://example.com/image.jpg">
+              </div>
+              <div *ngIf="courseForm.thumbnailUrl" class="full-width">
+                <img [src]="courseForm.thumbnailUrl" alt="Thumbnail preview" style="max-width:200px;max-height:100px;border-radius:8px;object-fit:cover;" (error)="onThumbError($event)">
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="courseForm.planId" name="planId">
+                  <option [ngValue]="null">No plan (free access)</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Instructor</label>
+                <select [(ngModel)]="courseForm.instructorId" name="instructorId">
+                  <option [ngValue]="null">No instructor assigned</option>
+                  <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
+                </select>
+              </div>
+              <div *ngIf="editingCourse" class="full-width">
+                <div style="padding:12px 14px;background:#EFF6FF;border-radius:8px;font-size:13px;color:#1D4ED8;">
+                  💡 Modules & lessons are managed from the Course Detail page. Click "Manage Content" on the course card.
+                </div>
+              </div>
             </div>
-          </div>
+          </fieldset>
 
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Subscription Plan</label>
-            <select [(ngModel)]="courseForm.planId" name="planId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No plan (free access)</option>
-              <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Instructor</label>
-            <select [(ngModel)]="courseForm.instructorId" name="instructorId"
-                    style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
-              <option [ngValue]="null">No instructor assigned</option>
-              <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
-            </select>
-          </div>
-
-          <div *ngIf="editingCourse" style="margin-bottom:8px;padding:12px 14px;background:#EFF6FF;border-radius:8px;font-size:13px;color:#1D4ED8;">
-            💡 Modules &amp; lessons are managed from the Course Detail page. Click "Manage Content" on the course card.
-          </div>
-
-          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="saving">{{saving ? 'Saving...' : (editingCourse ? 'Update Course' : 'Create Course')}}</button>
+          <div class="popup-nav">
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-accent" [disabled]="saving">{{saving ? 'Saving...' : (editingCourse ? 'Update Course' : 'Create Course')}}</button>
           </div>
         </form>
 
@@ -157,6 +151,7 @@ export class CoursesComponent implements OnInit {
   editingCourse: Course | null = null;
   saving = false;
   errorMessage = '';
+  courseTab: 'basic' | 'access' = 'basic';
   courseForm: any = { title: '', description: '', thumbnailUrl: '', instructorId: null, planId: null };
 
   constructor(private apiService: ApiService, private router: Router) {}

@@ -14,37 +14,110 @@ interface Batch { id: number; name: string; isActive: boolean; }
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">📝 Assignments</h1>
-      <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Assignment'}}</button>
+      <button class="btn btn-primary" (click)="openAddModal()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add Assignment
+      </button>
     </div>
-    <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;">{{editingId ? 'Edit' : 'Add New'}} Assignment</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <input [(ngModel)]="formData.title" placeholder="Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.courseId" type="number" placeholder="Course ID" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Due Date & Time</label>
-          <input [(ngModel)]="formData.dueDate" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+    <!-- Assignment Modal (Fieldset + Legend with Tabbed content) -->
+    <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">X</button>
         </div>
-        <input [(ngModel)]="formData.link" placeholder="Link URL (e.g., https://example.com)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <select [(ngModel)]="formData.status" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option value="Pending">Pending</option><option value="Graded">Graded</option><option value="Overdue">Overdue</option>
-        </select>
-        <input [(ngModel)]="formData.marks" type="number" placeholder="Total Marks" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <textarea [(ngModel)]="formData.description" placeholder="Description" rows="2" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
-        <select [(ngModel)]="formData.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option [ngValue]="null">All Subscriptions</option>
-          <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
-        </select>
-        <select [(ngModel)]="selectedBatchIds" multiple style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;min-height:100px;">
-          <option *ngFor="let b of batches" [value]="b.id">{{b.name}}</option>
-        </select>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:12px;">
-        <button class="btn btn-primary" (click)="save()">{{editingId ? 'Update' : 'Create'}}</button>
-        <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="assignTab === 'basic'" [class.completed]="assignTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="assignTab === 'details'"></div>
+          <div class="popup-step" [class.active]="assignTab === 'details'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button [class.active]="assignTab === 'basic'" (click)="assignTab = 'basic'">Basic Details</button>
+          <button [class.active]="assignTab === 'details'" (click)="assignTab = 'details'">Access & Description</button>
+        </div>
+
+        <form (ngSubmit)="save()">
+          <!-- Basic tab -->
+          <fieldset *ngIf="assignTab === 'basic'">
+            <legend>{{editingId ? 'Edit Assignment' : 'Add New Assignment'}}</legend>
+            <div class="popup-form-grid">
+              <div class="full-width">
+                <label>Title *</label>
+                <input type="text" [(ngModel)]="formData.title" name="title" required placeholder="Assignment title">
+              </div>
+              <div>
+                <label>Course ID</label>
+                <input type="number" [(ngModel)]="formData.courseId" name="courseId" placeholder="e.g. 1">
+              </div>
+              <div>
+                <label>Due Date & Time</label>
+                <input type="datetime-local" [(ngModel)]="formData.dueDate" name="dueDate">
+              </div>
+              <div>
+                <label>Link URL</label>
+                <input type="text" [(ngModel)]="formData.link" name="link" placeholder="https://example.com">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Access & Description tab -->
+          <fieldset *ngIf="assignTab === 'details'">
+            <legend>Access & Description</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Status</label>
+                <select [(ngModel)]="formData.status" name="status">
+                  <option value="Pending">Pending</option>
+                  <option value="Graded">Graded</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+              </div>
+              <div>
+                <label>Total Marks</label>
+                <input type="number" [(ngModel)]="formData.marks" name="marks" placeholder="e.g. 100">
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Assignment description"></textarea>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="formData.planId" name="planId">
+                  <option [ngValue]="null">All Subscriptions</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
+                </select>
+              </div>
+              <div class="full-width">
+                <label>Batches (Ctrl+Click to select multiple)</label>
+                <select [(ngModel)]="selectedBatchIds" multiple name="batchIds" style="min-height:100px;">
+                  <option *ngFor="let b of batches" [value]="b.id">{{b.name}}</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="assignTab === 'details'" (click)="assignTab = 'basic'">Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="assignTab === 'basic'" (click)="assignTab = 'details'">Next</button>
+            <button type="submit" class="btn btn-accent" *ngIf="assignTab === 'details'" [disabled]="saving">{{saving ? 'Saving...' : (editingId ? 'Update Assignment' : 'Create Assignment')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="resetForm()">Cancel</button>
+          </div>
+        </form>
+
+        <div *ngIf="errorMessage" style="margin-top:16px;padding:12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:14px;">
+          {{errorMessage}}
+        </div>
       </div>
     </div>
-    <div class="card" *ngIf="!showForm">
+
+    <div class="card">
       <table><thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Subscription</th><th>Batch</th><th>Status</th><th>Marks</th><th>Link</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let a of assignments">
@@ -71,7 +144,10 @@ interface Batch { id: number; name: string; isActive: boolean; }
 })
 export class AssignmentsAdminComponent implements OnInit {
   private api = inject(ApiService);
-  showForm = false; editingId: number | null = null;
+  showModal = false; editingId: number | null = null;
+  assignTab: 'basic' | 'details' = 'basic';
+  saving = false;
+  errorMessage = '';
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   selectedBatchIds: number[] = [];
@@ -151,8 +227,24 @@ export class AssignmentsAdminComponent implements OnInit {
     }
   }
 
+  openAddModal() {
+    this.editingId = null;
+    this.errorMessage = '';
+    this.assignTab = 'basic';
+    this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, batchIds: [], link: '' };
+    this.selectedBatchIds = [];
+    this.showModal = true;
+  }
+
+  closeModal(event?: any) {
+    this.showModal = false;
+    this.editingId = null;
+    this.errorMessage = '';
+  }
+
   edit(a: any) {
     this.editingId = a.id;
+    this.assignTab = 'basic';
     this.formData = {
       title: a.title,
       courseId: a.courseId,
@@ -164,7 +256,7 @@ export class AssignmentsAdminComponent implements OnInit {
       link: a.link || ''
     };
     this.selectedBatchIds = a.batchIds || [];
-    this.showForm = true;
+    this.showModal = true;
   }
 
   delete(a: any) {
@@ -184,7 +276,8 @@ export class AssignmentsAdminComponent implements OnInit {
     this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, link: '', batchIds: [] };
     this.selectedBatchIds = [];
     this.editingId = null;
-    this.showForm = false;
+    this.assignTab = 'basic';
+    this.showModal = false;
   }
 
 }

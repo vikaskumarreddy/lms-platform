@@ -10,7 +10,10 @@ import { ToastHostComponent } from '../components/toast-host.component';
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
   template: `
     <div class="sidebar">
-      <div class="logo">{{ orgName || 'Axisora' }} Admin</div>
+      <div class="logo">
+        <span class="logo-icon">🎓</span>
+        <span>{{ orgName || 'Axisora' }}</span>
+      </div>
 
       <!-- PLATFORM MENU (placements.com) — dedicated super-admin workspace.
            Rendered only for ADMIN users on the platform root domain. -->
