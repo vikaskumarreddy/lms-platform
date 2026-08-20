@@ -34,7 +34,7 @@ interface Batch {
     <!-- Event Modal (Fieldset + Legend with Tabbed content) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
       <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
           <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
 
@@ -138,11 +138,7 @@ interface Batch {
         <td colspan="8" style="text-align:center;color:#64748B;padding:32px;">No events found. Click "+ Add Event" to create one.</td>
       </tr>
     </div>
-  `,
-  styles: [`
-    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
-  `]
+  `
 })
 export class EventsAdminComponent implements OnInit {
   private api = inject(ApiService);

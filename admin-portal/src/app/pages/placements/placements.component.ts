@@ -347,14 +347,7 @@ interface SubscriptionPlan {
       max-height: 90vh;
       overflow-y: auto;
     }
-    /* Fieldset/legend styling */
-    .modal-overlay fieldset { border: 2px solid var(--border); border-radius: var(--radius); padding: 24px 20px 20px; margin: 0 0 20px; }
-    .modal-overlay fieldset legend { background: var(--surface); padding: 0 12px; margin: 0 auto; font-size: 15px; font-weight: 700; color: var(--primary); letter-spacing: .3px; white-space: nowrap; text-align: center; }
-    .modal-overlay fieldset label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
-    .modal-overlay fieldset input, .modal-overlay fieldset select, .modal-overlay fieldset textarea {
-      width: 100%; padding: 10px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 14px; font-family: inherit;
-    }
-    .modal-overlay fieldset textarea { resize: vertical; }
+    /* Fieldset/legend and field styling is shared -- see .modal-overlay fieldset in styles.css */
     /* Icon-only action buttons */
     .icon-btn{
       display: inline-flex;

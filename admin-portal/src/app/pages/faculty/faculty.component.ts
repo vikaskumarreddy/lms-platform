@@ -49,7 +49,7 @@ interface Faculty {
     <!-- Faculty Modal (Fieldset + Legend) -->
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
       <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:0;">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
           <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
 

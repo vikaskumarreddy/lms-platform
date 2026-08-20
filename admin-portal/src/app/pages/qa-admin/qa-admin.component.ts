@@ -23,34 +23,102 @@ interface Batch {
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">💬 Q&A Management</h1>
-      <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Question'}}</button>
+      <button class="btn btn-primary" (click)="openAddModal()">+ Add Question</button>
     </div>
-    <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;">{{editingId ? 'Edit' : 'Add New'}} Question</h3>
-      <div style="display:grid;gap:16px;">
-        <input [(ngModel)]="formData.title" placeholder="Question Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.authorName" placeholder="Author Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.category" placeholder="Category (e.g. Java, SQL, React)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <textarea [(ngModel)]="formData.content" placeholder="Question Content" rows="3" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
-        <input [(ngModel)]="formData.answerCount" type="number" placeholder="Answer Count" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <select [(ngModel)]="formData.isAnswered" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-          <option [ngValue]="false">Unanswered</option><option [ngValue]="true">Answered</option>
-        </select>
-        <select [(ngModel)]="formData.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option [ngValue]="null">All Subscriptions</option>
-          <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
-        </select>
-        <select [(ngModel)]="formData.batchId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option [ngValue]="null">All Batches</option>
-          <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
-        </select>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:12px;">
-        <button class="btn btn-primary" (click)="save()">{{editingId ? 'Update' : 'Create'}}</button>
-        <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
+
+    <!-- Question Modal: Fieldset + Legend with Tabbed content to avoid vertical scroll -->
+    <div class="modal-overlay" *ngIf="showForm" (click)="closeModal($event)">
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
+        </div>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="questionTab === 'basic'" [class.completed]="questionTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="questionTab === 'details'"></div>
+          <div class="popup-step" [class.active]="questionTab === 'details'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button type="button" [class.active]="questionTab === 'basic'" (click)="questionTab = 'basic'">❓ Question</button>
+          <button type="button" [class.active]="questionTab === 'details'" (click)="questionTab = 'details'">📋 Status & Access</button>
+        </div>
+
+        <form (ngSubmit)="save()">
+          <!-- Question tab -->
+          <fieldset *ngIf="questionTab === 'basic'">
+            <legend>{{editingId ? 'Edit Question' : 'Add New Question'}}</legend>
+            <div class="popup-form-grid">
+              <div class="full-width">
+                <label>Question Title *</label>
+                <input type="text" [(ngModel)]="formData.title" name="title" required placeholder="e.g. How do I handle null in Java streams?">
+              </div>
+              <div>
+                <label>Author Name</label>
+                <input type="text" [(ngModel)]="formData.authorName" name="authorName" placeholder="Defaults to Mentor">
+              </div>
+              <div>
+                <label>Category</label>
+                <input type="text" [(ngModel)]="formData.category" name="category" placeholder="e.g. Java, SQL, React">
+              </div>
+              <div class="full-width">
+                <label>Question Content</label>
+                <textarea [(ngModel)]="formData.content" name="content" rows="4" placeholder="Full question text"></textarea>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Status & Access tab -->
+          <fieldset *ngIf="questionTab === 'details'">
+            <legend>Status & Access</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Answer Count</label>
+                <input type="number" [(ngModel)]="formData.answerCount" name="answerCount" placeholder="0">
+              </div>
+              <div>
+                <label>Status</label>
+                <select [(ngModel)]="formData.isAnswered" name="isAnswered">
+                  <option [ngValue]="false">Unanswered</option>
+                  <option [ngValue]="true">Answered</option>
+                </select>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="formData.planId" name="planId">
+                  <option [ngValue]="null">All Subscriptions</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Batch</label>
+                <select [(ngModel)]="formData.batchId" name="batchId">
+                  <option [ngValue]="null">All Batches</option>
+                  <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="questionTab === 'details'" (click)="questionTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="questionTab === 'basic'" (click)="questionTab = 'details'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="questionTab === 'details'" [disabled]="saving">{{saving ? 'Saving...' : (editingId ? 'Update Question' : 'Create Question')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <div *ngIf="errorMessage" style="margin-top:16px;padding:12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:14px;">
+          {{errorMessage}}
+        </div>
       </div>
     </div>
-    <div class="card" *ngIf="!showForm">
+
+    <div class="card">
       <table><thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Subscription</th><th>Batch</th><th>Answers</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody><tr *ngFor="let q of questions">
         <td style="font-weight:600;">{{q.title}}</td><td>{{q.authorName}}</td><td><span class="badge badge-warning">{{q.category}}</span></td>
@@ -71,6 +139,9 @@ interface Batch {
 export class QaAdminComponent implements OnInit {
   private api = inject(ApiService);
   showForm = false; editingId: number | null = null;
+  questionTab: 'basic' | 'details' = 'basic';
+  saving = false;
+  errorMessage = '';
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   formData: any = { title: '', authorName: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null };
@@ -115,7 +186,22 @@ export class QaAdminComponent implements OnInit {
     return batch ? batch.name : '';
   }
 
+  openAddModal() {
+    this.resetFormData();
+    this.editingId = null;
+    this.questionTab = 'basic';
+    this.errorMessage = '';
+    this.showForm = true;
+  }
+
+  closeModal(event?: Event) {
+    if (event && event.target !== event.currentTarget) return;
+    this.resetForm();
+  }
+
   save() {
+    this.saving = true;
+    this.errorMessage = '';
     const payload: any = {
       title: this.formData.title,
       content: this.formData.content,
@@ -132,17 +218,19 @@ export class QaAdminComponent implements OnInit {
         next: (updated) => {
           const i = this.questions.findIndex(q => q.id === this.editingId);
           if (i > -1) this.questions[i] = updated;
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to update question:', err); alert('Failed to update question'); }
+        error: (err) => { console.error('Failed to update question:', err); this.saving = false; this.errorMessage = 'Failed to update question'; }
       });
     } else {
       this.api.post<any>('/api/questions', payload).subscribe({
         next: (created) => {
           this.questions.unshift(created);
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to create question:', err); alert('Failed to create question'); }
+        error: (err) => { console.error('Failed to create question:', err); this.saving = false; this.errorMessage = 'Failed to create question'; }
       });
     }
   }
@@ -159,6 +247,8 @@ export class QaAdminComponent implements OnInit {
       planId: q.planId ?? null,
       batchId: q.batchId ?? null
     };
+    this.questionTab = 'basic';
+    this.errorMessage = '';
     this.showForm = true;
   }
 
@@ -171,9 +261,16 @@ export class QaAdminComponent implements OnInit {
     }
   }
 
-  resetForm() {
+  private resetFormData() {
     this.formData = { title: '', authorName: '', category: '', content: '', answerCount: 0, isAnswered: false, planId: null, batchId: null };
+  }
+
+  resetForm() {
+    this.resetFormData();
     this.editingId = null;
+    this.questionTab = 'basic';
+    this.saving = false;
+    this.errorMessage = '';
     this.showForm = false;
   }
 }

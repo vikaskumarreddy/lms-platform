@@ -38,77 +38,118 @@ interface CalendarEvent {
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">📅 Calendar Events</h1>
-      <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Event'}}</button>
+      <button class="btn btn-primary" (click)="openAddModal()">+ Add Event</button>
     </div>
 
-    <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;font-weight:700;">{{editingId ? 'Edit' : 'Add New'}} Calendar Event</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Event Title</label>
-          <input [(ngModel)]="formData.title" placeholder="e.g. Live Class - Java Basics" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+    <!-- Event Modal: Fieldset + Legend with Tabbed content to avoid vertical scroll -->
+    <div class="modal-overlay" *ngIf="showForm" (click)="closeModal($event)">
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Type</label>
-          <select [(ngModel)]="formData.eventType" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <option value="Class">Class</option>
-            <option value="Workshop">Workshop</option>
-            <option value="Exam">Exam</option>
-            <option value="Interview">Interview</option>
-            <option value="Placement">Placement</option>
-            <option value="Holiday">Holiday</option>
-            <option value="Event">Event</option>
-          </select>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="eventTab === 'basic'" [class.completed]="eventTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="eventTab === 'details'"></div>
+          <div class="popup-step" [class.active]="eventTab === 'details'">2</div>
         </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Start Date & Time</label>
-          <input [(ngModel)]="formData.startTime" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button type="button" [class.active]="eventTab === 'basic'" (click)="eventTab = 'basic'">🔑 Basic Details</button>
+          <button type="button" [class.active]="eventTab === 'details'" (click)="eventTab = 'details'">📍 Location & Access</button>
         </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">End Date & Time (optional)</label>
-          <input [(ngModel)]="formData.endTime" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+
+        <form (ngSubmit)="save()">
+          <!-- Basic tab -->
+          <fieldset *ngIf="eventTab === 'basic'">
+            <legend>{{editingId ? 'Edit Calendar Event' : 'Add New Calendar Event'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Event Title *</label>
+                <input type="text" [(ngModel)]="formData.title" name="title" required placeholder="e.g. Live Class - Java Basics">
+              </div>
+              <div>
+                <label>Type</label>
+                <select [(ngModel)]="formData.eventType" name="eventType">
+                  <option value="Class">Class</option>
+                  <option value="Workshop">Workshop</option>
+                  <option value="Exam">Exam</option>
+                  <option value="Interview">Interview</option>
+                  <option value="Placement">Placement</option>
+                  <option value="Holiday">Holiday</option>
+                  <option value="Event">Event</option>
+                </select>
+              </div>
+              <div>
+                <label>Start Date & Time</label>
+                <input type="datetime-local" [(ngModel)]="formData.startTime" name="startTime">
+              </div>
+              <div>
+                <label>End Date & Time</label>
+                <input type="datetime-local" [(ngModel)]="formData.endTime" name="endTime">
+              </div>
+              <div class="full-width">
+                <label>Attendance Required?</label>
+                <select [(ngModel)]="formData.attendanceRequired" name="attendanceRequired">
+                  <option [ngValue]="true">Yes</option>
+                  <option [ngValue]="false">No</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Location & Access tab -->
+          <fieldset *ngIf="eventTab === 'details'">
+            <legend>Location & Access</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Venue</label>
+                <input type="text" [(ngModel)]="formData.venue" name="venue" placeholder="e.g. Auditorium / Online">
+              </div>
+              <div>
+                <label>Meet Link</label>
+                <input type="text" [(ngModel)]="formData.meetLink" name="meetLink" placeholder="https://meet.google.com/...">
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="formData.planId" name="planId">
+                  <option [ngValue]="null">All Subscriptions</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Batch</label>
+                <select [(ngModel)]="formData.batchId" name="batchId">
+                  <option [ngValue]="null">All Batches</option>
+                  <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
+                </select>
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Details about this event"></textarea>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="eventTab === 'details'" (click)="eventTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="eventTab === 'basic'" (click)="eventTab = 'details'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="eventTab === 'details'" [disabled]="saving">{{saving ? 'Saving...' : (editingId ? 'Update Event' : 'Create Event')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <div *ngIf="errorMessage" style="margin-top:16px;padding:12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:14px;">
+          {{errorMessage}}
         </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Meet Link (optional)</label>
-          <input [(ngModel)]="formData.meetLink" placeholder="https://meet.google.com/..." style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Venue (optional)</label>
-          <input [(ngModel)]="formData.venue" placeholder="e.g. Auditorium / Online" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Attendance Required?</label>
-          <select [(ngModel)]="formData.attendanceRequired" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <option [ngValue]="true">Yes</option>
-            <option [ngValue]="false">No</option>
-          </select>
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Subscription</label>
-          <select [(ngModel)]="formData.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-            <option [ngValue]="null">All Subscriptions</option>
-            <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
-          </select>
-        </div>
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Batch</label>
-          <select [(ngModel)]="formData.batchId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-            <option [ngValue]="null">All Batches</option>
-            <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
-          </select>
-        </div>
-        <div style="grid-column:1 / -1;">
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Description (optional)</label>
-          <textarea [(ngModel)]="formData.description" rows="2" placeholder="Details about this event" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
-        </div>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:12px;">
-        <button class="btn btn-primary" (click)="save()">{{editingId ? 'Update' : 'Create'}} Event</button>
-        <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
       </div>
     </div>
 
-    <div class="card" *ngIf="!showForm">
+    <div class="card">
       <table>
         <thead>
           <tr>
@@ -148,6 +189,9 @@ export class CalendarEventsComponent implements OnInit {
   private api = inject(ApiService);
   showForm = false;
   editingId: number | null = null;
+  eventTab: 'basic' | 'details' = 'basic';
+  saving = false;
+  errorMessage = '';
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   events: CalendarEvent[] = [];
@@ -208,7 +252,22 @@ export class CalendarEventsComponent implements OnInit {
     return formatDateTimeDisplay(value);
   }
 
+  openAddModal() {
+    this.resetFormData();
+    this.editingId = null;
+    this.eventTab = 'basic';
+    this.errorMessage = '';
+    this.showForm = true;
+  }
+
+  closeModal(event?: Event) {
+    if (event && event.target !== event.currentTarget) return;
+    this.resetForm();
+  }
+
   save() {
+    this.saving = true;
+    this.errorMessage = '';
     const payload: any = {
       title: this.formData.title,
       description: this.formData.description || null,
@@ -227,17 +286,19 @@ export class CalendarEventsComponent implements OnInit {
         next: (updated) => {
           const idx = this.events.findIndex(e => e.id === this.editingId);
           if (idx > -1) this.events[idx] = updated;
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to update event:', err); alert('Failed to update event'); }
+        error: (err) => { console.error('Failed to update event:', err); this.saving = false; this.errorMessage = 'Failed to update event'; }
       });
     } else {
       this.api.post<CalendarEvent>('/api/events', payload).subscribe({
         next: (created) => {
           this.events.push(created);
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to create event:', err); alert('Failed to create event'); }
+        error: (err) => { console.error('Failed to create event:', err); this.saving = false; this.errorMessage = 'Failed to create event'; }
       });
     }
   }
@@ -256,6 +317,8 @@ export class CalendarEventsComponent implements OnInit {
       planId: e.planId ?? null,
       batchId: e.batchId ?? null
     };
+    this.eventTab = 'basic';
+    this.errorMessage = '';
     this.showForm = true;
   }
 
@@ -268,9 +331,16 @@ export class CalendarEventsComponent implements OnInit {
     }
   }
 
-  resetForm() {
+  private resetFormData() {
     this.formData = { title: '', description: '', eventType: 'Class', startTime: '', endTime: '', meetLink: '', venue: '', attendanceRequired: true, planId: null, batchId: null };
+  }
+
+  resetForm() {
+    this.resetFormData();
     this.editingId = null;
+    this.eventTab = 'basic';
+    this.saving = false;
+    this.errorMessage = '';
     this.showForm = false;
   }
 }

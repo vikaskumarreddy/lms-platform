@@ -28,25 +28,53 @@ interface Certificate {
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">🎓 Certificates</h1>
-      <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Issue Certificate' }}</button>
+      <button class="btn btn-primary" (click)="openIssueModal()">+ Issue Certificate</button>
     </div>
 
-    <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;">Issue New Certificate</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <select [(ngModel)]="formData.userId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option [ngValue]="null">Select Student</option>
-          <option *ngFor="let s of students" [ngValue]="s.id">{{ s.name }} ({{ s.email }})</option>
-        </select>
-        <input [(ngModel)]="formData.instituteName" placeholder="Institute Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.courseName" placeholder="Course Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.duration" placeholder="Duration (e.g. 6 Months)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+    <!-- Issue Certificate Modal: single fieldset (only four fields, no tabs needed) -->
+    <div class="modal-overlay" *ngIf="showForm" (click)="closeModal($event)">
+      <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
+        </div>
+
+        <form (ngSubmit)="issue()">
+          <fieldset>
+            <legend>Issue New Certificate</legend>
+            <div class="popup-form-grid">
+              <div class="full-width">
+                <label>Student *</label>
+                <select [(ngModel)]="formData.userId" name="userId" required>
+                  <option [ngValue]="null">Select Student</option>
+                  <option *ngFor="let s of students" [ngValue]="s.id">{{ s.name }} ({{ s.email }})</option>
+                </select>
+              </div>
+              <div>
+                <label>Institute Name *</label>
+                <input type="text" [(ngModel)]="formData.instituteName" name="instituteName" required placeholder="Enter institute name">
+              </div>
+              <div>
+                <label>Course Name *</label>
+                <input type="text" [(ngModel)]="formData.courseName" name="courseName" required placeholder="e.g. Java Full Stack">
+              </div>
+              <div>
+                <label>Duration</label>
+                <input type="text" [(ngModel)]="formData.duration" name="duration" placeholder="e.g. 6 Months">
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="popup-nav">
+            <button type="submit" class="btn btn-accent" [disabled]="saving">{{ saving ? 'Issuing...' : 'Issue Certificate' }}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <div *ngIf="errorMsg" style="margin-top:16px;padding:12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:14px;">
+          {{ errorMsg }}
+        </div>
       </div>
-      <div style="margin-top:16px;display:flex;gap:12px;">
-        <button class="btn btn-primary" [disabled]="saving" (click)="issue()">{{ saving ? 'Issuing...' : 'Issue Certificate' }}</button>
-        <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
-      </div>
-      <div *ngIf="errorMsg" style="margin-top:8px;color:#EF4444;">{{ errorMsg }}</div>
     </div>
 
     <div class="card">
@@ -104,6 +132,17 @@ export class CertificatesAdminComponent implements OnInit {
     });
   }
 
+  openIssueModal() {
+    this.resetFormData();
+    this.errorMsg = '';
+    this.showForm = true;
+  }
+
+  closeModal(event?: Event) {
+    if (event && event.target !== event.currentTarget) return;
+    this.resetForm();
+  }
+
   issue() {
     this.errorMsg = '';
     if (!this.formData.userId) { this.errorMsg = 'Please select a student'; return; }
@@ -131,9 +170,14 @@ export class CertificatesAdminComponent implements OnInit {
     });
   }
 
-  resetForm() {
+  private resetFormData() {
     this.formData = { userId: null, instituteName: 'Axisora Forge Academy', courseName: '', duration: '' };
+  }
+
+  resetForm() {
+    this.resetFormData();
     this.showForm = false;
+    this.saving = false;
     this.errorMsg = '';
   }
 }

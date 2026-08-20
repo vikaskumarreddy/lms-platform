@@ -14,36 +14,106 @@ interface Batch { id: number; name: string; isActive: boolean; }
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">📋 Exams</h1>
-      <button class="btn btn-primary" (click)="showModal = !showModal">{{ showModal ? 'Cancel' : '+ Add Exam'}}</button>
+      <button class="btn btn-primary" (click)="openAddModal()">+ Add Exam</button>
     </div>
-    <div class="card" *ngIf="showModal" style="margin-bottom:20px;">
-      <h3 style="margin-bottom:16px;">{{editingId ? 'Edit' : 'Add New'}} Exam</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <input [(ngModel)]="formData.title" placeholder="Exam Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.courseId" type="number" placeholder="Course ID" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <div>
-          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:14px;">Exam Date & Time</label>
-          <input [(ngModel)]="formData.examDate" type="datetime-local" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+
+    <!-- Exam Modal: Fieldset + Legend with Tabbed content to avoid vertical scroll -->
+    <div class="modal-overlay" *ngIf="showModal" (click)="closeModal($event)">
+      <div class="modal-content" style="width:90%;max-width:680px;" (click)="$event.stopPropagation()">
+        <div style="display:none;justify-content:flex-end;margin-bottom:0;">
+          <button class="btn btn-secondary btn-sm" (click)="closeModal()">✕</button>
         </div>
-        <input [(ngModel)]="formData.link" placeholder="Link URL (e.g., https://example.com)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.durationMinutes" type="number" placeholder="Duration (minutes)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.totalMarks" type="number" placeholder="Total Marks" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <input [(ngModel)]="formData.passingMarks" type="number" placeholder="Passing Marks" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <textarea [(ngModel)]="formData.description" placeholder="Description" rows="2" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
-        <select [(ngModel)]="formData.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
-          <option [ngValue]="null">All Subscriptions</option>
-          <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
-        </select>
-        <select [(ngModel)]="selectedBatchIds" multiple style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;min-height:100px;">
-          <option *ngFor="let b of batches" [value]="b.id">{{b.name}}</option>
-        </select>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:12px;">
-        <button class="btn btn-primary" (click)="save()">{{editingId ? 'Update' : 'Create'}}</button>
-        <button class="btn" style="background:#E2E8F0;" (click)="resetForm()">Reset</button>
+
+        <!-- Step indicator -->
+        <div class="popup-steps">
+          <div class="popup-step" [class.active]="examTab === 'basic'" [class.completed]="examTab === 'details'">1</div>
+          <div class="popup-step-line" [class.completed]="examTab === 'details'"></div>
+          <div class="popup-step" [class.active]="examTab === 'details'">2</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="popup-tabs">
+          <button type="button" [class.active]="examTab === 'basic'" (click)="examTab = 'basic'">🔑 Basic Details</button>
+          <button type="button" [class.active]="examTab === 'details'" (click)="examTab = 'details'">📊 Marks & Access</button>
+        </div>
+
+        <form (ngSubmit)="save()">
+          <!-- Basic tab -->
+          <fieldset *ngIf="examTab === 'basic'">
+            <legend>{{editingId ? 'Edit Exam' : 'Add New Exam'}}</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Exam Title *</label>
+                <input type="text" [(ngModel)]="formData.title" name="title" required placeholder="e.g. Java Mid-Term Exam">
+              </div>
+              <div>
+                <label>Course ID</label>
+                <input type="number" [(ngModel)]="formData.courseId" name="courseId" placeholder="e.g. 12">
+              </div>
+              <div>
+                <label>Exam Date & Time</label>
+                <input type="datetime-local" [(ngModel)]="formData.examDate" name="examDate">
+              </div>
+              <div>
+                <label>Duration (minutes)</label>
+                <input type="number" [(ngModel)]="formData.durationMinutes" name="durationMinutes" placeholder="e.g. 120">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Marks & Access tab -->
+          <fieldset *ngIf="examTab === 'details'">
+            <legend>Marks & Access</legend>
+            <div class="popup-form-grid">
+              <div>
+                <label>Total Marks</label>
+                <input type="number" [(ngModel)]="formData.totalMarks" name="totalMarks" placeholder="e.g. 100">
+              </div>
+              <div>
+                <label>Passing Marks</label>
+                <input type="number" [(ngModel)]="formData.passingMarks" name="passingMarks" placeholder="e.g. 40">
+              </div>
+              <div class="full-width">
+                <label>Link URL</label>
+                <input type="text" [(ngModel)]="formData.link" name="link" placeholder="https://example.com">
+              </div>
+              <div class="full-width">
+                <label>Description</label>
+                <textarea [(ngModel)]="formData.description" name="description" rows="3" placeholder="Exam instructions or syllabus"></textarea>
+              </div>
+              <div>
+                <label>Subscription Plan</label>
+                <select [(ngModel)]="formData.planId" name="planId">
+                  <option [ngValue]="null">All Subscriptions</option>
+                  <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
+                </select>
+              </div>
+              <div>
+                <label>Batches (Ctrl+Click to select multiple)</label>
+                <select [(ngModel)]="selectedBatchIds" name="batchIds" multiple style="min-height:110px;">
+                  <option *ngFor="let b of batches" [value]="b.id">{{b.name}}</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Navigation -->
+          <div class="popup-nav">
+            <button type="button" class="btn btn-secondary" *ngIf="examTab === 'details'" (click)="examTab = 'basic'">← Back</button>
+            <button type="button" class="btn btn-primary" *ngIf="examTab === 'basic'" (click)="examTab = 'details'">Next →</button>
+            <button type="submit" class="btn btn-accent" *ngIf="examTab === 'details'" [disabled]="saving">{{saving ? 'Saving...' : (editingId ? 'Update Exam' : 'Create Exam')}}</button>
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-danger" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <div *ngIf="errorMessage" style="margin-top:16px;padding:12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:14px;">
+          {{errorMessage}}
+        </div>
       </div>
     </div>
-    <div class="card" *ngIf="!showModal">
+
+    <div class="card">
       <table><thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Duration</th><th>Subscription</th><th>Batch</th><th>Marks</th><th>Link</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let e of exams">
@@ -121,7 +191,22 @@ export class ExamsAdminComponent implements OnInit {
     }).filter(name => name).join(', ');
   }
 
+  openAddModal() {
+    this.resetFormData();
+    this.editingId = null;
+    this.examTab = 'basic';
+    this.errorMessage = '';
+    this.showModal = true;
+  }
+
+  closeModal(event?: Event) {
+    if (event && event.target !== event.currentTarget) return;
+    this.resetForm();
+  }
+
   save() {
+    this.saving = true;
+    this.errorMessage = '';
     const payload: any = {
       title: this.formData.title,
       description: this.formData.description,
@@ -140,17 +225,19 @@ export class ExamsAdminComponent implements OnInit {
         next: () => {
           const i = this.exams.findIndex(e => e.id === this.editingId);
           if (i > -1) this.exams[i] = { ...payload, id: this.editingId, planId: this.formData.planId, batchIds: this.selectedBatchIds };
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to update:', err); alert('Failed to update exam'); }
+        error: (err) => { console.error('Failed to update:', err); this.saving = false; this.errorMessage = 'Failed to update exam'; }
       });
     } else {
       this.api.post<any>('/api/exams', payload).subscribe({
         next: (saved: any) => {
           this.exams.push({ ...payload, id: saved?.id || Date.now(), planId: this.formData.planId, batchIds: this.selectedBatchIds });
+          this.saving = false;
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to create:', err); alert('Failed to create exam'); }
+        error: (err) => { console.error('Failed to create:', err); this.saving = false; this.errorMessage = 'Failed to create exam'; }
       });
     }
   }
@@ -169,6 +256,8 @@ export class ExamsAdminComponent implements OnInit {
       link: e.link || ''
     };
     this.selectedBatchIds = e.batchIds || [];
+    this.examTab = 'basic';
+    this.errorMessage = '';
     this.showModal = true;
   }
 
@@ -185,10 +274,17 @@ export class ExamsAdminComponent implements OnInit {
     return formatDateTimeDisplay(value);
   }
 
-  resetForm() {
+  private resetFormData() {
     this.formData = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, link: '', batchIds: [] };
     this.selectedBatchIds = [];
+  }
+
+  resetForm() {
+    this.resetFormData();
     this.editingId = null;
+    this.examTab = 'basic';
+    this.saving = false;
+    this.errorMessage = '';
     this.showModal = false;
   }
 
