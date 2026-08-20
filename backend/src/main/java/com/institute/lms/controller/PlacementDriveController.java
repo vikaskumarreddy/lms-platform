@@ -51,6 +51,27 @@ public class PlacementDriveController {
                     if (drive.getDriveType() != null && !drive.getDriveType().isBlank()) {
                         existing.setDriveType(drive.getDriveType());
                     }
+                    existing.setMinAttendancePercent(drive.getMinAttendancePercent());
+                    existing.setMinCourseCompletionPercent(drive.getMinCourseCompletionPercent());
+                    existing.setMinAssignmentAvgPercent(drive.getMinAssignmentAvgPercent());
+                    existing.setMinExamAvgPercent(drive.getMinExamAvgPercent());
+                    return ResponseEntity.ok(placementDriveRepository.save(existing));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Updates only the eligibility criteria thresholds for a drive, leaving all
+     * other fields untouched. Used by the admin UI's dedicated Criteria modal.
+     */
+    @PutMapping("/{id}/criteria")
+    public ResponseEntity<PlacementDrive> updateCriteria(@PathVariable Long id, @RequestBody PlacementDrive criteria) {
+        return placementDriveRepository.findById(id)
+                .map(existing -> {
+                    existing.setMinAttendancePercent(criteria.getMinAttendancePercent());
+                    existing.setMinCourseCompletionPercent(criteria.getMinCourseCompletionPercent());
+                    existing.setMinAssignmentAvgPercent(criteria.getMinAssignmentAvgPercent());
+                    existing.setMinExamAvgPercent(criteria.getMinExamAvgPercent());
                     return ResponseEntity.ok(placementDriveRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

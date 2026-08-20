@@ -77,6 +77,16 @@ public class UserService {
             throw new RuntimeException("No organization context set");
         }
 
+        // If no plan is explicitly provided but a batch is assigned, inherit the plan from the batch
+        Long effectivePlanId = request.getPlanId();
+        if (effectivePlanId == null && request.getBatchId() != null) {
+            Batch batch = batchRepository.findById(request.getBatchId())
+                    .orElse(null);
+            if (batch != null && batch.getPlanId() != null) {
+                effectivePlanId = batch.getPlanId();
+            }
+        }
+
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
@@ -87,7 +97,7 @@ public class UserService {
         user.setRole(User.UserRole.STUDENT);
         user.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
         user.setIsEmailVerified(false);
-        user.setPlanId(request.getPlanId());
+        user.setPlanId(effectivePlanId);
         user.setBatchId(request.getBatchId());
         user.setOrganizationId(orgId);
         user.setLinkedin(request.getLinkedin());

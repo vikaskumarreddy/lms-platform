@@ -146,6 +146,11 @@ Table placement_drives {
   deadline timestamp
   is_active boolean [default: true]
   plan_id bigint [ref: > subscription_plans.id]
+  drive_type varchar [default: 'EXTERNAL']
+  min_attendance_percent double
+  min_course_completion_percent double
+  min_assignment_avg_percent double
+  min_exam_avg_percent double
 }
 
 Table placement_applications {

@@ -57,7 +57,10 @@ export class LoginComponent {
     this.loading = true;
     this.errorMsg = '';
     this.auth.login(this.email, this.password).subscribe({
-      next: () => this.router.navigate(['/']),
+      next: () => {
+        this.loading = false;
+        this.router.navigate(['/']);
+      },
       error: (err) => {
         this.errorMsg = err.error?.message || 'Invalid email or password';
         this.loading = false;

@@ -16,6 +16,10 @@ interface Drive {
   isActive: boolean;
   planId?: number;
   driveType?: 'INTERNAL' | 'EXTERNAL';
+  minAttendancePercent?: number | null;
+  minCourseCompletionPercent?: number | null;
+  minAssignmentAvgPercent?: number | null;
+  minExamAvgPercent?: number | null;
 }
 
 interface InterviewSlot {
@@ -52,7 +56,10 @@ interface SubscriptionPlan {
   template: `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">Placement Drives</h1>
-      <button class="btn btn-primary" (click)="openAddModal()">+ Add Drive</button>
+      <button class="btn btn-primary" (click)="openAddModal()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Drive
+      </button>
     </div>
 
     <div class="card">
@@ -78,9 +85,18 @@ interface SubscriptionPlan {
             <td>{{d.deadline ? (d.deadline | slice:0:10) : '-'}}</td>
             <td><span class="badge" [class.badge-success]="d.isActive" [class.badge-danger]="!d.isActive">{{d.isActive ? 'Active' : 'Inactive'}}</span></td>
             <td>
-              <button *ngIf="d.driveType === 'INTERNAL'" class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openSlotsModal(d)">Slots</button>
-              <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openEditModal(d)">Edit</button>
-              <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="deleteDrive(d)">Delete</button>
+              <button *ngIf="d.driveType === 'INTERNAL'" class="icon-btn icon-btn-slot" title="Manage interview slots" (click)="openSlotsModal(d)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </button>
+              <button class="icon-btn icon-btn-edit" title="Edit drive" (click)="openEditModal(d)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button class="icon-btn icon-btn-criteria" title="Set eligibility criteria" (click)="openCriteriaModal(d)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              </button>
+              <button class="icon-btn icon-btn-danger" title="Delete drive" (click)="deleteDrive(d)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
             </td>
           </tr>
           <tr *ngIf="drives.length === 0">
@@ -245,7 +261,10 @@ interface SubscriptionPlan {
           <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)"
                  style="grid-column:1/-1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         </div>
-        <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">+ Add Slot</button>
+        <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Slot
+        </button>
 
         <table>
           <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By (User ID)</th><th></th></tr></thead>
@@ -257,13 +276,58 @@ interface SubscriptionPlan {
                 <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
               </td>
               <td>{{ s.bookedByUserId || '-' }}</td>
-              <td><button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" (click)="deleteSlot(s)">Delete</button></td>
+              <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button></td>
             </tr>
             <tr *ngIf="slots.length === 0">
               <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Eligibility Criteria Modal -->
+    <div class="modal-overlay" *ngIf="showCriteriaModal" (click)="closeCriteriaModal()">
+      <div class="modal-content" style="width:90%;max-width:520px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:20px;font-weight:700;">Eligibility Criteria — {{ criteriaDrive?.companyName }}</h2>
+          <button class="btn btn-secondary" (click)="closeCriteriaModal()">✕</button>
+        </div>
+        <p style="font-size:12px;color:#64748B;margin-bottom:16px;">
+          Optional minimum thresholds (%). A student who does not meet any set
+          threshold will see "Not eligible" instead of Apply in the app. Leave blank to skip a rule.
+        </p>
+        <div class="form-grid" style="font-size:13px;">
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Attendance (%)</label>
+            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAttendance"
+                   name="criteriaAttendance" placeholder="e.g. 75">
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Course Completion (%)</label>
+            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minCourseCompletion"
+                   name="criteriaCourseCompletion" placeholder="e.g. 80">
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Assignments Avg Score (%)</label>
+            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minAssignmentAvg"
+                   name="criteriaAssignmentAvg" placeholder="e.g. 70">
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:6px;font-size:12px;color:#475569;">Exam Avg Score (%)</label>
+            <input type="number" min="0" max="100" step="0.1" [(ngModel)]="criteria.minExamAvg"
+                   name="criteriaExamAvg" placeholder="e.g. 70">
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+          <button type="button" class="btn btn-secondary" (click)="closeCriteriaModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingCriteria" (click)="saveCriteria()">{{savingCriteria ? 'Saving...' : 'Save Criteria'}}</button>
+        </div>
+        <div *ngIf="criteriaMessage" style="margin-top:16px;padding:12px;background:#DCFCE7;color:#166534;border-radius:8px;font-size:14px;">
+          {{criteriaMessage}}
+        </div>
       </div>
     </div>
   `,
@@ -285,6 +349,32 @@ interface SubscriptionPlan {
       max-height: 90vh;
       overflow-y: auto;
     }
+    /* Icon-only action buttons */
+    .icon-btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #F1F5F9;
+      color: #334155;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .icon-btn svg{display:block}
+    .icon-btn:hover{background:#E2E8F0}
+    .icon-btn-edit{background:#F1F5F9;color:#334155}
+    .icon-btn-edit:hover{background:#E0E7FF;color:#3730A3}
+    .icon-btn-slot{background:#FEF3C7;color:#92400E}
+    .icon-btn-slot:hover{background:#FDE68A}
+    .icon-btn-criteria{background:#EDE9FE;color:#6D28D9}
+    .icon-btn-criteria:hover{background:#DDD6FE}
+    .icon-btn-danger{background:#FEE2E2;color:#991B1B}
+    .icon-btn-danger:hover{background:#FCA5A5}
   `]
 })
 export class PlacementsComponent implements OnInit {
@@ -314,6 +404,12 @@ export class PlacementsComponent implements OnInit {
   slotsForDrive: Drive | null = null;
   slots: InterviewSlot[] = [];
   newSlot: { slotTime: string; location: string; notes: string } = { slotTime: '', location: '', notes: '' };
+
+  showCriteriaModal = false;
+  criteriaDrive: Drive | null = null;
+  criteria = { minAttendance: null as number | null, minCourseCompletion: null as number | null, minAssignmentAvg: null as number | null, minExamAvg: null as number | null };
+  savingCriteria = false;
+  criteriaMessage = '';
 
   constructor(private apiService: ApiService) {}
 
@@ -408,6 +504,49 @@ export class PlacementsComponent implements OnInit {
       planId: drive.planId || null
     };
     this.showModal = true;
+  }
+
+  openCriteriaModal(drive: Drive) {
+    this.criteriaDrive = drive;
+    this.criteriaMessage = '';
+    this.criteria = {
+      minAttendance: drive.minAttendancePercent ?? null,
+      minCourseCompletion: drive.minCourseCompletionPercent ?? null,
+      minAssignmentAvg: drive.minAssignmentAvgPercent ?? null,
+      minExamAvg: drive.minExamAvgPercent ?? null
+    };
+    this.showCriteriaModal = true;
+  }
+
+  closeCriteriaModal() {
+    this.showCriteriaModal = false;
+    this.criteriaDrive = null;
+    this.criteriaMessage = '';
+  }
+
+  saveCriteria() {
+    if (!this.criteriaDrive || this.savingCriteria) return;
+    this.savingCriteria = true;
+    this.criteriaMessage = '';
+    const payload = {
+      minAttendancePercent: this.criteria.minAttendance ?? null,
+      minCourseCompletionPercent: this.criteria.minCourseCompletion ?? null,
+      minAssignmentAvgPercent: this.criteria.minAssignmentAvg ?? null,
+      minExamAvgPercent: this.criteria.minExamAvg ?? null
+    };
+    this.apiService.put(`/api/placement-drives/${this.criteriaDrive.id}/criteria`, payload).subscribe({
+      next: () => {
+        this.savingCriteria = false;
+        this.criteriaMessage = 'Criteria saved successfully.';
+        Object.assign(this.criteriaDrive!, payload);
+        setTimeout(() => { this.closeCriteriaModal(); }, 900);
+      },
+      error: (err) => {
+        this.savingCriteria = false;
+        console.error('Failed to save criteria', err);
+        alert('Failed to save criteria. Please try again.');
+      }
+    });
   }
 
   openSlotsModal(drive: Drive) {

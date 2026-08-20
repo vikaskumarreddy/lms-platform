@@ -1,4 +1,5 @@
 com\institute\lms\controller\DashboardController.class
+com\institute\lms\dto\StudentStatsDTO$CourseRecord.class
 com\institute\lms\controller\AssignmentSubmissionController.class
 com\institute\lms\exception\DuplicateResourceException.class
 com\institute\lms\controller\EventController.class
@@ -18,17 +19,20 @@ com\institute\lms\repository\OrgPlanChangeRequestRepository.class
 com\institute\lms\service\subscription\UsageService.class
 com\institute\lms\controller\CourseController.class
 com\institute\lms\controller\AssignmentController.class
+com\institute\lms\dto\StudentStatsDTO.class
 com\institute\lms\config\FileUploadConfig.class
 com\institute\lms\entity\BaseEntity.class
 com\institute\lms\service\OrganizationService.class
 com\institute\lms\repository\PushNotificationLogRepository.class
 com\institute\lms\entity\User$UserRole.class
 com\institute\lms\controller\LessonController.class
+com\institute\lms\dto\StudentStatsDTO$AssignmentRecord.class
 com\institute\lms\service\billing\CouponService$CouponQuote.class
 com\institute\lms\subscription\CreditType.class
 com\institute\lms\controller\PlatformBillingController.class
 com\institute\lms\subscription\LimitKey.class
 com\institute\lms\entity\GlobalEntity.class
+com\institute\lms\service\StudentStatsService.class
 com\institute\lms\controller\UserController.class
 com\institute\lms\service\subscription\ResolvedEntitlements.class
 com\institute\lms\dto\subscription\AccountOverviewResponse$OrganizationDetails.class
@@ -46,10 +50,12 @@ com\institute\lms\repository\OrgInvoiceRepository.class
 com\institute\lms\service\billing\CouponService.class
 com\institute\lms\controller\SubscriptionController.class
 com\institute\lms\dto\auth\AuthResponse$AuthResponseBuilder.class
+com\institute\lms\dto\StudentStatsDTO$CourseStats.class
 com\institute\lms\entity\OrgSubscriptionAddon.class
 com\institute\lms\service\subscription\AccountService$1Check.class
 com\institute\lms\repository\CourseRepository.class
 com\institute\lms\entity\Branch.class
+com\institute\lms\dto\StudentStatsDTO$AssignmentStats.class
 com\institute\lms\repository\OrgTrainingAgreementRepository.class
 com\institute\lms\service\subscription\SubscriptionScheduler.class
 com\institute\lms\dto\subscription\AccountOverviewResponse$UsageMeter.class
@@ -89,6 +95,9 @@ com\institute\lms\repository\SystemConfigRepository.class
 com\institute\lms\entity\PushNotificationLog.class
 com\institute\lms\entity\Answer.class
 com\institute\lms\controller\SubscriptionPlanController.class
+com\institute\lms\dto\StudentStatsDTO$AttendanceStats.class
+com\institute\lms\dto\StudentStatsDTO$StudentInfo.class
+com\institute\lms\dto\StudentStatsDTO$PlacementStats.class
 com\institute\lms\controller\PlacementDriveController.class
 com\institute\lms\repository\QuestionRepository.class
 com\institute\lms\config\AdminDataInitializer.class
@@ -96,6 +105,7 @@ com\institute\lms\dto\subscription\PlanResponse$EntitlementDetail.class
 com\institute\lms\entity\OrgPayment.class
 com\institute\lms\repository\EnrollmentRepository.class
 com\institute\lms\repository\SubscriptionRepository.class
+com\institute\lms\dto\StudentStatsDTO$AttendanceRecord.class
 com\institute\lms\dto\course\CourseSectionDTO.class
 com\institute\lms\controller\ModuleController.class
 com\institute\lms\dto\auth\AuthResponse.class
@@ -120,6 +130,7 @@ com\institute\lms\controller\LessonProgressController.class
 com\institute\lms\exception\ResourceNotFoundException.class
 com\institute\lms\interceptor\SubscriptionStateInterceptor$1.class
 com\institute\lms\entity\User.class
+com\institute\lms\dto\StudentStatsDTO$ExamRecord.class
 com\institute\lms\repository\StudentPlacementRepository.class
 com\institute\lms\entity\Notification.class
 com\institute\lms\subscription\SubscriptionStatus$AccessLevel.class
@@ -135,7 +146,9 @@ com\institute\lms\repository\OrganizationRepository.class
 com\institute\lms\repository\AttendanceRepository.class
 com\institute\lms\dto\course\LessonRequest.class
 com\institute\lms\util\OrganizationContext.class
+com\institute\lms\dto\StudentStatsDTO$ExamStats.class
 com\institute\lms\service\subscription\SubscriptionLifecycleService$1.class
+com\institute\lms\dto\PlacementMetricsDTO.class
 com\institute\lms\entity\StudentPlacement$Status.class
 com\institute\lms\entity\OrgPilotMetric.class
 com\institute\lms\util\JsonUtils$2.class
@@ -160,8 +173,10 @@ com\institute\lms\subscription\AddonCategory.class
 com\institute\lms\service\FcmService.class
 com\institute\lms\repository\OrgPilotRepository.class
 com\institute\lms\repository\UserRepository.class
+com\institute\lms\repository\FeedbackRepository.class
 com\institute\lms\entity\Note.class
 com\institute\lms\dto\subscription\AccountOverviewResponse.class
+com\institute\lms\dto\StudentStatsDTO$PlacementRecord.class
 com\institute\lms\LmsApplication.class
 com\institute\lms\repository\PlanAddonRepository.class
 com\institute\lms\entity\ExamSubmission.class
@@ -212,6 +227,7 @@ com\institute\lms\entity\OrgBillingEvent.class
 com\institute\lms\repository\ProgressRepository.class
 com\institute\lms\service\subscription\AccountService$1.class
 com\institute\lms\dto\dashboard\RecentEnrollmentDTO.class
+com\institute\lms\repository\ExamResultRepository.class
 com\institute\lms\service\CourseServiceImpl.class
 com\institute\lms\repository\BookmarkRepository.class
 com\institute\lms\entity\Certificate.class
@@ -236,6 +252,7 @@ com\institute\lms\service\LessonProgressService.class
 com\institute\lms\repository\OrgCreditNoteRepository.class
 com\institute\lms\service\UserService.class
 com\institute\lms\dto\subscription\AccountOverviewResponse$PendingChange.class
+com\institute\lms\entity\ExamResult.class
 com\institute\lms\service\subscription\EntitlementService.class
 com\institute\lms\service\subscription\AccountService.class
 com\institute\lms\repository\AssignmentSubmissionRepository.class
@@ -249,6 +266,7 @@ com\institute\lms\service\OrgSubscriptionService.class
 com\institute\lms\entity\OrgPilot.class
 com\institute\lms\exception\ErrorResponse.class
 com\institute\lms\controller\NotificationController.class
+com\institute\lms\controller\StudentStatsController.class
 com\institute\lms\dto\subscription\AddonResponse.class
 com\institute\lms\repository\AssignmentRepository.class
 com\institute\lms\repository\PlacementDriveRepository.class

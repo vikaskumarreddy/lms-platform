@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     List<Enrollment> findTop5ByOrderByEnrolledAtDesc();
+    List<Enrollment> findByUserId(Long userId);
 }

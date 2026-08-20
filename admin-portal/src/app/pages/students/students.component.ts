@@ -1,6 +1,7 @@
 ﻿import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 
 interface Student {
@@ -75,7 +76,8 @@ interface Batch {
                 {{s.isActive ? 'Active' : 'Inactive'}}
               </span>
             </td>
-            <td>
+                        <td>
+              <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="viewStudent(s)">View</button>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openEditModal(s)">Edit</button>
               <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="deleteStudent(s)">Delete</button>
             </td>
@@ -219,7 +221,11 @@ export class StudentsComponent implements OnInit {
     github: ''
   };
 
-  constructor(private apiService: ApiService) {}
+    constructor(private apiService: ApiService, private router: Router) {}
+
+  viewStudent(student: Student) {
+    this.router.navigate(['/students', student.id]);
+  }
 
   ngOnInit() {
     this.loadStudents();

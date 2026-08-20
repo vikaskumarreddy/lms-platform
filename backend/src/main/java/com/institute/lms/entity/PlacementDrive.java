@@ -49,4 +49,21 @@ public class PlacementDrive extends BaseEntity {
      */
     @Column(name = "drive_type", nullable = false)
     private String driveType = "EXTERNAL";
+
+    /**
+     * Optional eligibility criteria (minimum thresholds, in percent). A student
+     * is only allowed to apply if they meet every configured criterion.
+     * A null criterion means that particular rule is not enforced.
+     */
+    @Column(name = "min_attendance_percent")
+    private Double minAttendancePercent;
+
+    @Column(name = "min_course_completion_percent")
+    private Double minCourseCompletionPercent;
+
+    @Column(name = "min_assignment_avg_percent")
+    private Double minAssignmentAvgPercent;
+
+    @Column(name = "min_exam_avg_percent")
+    private Double minExamAvgPercent;
 }

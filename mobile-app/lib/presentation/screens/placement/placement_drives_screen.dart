@@ -107,21 +107,28 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
                       )
                     : Consumer(builder: (context, ref, _) {
                         final overviewAsync = ref.watch(placementOverviewProvider);
+                        final metricsAsync = ref.watch(placementMetricsProvider);
                         final items = (overviewAsync.asData?.value['items'] as List<dynamic>? ?? [])
                             .cast<Map<String, dynamic>>();
                         final statusByDrive = {
                           for (final item in items)
                             if (item['driveId'] != null) (item['driveId'] as num).toInt(): item['status']?.toString() ?? 'OPEN',
                         };
+                        final metrics = metricsAsync.asData?.value ?? <String, double>{};
                         return ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: filtered.length,
-                          itemBuilder: (context, index) => _DriveCard(
-                            drive: filtered[index],
-                            status: statusByDrive[filtered[index].id] ?? 'OPEN',
-                            onApply: () => _applyAndOpenLink(ref, filtered[index]),
-                            onScheduleSlot: () => _showSlotPicker(ref, filtered[index]),
-                          ),
+                          itemBuilder: (context, index) {
+                            final drive = filtered[index];
+                            final eligible = drive.isEligibleFor(metrics);
+                            return _DriveCard(
+                              drive: drive,
+                              status: statusByDrive[drive.id] ?? 'OPEN',
+                              isEligible: eligible,
+                              onApply: () => _applyAndOpenLink(ref, drive),
+                              onScheduleSlot: () => _showSlotPicker(ref, drive),
+                            );
+                          },
                         );
                       }),
               ),
@@ -238,10 +245,17 @@ class _StatChip extends StatelessWidget {
 class _DriveCard extends StatelessWidget {
   final PlacementDriveModel drive;
   final String status;
+  final bool isEligible;
   final VoidCallback onApply;
   final VoidCallback onScheduleSlot;
 
-  const _DriveCard({required this.drive, required this.status, required this.onApply, required this.onScheduleSlot});
+  const _DriveCard({
+    required this.drive,
+    required this.status,
+    required this.isEligible,
+    required this.onApply,
+    required this.onScheduleSlot,
+  });
 
   Color get _statusColor {
     switch (status) {
@@ -392,7 +406,7 @@ class _DriveCard extends StatelessWidget {
             Text('Deadline: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             Text(drive.formattedDeadline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             const Spacer(),
-            if (drive.isInternal && status != 'SELECTED')
+            if (drive.isInternal && status != 'SELECTED' && isEligible)
               OutlinedButton.icon(
                 onPressed: onScheduleSlot,
                 icon: const Icon(Icons.event_available, size: 16),
@@ -405,17 +419,30 @@ class _DriveCard extends StatelessWidget {
                 ),
               ),
             const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: status == 'SELECTED' ? null : onApply,
-              icon: Icon(status == 'APPLIED' ? Icons.check_circle : Icons.open_in_browser, size: 16),
-              label: Text(status == 'OPEN' || status == 'REJECTED' ? 'Apply' : (status == 'APPLIED' ? 'Applied' : 'Selected')),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: secondaryColor,
-                foregroundColor: primaryColor,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                minimumSize: Size.zero,
+            if (!isEligible && status != 'APPLIED' && status != 'SELECTED')
+              ElevatedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.block, size: 16),
+                label: const Text('Not eligible'),
+                style: ElevatedButton.styleFrom(
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  disabledForegroundColor: Colors.grey.shade600,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: status == 'SELECTED' ? null : onApply,
+                icon: Icon(status == 'APPLIED' ? Icons.check_circle : Icons.open_in_browser, size: 16),
+                label: Text(status == 'OPEN' || status == 'REJECTED' ? 'Apply' : (status == 'APPLIED' ? 'Applied' : 'Selected')),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: secondaryColor,
+                  foregroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                ),
               ),
-            ),
           ]),
         ]),
       ),

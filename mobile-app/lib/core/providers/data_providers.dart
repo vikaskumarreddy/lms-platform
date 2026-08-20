@@ -45,6 +45,19 @@ final placementDrivesProvider = FutureProvider<List<PlacementDriveModel>>((ref) 
   return api.getPlacementDrives();
 });
 
+/// Current student's placement-eligibility metrics (percentages) keyed by
+/// metric name, e.g. {'attendancePercentage': 86.5}. Empty map when unavailable.
+final placementMetricsProvider = FutureProvider<Map<String, double>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  final json = await api.getPlacementMetrics();
+  return <String, double>{
+    'attendancePercentage': (json['attendancePercentage'] as num?)?.toDouble() ?? -1,
+    'courseCompletionPercentage': (json['courseCompletionPercentage'] as num?)?.toDouble() ?? -1,
+    'assignmentAveragePercentage': (json['assignmentAveragePercentage'] as num?)?.toDouble() ?? -1,
+    'examAveragePercentage': (json['examAveragePercentage'] as num?)?.toDouble() ?? -1,
+  };
+});
+
 final userProfileProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   final api = ref.watch(apiServiceProvider);
   return api.getUserProfile();

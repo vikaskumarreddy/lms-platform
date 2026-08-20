@@ -11,6 +11,10 @@ class PlacementDriveModel {
   final bool? isActive;
   final int? planId;
   final String driveType;
+  final double? minAttendancePercent;
+  final double? minCourseCompletionPercent;
+  final double? minAssignmentAvgPercent;
+  final double? minExamAvgPercent;
 
   PlacementDriveModel({
     required this.id,
@@ -25,6 +29,10 @@ class PlacementDriveModel {
     this.isActive,
     this.planId,
     this.driveType = 'EXTERNAL',
+    this.minAttendancePercent,
+    this.minCourseCompletionPercent,
+    this.minAssignmentAvgPercent,
+    this.minExamAvgPercent,
   });
 
   bool get isInternal => driveType == 'INTERNAL';
@@ -45,7 +53,51 @@ class PlacementDriveModel {
       isActive: json['isActive'],
       planId: json['planId'],
       driveType: json['driveType'] ?? 'EXTERNAL',
+      minAttendancePercent: (json['minAttendancePercent'] as num?)?.toDouble(),
+      minCourseCompletionPercent: (json['minCourseCompletionPercent'] as num?)?.toDouble(),
+      minAssignmentAvgPercent: (json['minAssignmentAvgPercent'] as num?)?.toDouble(),
+      minExamAvgPercent: (json['minExamAvgPercent'] as num?)?.toDouble(),
     );
+  }
+
+  /// True when the drive defines at least one eligibility threshold.
+  bool get hasCriteria =>
+      minAttendancePercent != null ||
+      minCourseCompletionPercent != null ||
+      minAssignmentAvgPercent != null ||
+      minExamAvgPercent != null;
+
+  /// Evaluates the drive's minimum criteria against the student's metrics
+  /// (all expressed as percentages). A criterion that is null is not enforced.
+  /// Returns false when criteria exist but cannot be verified (missing metrics).
+  bool isEligibleFor(Map<String, double> metrics) {
+    if (!hasCriteria) return true;
+
+    final attendance = metrics['attendancePercentage'];
+    if (minAttendancePercent != null &&
+        (attendance == null || attendance < minAttendancePercent!)) {
+      return false;
+    }
+
+    final courseCompletion = metrics['courseCompletionPercentage'];
+    if (minCourseCompletionPercent != null &&
+        (courseCompletion == null || courseCompletion < minCourseCompletionPercent!)) {
+      return false;
+    }
+
+    final assignmentAvg = metrics['assignmentAveragePercentage'];
+    if (minAssignmentAvgPercent != null &&
+        (assignmentAvg == null || assignmentAvg < minAssignmentAvgPercent!)) {
+      return false;
+    }
+
+    final examAvg = metrics['examAveragePercentage'];
+    if (minExamAvgPercent != null &&
+        (examAvg == null || examAvg < minExamAvgPercent!)) {
+      return false;
+    }
+
+    return true;
   }
 
   String get packageDisplay {

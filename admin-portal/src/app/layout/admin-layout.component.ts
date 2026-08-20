@@ -32,6 +32,24 @@ import { ToastHostComponent } from '../components/toast-host.component';
         <a routerLink="/payments" routerLinkActive="active" class="nav-item">💳 Payments</a>
         <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
         <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>
+      } @else if (auth.isInstructor) {
+        <!-- INSTRUCTOR MENU — batch-scoped teaching workflows only.
+             Instructors cannot manage organizations, org subscriptions,
+             batches, faculty, or subscriptions. -->
+        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-item">📊 Dashboard</a>
+        <a routerLink="/students" routerLinkActive="active" class="nav-item">🎓 Students</a>
+        <a routerLink="/courses" routerLinkActive="active" class="nav-item">📚 Courses</a>
+        <a routerLink="/placements" routerLinkActive="active" class="nav-item">💼 Placements</a>
+        <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
+        <a routerLink="/events-admin" routerLinkActive="active" class="nav-item">🎉 Events</a>
+        <a routerLink="/calendar-events" routerLinkActive="active" class="nav-item">📅 Calendar Events</a>
+        <a routerLink="/assignments-admin" routerLinkActive="active" class="nav-item">📝 Assignments</a>
+        <a routerLink="/exams-admin" routerLinkActive="active" class="nav-item">📋 Exams</a>
+        <a routerLink="/grading-admin" routerLinkActive="active" class="nav-item">✅ Grading</a>
+        <a routerLink="/attendance-admin" routerLinkActive="active" class="nav-item">🗓️ Attendance</a>
+        <a routerLink="/certificates-admin" routerLinkActive="active" class="nav-item">🎓 Certificates</a>
+        <a routerLink="/qa-admin" routerLinkActive="active" class="nav-item">💬 Q&A</a>
+        <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>
       } @else {
         <!-- TENANT MENU (axisora.placements.com, manyasree.placements.com, ...) -->
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-item">📊 Dashboard</a>

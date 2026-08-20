@@ -3,6 +3,7 @@ import { AdminLayoutComponent } from './layout/admin-layout.component';
 import { LoginComponent } from './pages/login/login.component';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { StudentsComponent } from './pages/students/students.component';
+import { StudentDetailComponent } from './pages/students/student-detail/student-detail.component';
 import { CoursesComponent } from './pages/courses/courses.component';
 import { CourseDetailComponent } from './pages/course-detail/course-detail.component';
 import { FacultyComponent } from './pages/faculty/faculty.component';
@@ -45,6 +46,7 @@ export const routes: Routes = [
       // hide this from the institute admins it exists for.
       { path: 'account', component: AccountComponent, canActivate: [orgAdminGuard] },
       { path: 'students', component: StudentsComponent },
+      { path: 'students/:id', component: StudentDetailComponent },
       { path: 'courses', component: CoursesComponent },
       { path: 'courses/:id', component: CourseDetailComponent },
       { path: 'faculty', component: FacultyComponent },

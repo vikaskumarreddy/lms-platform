@@ -3,22 +3,23 @@ import { inject } from '@angular/core';
 import { AuthService } from '../services/auth.service';
 
 /**
- * Route guard: allows access to admin routes when the user is logged in and has an
- * authorized admin-level role — the platform super admin (ADMIN) or a tenant
- * organization admin (INSTITUTE_ADMIN). The granular tenant/org authorization for the
- * actual data endpoints is enforced by the backend; this guard only opens the portal
- * layout for the two admin tiers.
+ * Route guard: allows access to the portal layout for any authenticated user —
+ * platform super admin (ADMIN), tenant org admin (INSTITUTE_ADMIN), and instructors
+ * (INSTRUCTOR) who use the same portal for teaching workflows (faculty, courses,
+ * assignments, grading, etc.). The granular tenant/org authorization for the actual
+ * data endpoints is enforced by the backend; this guard only opens the portal
+ * layout for logged-in users.
  */
-const ADMIN_ROLES = ['ADMIN', 'INSTITUTE_ADMIN'];
+const ALLOWED_ROLES = ['ADMIN', 'INSTITUTE_ADMIN', 'INSTRUCTOR'];
 
 export const adminGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
   const u = auth.user;
-  const hasAdminRole = !!u && ADMIN_ROLES.some(r => (u.roles ?? []).includes(r) || u.role === r);
+  const hasAllowedRole = !!u && ALLOWED_ROLES.some(r => (u.roles ?? []).includes(r) || u.role === r);
 
-  if (auth.isLoggedIn() && hasAdminRole) {
+  if (auth.isLoggedIn() && hasAllowedRole) {
     return true;
   }
 
@@ -59,7 +60,7 @@ export const orgAdminGuard: CanActivateFn = () => {
   const router = inject(Router);
 
   const u = auth.user;
-  const hasRole = !!u && ADMIN_ROLES.some(r => (u.roles ?? []).includes(r) || u.role === r);
+  const hasRole = !!u && ALLOWED_ROLES.some(r => (u.roles ?? []).includes(r) || u.role === r);
 
   if (auth.isLoggedIn() && (hasRole || auth.isAdmin)) {
     return true;

@@ -378,6 +378,30 @@ class ApiService {
     }
   }
 
+  /// Fetches the current student's placement-eligibility metrics (percentages)
+  /// used to decide whether they meet a drive's criteria.
+  Future<Map<String, dynamic>> getPlacementMetrics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return {};
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/student-stats/$userId/placement-metrics'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return {};
+    } catch (e) {
+      print('Error fetching placement metrics: $e');
+      return {};
+    }
+  }
+
   Future<List<CourseSection>> getCourseSections(int courseId) async {
     try {
       final headers = await _getHeaders();

@@ -7,6 +7,7 @@ import com.institute.lms.service.subscription.QuotaGuard;
 import com.institute.lms.util.OrganizationContext;
 import com.institute.lms.util.UserContext;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -78,11 +79,31 @@ public class UserController {
         if (orgId != null) {
             quotaGuard.requireStudentIntake(orgId, 1);
         }
+        // Faculty (INSTRUCTOR) users can only create students in their own batch
+        // and cannot assign subscription plans.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) {
+                return ResponseEntity.badRequest().build();
+            }
+            request.setBatchId(batchId);
+            request.setPlanId(null);
+        }
         return ResponseEntity.ok(userService.createStudent(request));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<StudentResponse> updateStudent(@PathVariable Long id, @Valid @RequestBody StudentRequest request) {
+        // Faculty can only update students in their own batch and cannot change
+        // the subscription plan.
+        if (userContext.isFaculty()) {
+            Long batchId = userContext.facultyBatchId();
+            if (batchId == null) {
+                return ResponseEntity.badRequest().build();
+            }
+            request.setBatchId(batchId);
+            request.setPlanId(null);
+        }
         return userService.updateStudent(id, request)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -90,6 +111,17 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
+        // Faculty can only delete students in their own batch.
+        if (userContext.isFaculty()) {
+            boolean isFacultyStudent = userService.getStudentById(id)
+                    .map(s -> userContext.facultyBatchId() != null
+                            && s.getBatchId() != null
+                            && s.getBatchId().equals(userContext.facultyBatchId()))
+                    .orElse(false);
+            if (!isFacultyStudent) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
         if (userService.deleteStudent(id)) {
             return ResponseEntity.ok().build();
         }
