@@ -90,12 +90,21 @@ public class AuthService {
                 return inTenant.get();
             }
         }
-        // Legacy fallback for the main platform account (admin@axisora.com in axisora org)
-        // and situations without a resolvable tenant (e.g. the platform super admin logging
-        // in at placements.com). findAnyByEmail is a NATIVE query so it is NOT scoped by the
-        // @TenantId discriminator (which would otherwise filter to the "-1" no-tenant sentinel
-        // and return nothing, making the super admin unable to log in).
-        return userRepository.findAnyByEmail(email).orElse(null);
+        // No match in the resolved tenant (or no tenant resolvable at all, e.g. the platform
+        // super admin logging in at placements.com). Look up every organization sharing this
+        // email instead of blindly grabbing the lowest id: that used to silently authenticate
+        // the caller into whichever org happened to register the email first (the ghost admin
+        // admin@axisora.com exists in every org, so this was hit constantly), which was the
+        // root cause of the org-isolation regression. Disambiguate explicitly instead.
+        List<User> matches = userRepository.findAllByEmailAcrossOrgs(email);
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        throw new RuntimeException(
+                "This email exists in multiple organizations. Select the correct organization before signing in.");
     }
 
     public AuthResponse register(RegisterRequest request) {
@@ -153,6 +162,11 @@ public class AuthService {
         if (user.getRole() != null) {
             extraClaims.put("role", user.getRole().name());
         }
+        // Lets JwtAuthenticationFilter resolve the current user unambiguously by primary
+        // key instead of by email, which is NOT globally unique (the ghost platform admin
+        // admin@axisora.com exists in every organization) and previously caused every
+        // request to silently resolve to whichever org created that email first.
+        extraClaims.put("user_id", user.getId());
         String accessToken = jwtService.generateToken(extraClaims, user);
         String refreshToken = jwtService.generateRefreshToken(user);
         String roleName = user.getRole() != null ? user.getRole().name() : "STUDENT";

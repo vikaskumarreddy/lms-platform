@@ -1,5 +1,6 @@
 package com.institute.lms.security;
 
+import com.institute.lms.repository.UserRepository;
 import com.institute.lms.security.JwtService;
 import com.institute.lms.service.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -21,10 +23,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserDetailsServiceImpl userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserDetailsServiceImpl userDetailsService,
+                                    UserRepository userRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -71,9 +76,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // unauthenticated (the framework then enforces authorization for protected
             // endpoints, and the original controller still serves permitAll endpoints).
             try {
-                var userDetails = userDetailsService.loadUserByUsername(username);
+                var userDetails = resolveUserDetails(jwt, username);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                if (userDetails != null && jwtService.isTokenValid(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
@@ -89,5 +94,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Resolves the authenticated principal for this request. Prefers the token's
+     * {@code user_id} claim, resolving directly by primary key (unambiguous — {@code id}
+     * is globally unique, unlike email) and returning the real {@code User} entity itself
+     * as the principal so {@code UserContext.currentUser()} picks it up without a second
+     * lookup. Falls back to the legacy email-based resolution for tokens issued before
+     * this claim existed, so already-logged-in sessions are not force-logged-out.
+     */
+    private UserDetails resolveUserDetails(String jwt, String username) {
+        Long userId;
+        try {
+            userId = jwtService.extractUserId(jwt);
+        } catch (Exception e) {
+            userId = null;
+        }
+        if (userId != null) {
+            var user = userRepository.findAnyById(userId).orElse(null);
+            if (user != null && username.equals(user.getUsername())) {
+                return user;
+            }
+        }
+        return userDetailsService.loadUserByUsername(username);
     }
 }

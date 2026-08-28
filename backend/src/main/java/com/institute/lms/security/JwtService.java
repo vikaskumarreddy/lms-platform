@@ -30,6 +30,12 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    /** Returns the {@code user_id} claim, or null for tokens issued before it existed. */
+    public Long extractUserId(String token) {
+        Object raw = extractClaim(token, claims -> claims.get("user_id"));
+        return raw instanceof Number number ? number.longValue() : null;
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);

@@ -45,6 +45,24 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findAnyByEmail(@Param("email") String email);
 
     /**
+     * Unambiguous cross-tenant lookup by primary key, used by {@code JwtAuthenticationFilter}
+     * to resolve the current user directly from the JWT's {@code user_id} claim instead of by
+     * email (which is not globally unique — see {@link #findAnyByEmail}). NATIVE for the same
+     * reason as {@code findAnyByEmail}: it must bypass the @TenantId discriminator, since the
+     * security filter runs before TenantInterceptor has resolved the request's tenant context.
+     */
+    @Query(value = "SELECT * FROM users WHERE id = :id", nativeQuery = true)
+    Optional<User> findAnyById(@Param("id") Long id);
+
+    /**
+     * All organizations' accounts sharing an email, ordered by id. Used by
+     * {@code AuthService.resolveUserForLogin} to disambiguate explicitly (0/1/2+ matches)
+     * instead of {@link #findAnyByEmail}'s silent "lowest id wins" behavior.
+     */
+    @Query(value = "SELECT * FROM users WHERE email = :email ORDER BY id", nativeQuery = true)
+    List<User> findAllByEmailAcrossOrgs(@Param("email") String email);
+
+    /**
      * Cross-tenant listing of non-ghost administrators for an organization.
      *
      * <p>Used by {@code OrganizationController.listOrgAdmins}, which is reachable

@@ -17,6 +17,11 @@ import { AuthService } from '../../services/auth.service';
         </div>
         <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
           <div class="form-group">
+            <label>Organization</label>
+            <input type="text" [(ngModel)]="orgSlug" name="orgSlug" required placeholder="axisora" />
+            <p class="field-hint">Your organization's slug. Saved on this browser so you only enter it once.</p>
+          </div>
+          <div class="form-group">
             <label>Email</label>
             <input type="email" [(ngModel)]="email" name="email" required placeholder="admin@axisora.com" />
           </div>
@@ -42,12 +47,14 @@ import { AuthService } from '../../services/auth.service';
     .form-group label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;}
     .form-group input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;transition:border-color .2s;}
     .form-group input:focus{outline:none;border-color:var(--secondary);box-shadow:0 0 0 3px rgba(234,179,8,0.2);}
+    .field-hint{font-size:12px;color:var(--text-secondary);margin:6px 0 0;}
     .error-msg{color:#EF4444;font-size:13px;text-align:center;margin-top:12px;}
   `]
 })
 export class LoginComponent {
   email = 'admin@axisora.com';
   password = 'admin123';
+  orgSlug = localStorage.getItem('tenant_slug') || '';
   loading = false;
   errorMsg = '';
 
@@ -56,6 +63,9 @@ export class LoginComponent {
   onSubmit() {
     this.loading = true;
     this.errorMsg = '';
+    // Persisted so the same org is targeted on every future login/request from this
+    // browser, instead of guessing a tenant from the hostname (see auth.interceptor.ts).
+    localStorage.setItem('tenant_slug', this.orgSlug.trim());
     this.auth.login(this.email, this.password).subscribe({
       next: () => {
         this.loading = false;
