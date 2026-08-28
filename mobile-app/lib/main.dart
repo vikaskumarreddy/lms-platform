@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/router_provider.dart';
+import 'core/services/app_messenger.dart';
 import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
 
@@ -46,6 +47,7 @@ class LmsApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Axisora Forge Academy',
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,

@@ -1,0 +1,20 @@
+CREATE TABLE org_feature_settings (
+    id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NULL,
+    notify_placements BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_exams BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_assignments BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_grading BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_classes BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_certificates BOOLEAN NOT NULL DEFAULT TRUE,
+    attendance_notifications_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    parent_attendance_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    parent_grading_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    parent_fee_payments_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    created_by VARCHAR(255) NULL,
+    updated_by VARCHAR(255) NULL,
+    version BIGINT NULL,
+    CONSTRAINT uq_org_feature_settings_org UNIQUE (organization_id)
+);

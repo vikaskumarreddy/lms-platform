@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
+import 'app_messenger.dart';
 
 /// Handles the mobile side of push notifications: requesting permission,
 /// registering the device's FCM token with the backend (so admin-configured
@@ -74,9 +76,36 @@ class PushNotificationService {
     if (kDebugMode) {
       print('Foreground push received: ${message.notification?.title}');
     }
-    // A full in-app banner/toast could be added here; for now the OS tray
-    // notification (shown automatically for background/terminated state)
-    // plus this debug log is sufficient, and tapping it is handled below.
+    // The OS tray notification is only shown automatically while the app is
+    // backgrounded/terminated; in the foreground FCM delivers silently, so
+    // surface it ourselves via a SnackBar.
+    final title = message.notification?.title;
+    final body = message.notification?.body;
+    if (title == null && body == null) return;
+
+    final messengerState = rootScaffoldMessengerKey.currentState;
+    if (messengerState == null) return;
+
+    final actionUrl = message.data['actionUrl'];
+    messengerState.showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (body != null) Text(body),
+          ],
+        ),
+        duration: const Duration(seconds: 5),
+        action: (actionUrl is String && actionUrl.isNotEmpty)
+            ? SnackBarAction(
+                label: 'View',
+                onPressed: () => _handleNotificationTap(message),
+              )
+            : null,
+      ),
+    );
   }
 
   void _handleNotificationTap(RemoteMessage message) {

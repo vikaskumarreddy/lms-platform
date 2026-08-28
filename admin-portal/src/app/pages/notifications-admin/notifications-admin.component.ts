@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface SubscriptionPlan {
   id: number;
@@ -126,6 +127,7 @@ interface NotificationRecord {
 })
 export class NotificationsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
 
   showForm = false;
   loading = false;
@@ -158,21 +160,21 @@ export class NotificationsAdminComponent implements OnInit {
   loadPlans() {
     this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (data) => { this.plans = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load subscription plans')
     });
   }
 
   loadBatches() {
     this.api.get<Batch[]>('/api/batches').subscribe({
       next: (data) => { this.batches = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load batches')
     });
   }
 
   loadStudents() {
     this.api.get<Student[]>('/api/students').subscribe({
       next: (data) => { this.students = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load students')
     });
   }
 
@@ -203,7 +205,7 @@ export class NotificationsAdminComponent implements OnInit {
 
   loadNotifications() {
     this.loading = true;
-    this.api.get<any[]>('notifications/broadcasts').subscribe({
+    this.api.get<any[]>('/api/notifications/broadcasts').subscribe({
       next: (data: any[]) => {
         // The backend returns Notification entities. Filter broadcasts (sent by admin).
         this.notifications = data
@@ -245,7 +247,7 @@ export class NotificationsAdminComponent implements OnInit {
       broadcast: true
     };
 
-    this.api.post<any[]>('notifications', payload).subscribe({
+    this.api.post<any[]>('/api/notifications', payload).subscribe({
       next: () => {
         this.sending = false;
         this.showForm = false;
@@ -260,9 +262,9 @@ export class NotificationsAdminComponent implements OnInit {
 
   delete(n: NotificationRecord) {
     if (confirm('Delete this notification?')) {
-      this.api.delete<void>(`notifications/${n.id}`).subscribe({
+      this.api.delete<void>(`/api/notifications/${n.id}`).subscribe({
         next: () => this.loadNotifications(),
-        error: () => {}
+        error: err => this.errors.show(err, 'Could not delete that notification')
       });
     }
   }

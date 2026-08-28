@@ -31,5 +31,10 @@ public class AuthResponse {
         private Long planId;
         private Long batchId;
         private Long organizationId;
+        // Payment info for students
+        private Boolean paymentRequired;
+        private String paymentMethod;
+        private String paymentStatus;
+        private Long amountDue;
     }
 }

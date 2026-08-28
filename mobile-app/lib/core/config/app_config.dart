@@ -3,5 +3,5 @@
 class AppConfig {
   /// Base URL for the backend API.
   /// Change this in one place to update all services.
-  static const String apiBaseUrl = 'https://platonic-automaker-gratitude.ngrok-free.dev/api';
+  static const String apiBaseUrl = 'https://ethan-enervated-greatheartedly.ngrok-free.dev/api';
 }

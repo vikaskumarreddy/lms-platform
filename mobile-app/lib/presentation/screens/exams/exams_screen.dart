@@ -4,6 +4,7 @@ import '../../../../core/services/api_service.dart';
 import '../../../../core/widgets/common_header.dart';
 import '../../../../data/models/exam_model.dart';
 import '../browser/in_app_browser_screen.dart';
+import '../assessment/assessment_paper_screen.dart';
 
 enum _ExamFilter { pending, graded, upcoming }
 
@@ -102,6 +103,24 @@ Future<void> _submitExam(ExamModel exam) async {
     );
   }
 
+  /// In-app exams are answered on the paper screen instead of an external link;
+  /// the exam duration drives the countdown and the auto-submit.
+  Future<void> _openPaper(ExamModel exam) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AssessmentPaperScreen(
+          type: 'exams',
+          assessmentId: exam.id,
+          title: exam.title,
+          durationMinutes: exam.durationMinutes,
+          totalMarks: exam.totalMarks,
+        ),
+      ),
+    );
+    if (result == true) _load();
+  }
+
   void _showSnack(String message, Color color) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -144,6 +163,7 @@ Future<void> _submitExam(ExamModel exam) async {
                                     isSubmitted: _isSubmitted(e),
                                     onViewDetails: () => _viewDetails(e),
                                     onSubmit: () => _submitExam(e),
+                                    onOpenPaper: () => _openPaper(e),
                                   );
                                 },
                               ),
@@ -271,6 +291,7 @@ class _ExamCard extends StatelessWidget {
   final bool isSubmitted;
   final VoidCallback onViewDetails;
   final VoidCallback onSubmit;
+  final VoidCallback onOpenPaper;
 
   const _ExamCard({
     required this.exam,
@@ -278,6 +299,7 @@ class _ExamCard extends StatelessWidget {
     required this.isSubmitted,
     required this.onViewDetails,
     required this.onSubmit,
+    required this.onOpenPaper,
   });
 
   @override
@@ -362,25 +384,42 @@ class _ExamCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onViewDetails,
-                    icon: Icon(Icons.link, size: 18, color: secondaryColor),
-                    label: Text('View Details', style: TextStyle(color: secondaryColor)),
+            if (exam.isInApp)
+              // Answered inside the app: one action, and after submitting it turns
+              // into the review of the graded paper.
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onOpenPaper,
+                  icon: Icon(isSubmitted ? Icons.fact_check_outlined : Icons.edit_note, size: 19),
+                  label: Text(isSubmitted ? 'View Answers' : 'Start Exam'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isSubmitted ? const Color(0xFF0F172A) : secondaryColor,
+                    foregroundColor: isSubmitted ? Colors.white : Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (!isSubmitted)
-                  ElevatedButton.icon(
-                    onPressed: onSubmit,
-                    icon: const Icon(Icons.upload, size: 18),
-                    label: const Text('Submit'),
-                    style: ElevatedButton.styleFrom(backgroundColor: secondaryColor, foregroundColor: Colors.black),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onViewDetails,
+                      icon: Icon(Icons.link, size: 18, color: secondaryColor),
+                      label: Text('View Details', style: TextStyle(color: secondaryColor)),
+                    ),
                   ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  if (!isSubmitted)
+                    ElevatedButton.icon(
+                      onPressed: onSubmit,
+                      icon: const Icon(Icons.upload, size: 18),
+                      label: const Text('Submit'),
+                      style: ElevatedButton.styleFrom(backgroundColor: secondaryColor, foregroundColor: Colors.black),
+                    ),
+                ],
+              ),
           ],
         ),
       ),

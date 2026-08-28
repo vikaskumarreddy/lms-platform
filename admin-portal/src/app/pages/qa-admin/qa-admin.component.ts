@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface SubscriptionPlan {
   id: number;
@@ -138,6 +139,7 @@ interface Batch {
 })
 export class QaAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
   showForm = false; editingId: number | null = null;
   questionTab: 'basic' | 'details' = 'basic';
   saving = false;
@@ -163,14 +165,14 @@ export class QaAdminComponent implements OnInit {
   loadPlans() {
     this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (data) => { this.plans = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load subscription plans')
     });
   }
 
   loadBatches() {
     this.api.get<Batch[]>('/api/batches').subscribe({
       next: (data) => { this.batches = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load batches')
     });
   }
 
@@ -256,7 +258,7 @@ export class QaAdminComponent implements OnInit {
     if (confirm('Delete this question?')) {
       this.api.delete(`/api/questions/${q.id}`).subscribe({
         next: () => { this.questions = this.questions.filter(x => x.id !== q.id); },
-        error: (err) => { console.error('Failed to delete question:', err); alert('Failed to delete question'); }
+        error: (err) => { this.errors.show(err, 'Failed to delete question'); }
       });
     }
   }

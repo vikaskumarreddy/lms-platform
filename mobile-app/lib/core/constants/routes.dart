@@ -9,8 +9,6 @@ class AppRoutes {
   static const String courses = '/courses';
   static const String courseDetail = '/courses/:id';
   static const String sectionLessons = '/courses/:id/sections/:sectionId';
-  static const String modules = '/courses/:id/modules';
-  static const String lessons = '/courses/:id/modules/:moduleId';
   static const String lesson = '/lesson/:lessonId';
   static const String profile = '/profile';
   static const String notifications = '/notifications';
@@ -32,7 +30,8 @@ class AppRoutes {
   static const String leaderboard = '/leaderboard';
   static const String qa = '/qa';
   static const String inAppBrowser = '/browser';
-  static const String quiz = '/quiz/:id';
+  /// In-app question paper; :type is 'assignments' or 'exams'.
+  static const String assessmentPaper = '/assessment-paper/:type/:id';
   static const String mentorChat = '/chat/:mentorId';
   static const String notes = '/notes/:lessonId';
   static const String payment = '/payment/:planId';

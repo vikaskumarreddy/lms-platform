@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Student {
   id: number;
@@ -17,7 +18,23 @@ interface Student {
   batchId?: number;
   linkedin?: string;
   github?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  notifyMedium?: string;
   createdAt?: string;
+  // Enrollment fee. CASH students get straight into the app; ONLINE students are
+  // held at a payment screen on first login until this reads COMPLETED.
+  paymentMethod?: string;
+  paymentStatus?: string;
+  amountDue?: number;
+}
+
+/** The tenant's Razorpay setup, used to decide whether ONLINE can even be offered. */
+interface RazorpayConfig {
+  configured: boolean;
+  paymentEnabled: boolean;
+  amountPerStudent: number;
 }
 
 interface SubscriptionPlan {
@@ -53,6 +70,7 @@ interface Batch {
             <th>Phone</th>
             <th>Batch</th>
             <th>Subscription Plan</th>
+            <th>Fee</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -72,6 +90,14 @@ interface Batch {
               <span *ngIf="!getPlanName(s.planId)" style="color:#64748B;font-size:13px;">No plan</span>
             </td>
             <td>
+              <span class="badge"
+                    [style.background]="feeBadgeBg(s)"
+                    [style.color]="feeBadgeFg(s)"
+                    [title]="s.paymentMethod === 'ONLINE' ? 'Online payment via Razorpay' : 'Collected offline'">
+                {{feeLabel(s)}}
+              </span>
+            </td>
+            <td>
               <span class="badge" [class.badge-success]="s.isActive" [class.badge-danger]="!s.isActive">
                 {{s.isActive ? 'Active' : 'Inactive'}}
               </span>
@@ -83,7 +109,7 @@ interface Batch {
             </td>
           </tr>
           <tr *ngIf="students.length === 0">
-            <td colspan="8" style="text-align:center;color:#64748B;padding:32px;">No students found. Click "+ Add Student" to create one.</td>
+            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No students found. Click "+ Add Student" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -152,6 +178,40 @@ interface Batch {
                   <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
                 </select>
               </div>
+              <!-- Fee collection. Only offered at creation: the choice decides whether the
+                   student is gated at login, and flipping it later would either lock out
+                   someone who already paid cash or wave through an unpaid enrolment. -->
+              <div *ngIf="!editingStudent">
+                <label>Payment Method</label>
+                <select [(ngModel)]="studentForm.paymentMethod" name="paymentMethod">
+                  <option value="CASH">Cash / offline</option>
+                  <option value="ONLINE" [disabled]="!onlineAvailable">
+                    Online{{onlineAvailable ? ' - ' + formatMoney(razorpayConfig?.amountPerStudent) : ' (not set up)'}}
+                  </option>
+                </select>
+              </div>
+              <div *ngIf="editingStudent">
+                <label>Payment Method</label>
+                <div style="padding:9px 0;">
+                  <span class="badge" [style.background]="feeBadgeBg(editingStudent)" [style.color]="feeBadgeFg(editingStudent)">
+                    {{feeLabel(editingStudent)}}
+                  </span>
+                </div>
+              </div>
+
+              <div class="full-width" *ngIf="!editingStudent && studentForm.paymentMethod === 'ONLINE'"
+                   style="background:#F0FDFA;border:1px solid #5EEAD4;border-radius:10px;padding:10px 12px;font-size:13px;color:#134E4A;">
+                This student must pay {{formatMoney(razorpayConfig?.amountPerStudent)}} on their first login before the app opens.
+              </div>
+              <div class="full-width" *ngIf="!editingStudent && !onlineAvailable"
+                   style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;font-size:13px;color:#78350F;">
+                Online collection is off. Add your Razorpay keys in <strong>Payment Settings</strong> to enable it.
+              </div>
+              <div class="full-width" *ngIf="editingStudent"
+                   style="font-size:12px;color:#64748B;margin-top:-8px;">
+                Fees are settled from the <strong>Payments</strong> page, not here.
+              </div>
+
               <div class="full-width">
                 <label>LinkedIn</label>
                 <input type="text" [(ngModel)]="studentForm.linkedin" name="linkedin" placeholder="linkedin.com/in/username">
@@ -160,6 +220,31 @@ interface Batch {
                 <label>GitHub</label>
                 <input type="text" [(ngModel)]="studentForm.github" name="github" placeholder="github.com/username">
               </div>
+
+              <div class="full-width" style="border-top:1px solid #E2E8F0;margin-top:8px;padding-top:12px;font-weight:600;color:#134E4A;font-size:13px;">
+                Parent / Guardian Contact
+              </div>
+              <div>
+                <label>Parent Name</label>
+                <input type="text" [(ngModel)]="studentForm.parentName" name="parentName" placeholder="Parent/guardian name">
+              </div>
+              <div>
+                <label>Parent Phone</label>
+                <input type="text" [(ngModel)]="studentForm.parentPhone" name="parentPhone" placeholder="+91 98765 43210">
+              </div>
+              <div>
+                <label>Parent Email</label>
+                <input type="email" [(ngModel)]="studentForm.parentEmail" name="parentEmail" placeholder="parent@example.com">
+              </div>
+              <div>
+                <label>Notify Parent Via</label>
+                <select [(ngModel)]="studentForm.notifyMedium" name="notifyMedium">
+                  <option value="PUSH">App Push Notification</option>
+                  <option value="SMS">SMS</option>
+                  <option value="WHATSAPP">WhatsApp</option>
+                </select>
+              </div>
+
               <div>
                 <label>Status</label>
                 <select [(ngModel)]="studentForm.isActive" name="isActive">
@@ -216,6 +301,8 @@ export class StudentsComponent implements OnInit {
   errorMessage = '';
   studentTab: 'basic' | 'details' = 'basic';
 
+  razorpayConfig: RazorpayConfig | null = null;
+
   studentForm: any = {
     name: '',
     email: '',
@@ -225,10 +312,43 @@ export class StudentsComponent implements OnInit {
     planId: null,
     batchId: null,
     linkedin: '',
-    github: ''
+    github: '',
+    parentName: '',
+    parentPhone: '',
+    parentEmail: '',
+    notifyMedium: 'PUSH',
+    paymentMethod: 'CASH'
   };
 
+    private errors = inject(ApiErrorService);
+
     constructor(private apiService: ApiService, private router: Router) {}
+
+  /** ONLINE is only selectable once the tenant has working Razorpay credentials. */
+  get onlineAvailable(): boolean {
+    return !!this.razorpayConfig?.paymentEnabled;
+  }
+
+  /** Paise to a rupee string, since every amount is stored in the smallest unit. */
+  formatMoney(paise?: number | null): string {
+    const rupees = (paise || 0) / 100;
+    return '₹' + rupees.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  feeLabel(s: Student): string {
+    if (s.paymentMethod !== 'ONLINE') return 'Cash';
+    return s.paymentStatus === 'COMPLETED' ? 'Paid ' + this.formatMoney(s.amountDue) : 'Due ' + this.formatMoney(s.amountDue);
+  }
+
+  feeBadgeBg(s: Student): string {
+    if (s.paymentMethod !== 'ONLINE') return '#F1F5F9';
+    return s.paymentStatus === 'COMPLETED' ? '#DCFCE7' : '#FEE2E2';
+  }
+
+  feeBadgeFg(s: Student): string {
+    if (s.paymentMethod !== 'ONLINE') return '#475569';
+    return s.paymentStatus === 'COMPLETED' ? '#166534' : '#991B1B';
+  }
 
   viewStudent(student: Student) {
     this.router.navigate(['/students', student.id]);
@@ -238,6 +358,15 @@ export class StudentsComponent implements OnInit {
     this.loadStudents();
     this.loadPlans();
     this.loadBatches();
+    this.loadRazorpayConfig();
+  }
+
+  loadRazorpayConfig() {
+    this.apiService.get<RazorpayConfig>('/api/org-razorpay-config').subscribe({
+      next: (data) => { this.razorpayConfig = data; },
+      // Not fatal: without it the form simply keeps ONLINE disabled.
+      error: () => { this.razorpayConfig = null; }
+    });
   }
 
   loadStudents() {
@@ -301,7 +430,12 @@ export class StudentsComponent implements OnInit {
       planId: null,
       batchId: null,
       linkedin: '',
-      github: ''
+      github: '',
+      parentName: '',
+      parentPhone: '',
+      parentEmail: '',
+      notifyMedium: 'PUSH',
+      paymentMethod: 'CASH'
     };
     this.showModal = true;
   }
@@ -319,7 +453,12 @@ export class StudentsComponent implements OnInit {
       planId: student.planId || null,
       batchId: student.batchId || null,
       linkedin: student.linkedin || '',
-      github: student.github || ''
+      github: student.github || '',
+      parentName: student.parentName || '',
+      parentPhone: student.parentPhone || '',
+      parentEmail: student.parentEmail || '',
+      notifyMedium: student.notifyMedium || 'PUSH',
+      paymentMethod: student.paymentMethod || 'CASH'
     };
     this.showModal = true;
   }
@@ -370,8 +509,7 @@ export class StudentsComponent implements OnInit {
         this.loadStudents();
       },
       error: (err) => {
-        console.error('Failed to delete student', err);
-        alert('Failed to delete student');
+        this.errors.show(err, 'Could not delete that student');
       }
     });
   }

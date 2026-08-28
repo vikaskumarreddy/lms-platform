@@ -71,6 +71,22 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "fcm_token", columnDefinition = "TEXT")
     private String fcmToken;
 
+    // ---- Parent/guardian contact (used for daily-attendance absentee alerts etc.) ----
+
+    @Column(name = "parent_name")
+    private String parentName;
+
+    @Column(name = "parent_phone", length = 30)
+    private String parentPhone;
+
+    @Column(name = "parent_email")
+    private String parentEmail;
+
+    /** Channel to notify the parent through. Defaults to PUSH (no behavior change for existing students). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "notify_medium", length = 20)
+    private NotifyMedium notifyMedium = NotifyMedium.PUSH;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private Set<Enrollment> enrollments;

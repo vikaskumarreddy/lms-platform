@@ -46,4 +46,12 @@ public class Exam extends BaseEntity {
     
     @Column(name = "link")
     private String link;
+
+    /**
+     * WEB publishes {@link #link} for the embedded browser; IN_APP means the
+     * question paper authored in the admin portal is answered inside the app.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_mode", nullable = false, length = 20)
+    private DeliveryMode deliveryMode = DeliveryMode.WEB;
 }

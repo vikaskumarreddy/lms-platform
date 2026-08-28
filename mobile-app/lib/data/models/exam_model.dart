@@ -14,6 +14,10 @@ class ExamModel {
   final String? submittedAt;
   final int? marksObtained;
   final bool? isGraded;
+  /// WEB opens [links]['details'] in the embedded browser; IN_APP means the paper
+  /// authored in the admin portal is answered inside the app.
+  final String deliveryMode;
+  final int questionCount;
   final Map<String, String>? links;
 
   ExamModel({
@@ -32,6 +36,8 @@ class ExamModel {
     this.submittedAt,
     this.marksObtained,
     this.isGraded,
+    this.deliveryMode = 'WEB',
+    this.questionCount = 0,
     this.links,
   });
 
@@ -57,9 +63,13 @@ class ExamModel {
       submittedAt: json['submittedAt'],
       marksObtained: json['marksObtained'],
       isGraded: json['isGraded'],
+      deliveryMode: json['deliveryMode'] ?? 'WEB',
+      questionCount: (json['questionCount'] as num?)?.toInt() ?? 0,
       links: links,
     );
   }
+
+  bool get isInApp => deliveryMode == 'IN_APP';
 
   String get formattedDate {
     final date = examDate;

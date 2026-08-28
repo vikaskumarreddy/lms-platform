@@ -12,6 +12,7 @@ interface Organization {
   logoUrl?: string;
   isActive: boolean;
   status?: string;
+  category?: string;
   purchaseDate?: string;
   expiryDate?: string;
   renewalCount?: number;
@@ -42,6 +43,7 @@ interface OrgFormData {
   domain: string;
   isActive: boolean;
   status: string;
+  category: string;
   purchaseDate: string;
   expiryDate: string;
   planId: number | null;
@@ -164,7 +166,7 @@ export class OrganizationsComponent implements OnInit {
 
   private blankForm(): OrgFormData {
     return {
-      name: '', slug: '', domain: '', isActive: true, status: 'ACTIVE',
+      name: '', slug: '', domain: '', isActive: true, status: 'ACTIVE', category: 'OTHER',
       purchaseDate: '', expiryDate: '', planId: null, orgSubscriptionId: null,
       billingCycle: 'MONTHLY', agreedPrice: null,
       limitStudents: null, limitFaculty: null, limitBranches: null, limitStorage: null,
@@ -190,6 +192,7 @@ export class OrganizationsComponent implements OnInit {
       domain: org.domain || '',
       isActive: org.isActive,
       status: org.status || 'ACTIVE',
+      category: org.category || 'OTHER',
       purchaseDate: (org.purchaseDate || '').slice(0, 16),
       expiryDate: (org.expiryDate || '').slice(0, 16),
       planId: org.planId || null,
@@ -253,6 +256,7 @@ export class OrganizationsComponent implements OnInit {
       domain: this.formData.domain,
       isActive: this.formData.isActive,
       status: this.formData.status,
+      category: this.formData.category,
       purchaseDate: this.formData.purchaseDate,
       expiryDate: this.formData.expiryDate,
       planId: this.formData.planId,
@@ -312,7 +316,7 @@ export class OrganizationsComponent implements OnInit {
     this.api.postForm(`/api/organizations/${this.editingId}/logo`, formData).subscribe({
       next: () => {
         this.loadOrganizations();
-        alert('Logo uploaded successfully');
+        this.errors.success('Logo uploaded successfully.');
       },
       error: (err) => console.error('Failed to upload logo:', err)
     });
@@ -380,12 +384,12 @@ export class OrganizationsComponent implements OnInit {
 
   createAdmin() {
     if (!this.adminFormData.email.trim() || !this.adminFormData.name.trim() || !this.adminFormData.password.trim()) {
-      alert('Email, Name, and Password are required');
+      this.errors.info('Email, Name, and Password are required.');
       return;
     }
 
     if (!this.selectedOrgId) {
-      alert('No organization selected');
+      this.errors.info('No organization selected.');
       return;
     }
 
@@ -398,17 +402,13 @@ export class OrganizationsComponent implements OnInit {
 
     this.api.post(`/api/organizations/${this.selectedOrgId}/admin`, payload).subscribe({
       next: () => {
-        alert('Organization admin created successfully!');
+        this.errors.success('Organization admin created successfully!');
         this.adminFormData = { email: '', name: '', password: '', phone: '', isActive: true };
         this.editingAdminId = null;
         this.adminFormVisible = false;
         this.loadOrgAdmins();
       },
-      error: (err) => {
-        console.error('Failed to create organization admin:', err);
-        const message = err.error?.error || err.error?.message || 'Check console for details.';
-        alert('Failed to create organization admin. ' + message);
-      }
+      error: (err) => this.errors.show(err, 'Could not create that organization admin')
     });
   }
 
@@ -440,11 +440,11 @@ export class OrganizationsComponent implements OnInit {
 
   updateAdmin() {
     if (!this.editingAdminId || !this.selectedOrgId) {
-      alert('No admin selected');
+      this.errors.info('No admin selected.');
       return;
     }
     if (!this.adminFormData.name.trim()) {
-      alert('Name is required');
+      this.errors.info('Name is required.');
       return;
     }
     const payload = {
@@ -455,15 +455,11 @@ export class OrganizationsComponent implements OnInit {
     };
     this.api.put(`/api/organizations/${this.selectedOrgId}/admin/${this.editingAdminId}`, payload).subscribe({
       next: () => {
-        alert('Organization admin updated successfully!');
+        this.errors.success('Organization admin updated successfully!');
         this.cancelAdminEdit();
         this.loadOrgAdmins();
       },
-      error: (err) => {
-        console.error('Failed to update organization admin:', err);
-        const message = err.error?.error || err.error?.message || 'Check console for details.';
-        alert('Failed to update organization admin. ' + message);
-      }
+      error: (err) => this.errors.show(err, 'Could not update that organization admin')
     });
   }
 
@@ -474,11 +470,7 @@ export class OrganizationsComponent implements OnInit {
       next: () => {
         this.loadOrgAdmins();
       },
-      error: (err) => {
-        console.error('Failed to delete organization admin:', err);
-        const message = err.error?.error || err.error?.message || 'Check console for details.';
-        alert('Failed to delete organization admin. ' + message);
-      }
+      error: (err) => this.errors.show(err, 'Could not delete that organization admin')
     });
   }
 
@@ -490,10 +482,7 @@ export class OrganizationsComponent implements OnInit {
       next: () => {
         this.loadOrganizations();
       },
-      error: (err) => {
-        console.error('Failed to renew organization:', err);
-        alert('Failed to renew organization.');
-      }
+      error: (err) => this.errors.show(err, 'Could not renew that organization')
     });
   }
 }

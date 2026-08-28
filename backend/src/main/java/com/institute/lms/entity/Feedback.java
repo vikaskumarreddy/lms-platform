@@ -17,7 +17,7 @@ public class Feedback extends BaseEntity {
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "course_id", nullable = false)
+    @JoinColumn(name = "course_id")
     private Course course;
 
     @Column(columnDefinition = "TEXT")
@@ -25,4 +25,8 @@ public class Feedback extends BaseEntity {
 
     @Column
     private Integer rating;
+
+    /** General / Bug / Feature / Course / Instructor — matches the mobile app's feedback-type chips. */
+    @Column
+    private String type;
 }

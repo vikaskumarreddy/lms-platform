@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay } from '../../utils/date.util';
 
 interface EventItem {
@@ -34,12 +35,28 @@ interface AttendanceRow {
       <h1 style="font-size:24px;font-weight:700;">✅ Attendance</h1>
     </div>
 
-    <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn" [class.btn-primary]="mode === 'event'" [class.btn-secondary]="mode !== 'event'" (click)="setMode('event')">By Event</button>
+      <button class="btn" [class.btn-primary]="mode === 'daily'" [class.btn-secondary]="mode !== 'daily'" (click)="setMode('daily')">Daily Attendance</button>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" *ngIf="mode === 'event'">
       <label style="font-weight:600;font-size:14px;">Select Event / Class:</label>
       <select [(ngModel)]="selectedEventId" (ngModelChange)="onEventChange()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;min-width:320px;">
         <option [ngValue]="null">-- Select an event --</option>
         <option *ngFor="let e of events" [ngValue]="e.id">{{ e.title }} ({{ formatDate(e.startTime) }}) {{ getBatchName(e.batchId) ? '- ' + getBatchName(e.batchId) : '' }}</option>
       </select>
+      <button class="btn btn-primary" [disabled]="!selectedEventId || saving" (click)="saveAttendance()">{{ saving ? 'Saving...' : 'Save Attendance' }}</button>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" *ngIf="mode === 'daily'">
+      <label style="font-weight:600;font-size:14px;">Batch:</label>
+      <select [(ngModel)]="selectedBatchId" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;min-width:220px;">
+        <option [ngValue]="null">-- Select a batch --</option>
+        <option *ngFor="let b of batches" [ngValue]="b.id">{{ b.name }}</option>
+      </select>
+      <label style="font-weight:600;font-size:14px;">Date:</label>
+      <input type="date" [(ngModel)]="selectedDate" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;">
       <button class="btn btn-primary" [disabled]="!selectedEventId || saving" (click)="saveAttendance()">{{ saving ? 'Saving...' : 'Save Attendance' }}</button>
     </div>
 
@@ -74,6 +91,7 @@ interface AttendanceRow {
 })
 export class AttendanceAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
 
   events: EventItem[] = [];
   batches: Batch[] = [];
@@ -83,9 +101,42 @@ export class AttendanceAdminComponent implements OnInit {
   loadingRows = false;
   saving = false;
 
+  mode: 'event' | 'daily' = 'event';
+  selectedBatchId: number | null = null;
+  selectedDate: string = new Date().toISOString().slice(0, 10);
+
   ngOnInit() {
     this.loadEvents();
     this.loadBatches();
+  }
+
+  setMode(mode: 'event' | 'daily') {
+    this.mode = mode;
+    this.selectedEventId = null;
+    this.rows = [];
+    this.eventTitle = '';
+    if (mode === 'daily') {
+      this.loadDailyAttendance();
+    }
+  }
+
+  loadDailyAttendance() {
+    if (!this.selectedBatchId || !this.selectedDate) {
+      this.selectedEventId = null;
+      this.rows = [];
+      return;
+    }
+    this.loadingRows = true;
+    this.api.post<{ eventId: number; eventTitle: string }>(`/api/attendance/daily/${this.selectedBatchId}/${this.selectedDate}`, {}).subscribe({
+      next: (data) => {
+        this.selectedEventId = data.eventId;
+        this.loadRowsForEvent(data.eventId);
+      },
+      error: (err) => {
+        this.loadingRows = false;
+        this.errors.show(err, 'Failed to load daily attendance');
+      }
+    });
   }
 
   loadEvents() {
@@ -118,7 +169,11 @@ export class AttendanceAdminComponent implements OnInit {
       return;
     }
     this.loadingRows = true;
-    this.api.get<{ eventTitle: string; students: AttendanceRow[] }>(`/api/attendance/event/${this.selectedEventId}`).subscribe({
+    this.loadRowsForEvent(this.selectedEventId);
+  }
+
+  private loadRowsForEvent(eventId: number) {
+    this.api.get<{ eventTitle: string; students: AttendanceRow[] }>(`/api/attendance/event/${eventId}`).subscribe({
       next: (data) => {
         this.eventTitle = data.eventTitle;
         this.rows = data.students || [];
@@ -142,12 +197,11 @@ export class AttendanceAdminComponent implements OnInit {
     this.api.post(`/api/attendance/event/${this.selectedEventId}/mark`, { records }).subscribe({
       next: () => {
         this.saving = false;
-        alert('Attendance saved successfully.');
+        this.errors.success('Attendance saved successfully.');
       },
       error: (err) => {
         this.saving = false;
-        console.error('Failed to save attendance', err);
-        alert('Failed to save attendance.');
+        this.errors.show(err, 'Failed to save attendance');
       }
     });
   }

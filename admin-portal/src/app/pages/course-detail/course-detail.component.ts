@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { RichTextToHtmlService } from '../../services/rich-text-to-html.service';
 
 interface Lesson {
@@ -97,6 +98,7 @@ export class CourseDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private api: ApiService,
+    private errors: ApiErrorService,
     private sanitizer: DomSanitizer,
     private richText: RichTextToHtmlService
   ) {}
@@ -175,12 +177,12 @@ export class CourseDetailComponent implements OnInit {
     if (this.editingModule) {
       this.api.put(`/api/modules/${this.editingModule.id}`, this.moduleForm).subscribe({
         next: () => { this.savingModule = false; this.closeModuleModal(); this.loadCourse(); },
-        error: (err) => { this.savingModule = false; alert('Failed to update module: ' + (err.error?.message || err.message)); }
+        error: (err) => { this.savingModule = false; this.errors.show(err, 'Failed to update module'); }
       });
     } else {
       this.api.post(`/api/modules/course/${this.courseId}`, this.moduleForm).subscribe({
         next: () => { this.savingModule = false; this.closeModuleModal(); this.loadCourse(); },
-        error: (err) => { this.savingModule = false; alert('Failed to add module: ' + (err.error?.message || err.message)); }
+        error: (err) => { this.savingModule = false; this.errors.show(err, 'Failed to add module'); }
       });
     }
   }
@@ -189,7 +191,7 @@ export class CourseDetailComponent implements OnInit {
     if (!confirm(`Delete module "${m.title}" and all its lessons?`)) return;
     this.api.delete(`/api/modules/${m.id}`).subscribe({
       next: () => this.loadCourse(),
-      error: () => alert('Failed to delete module')
+      error: (err) => this.errors.show(err, 'Failed to delete module')
     });
   }
 
@@ -225,12 +227,12 @@ export class CourseDetailComponent implements OnInit {
     if (this.editingLesson) {
       this.api.put(`/api/lessons/${this.editingLesson.id}`, this.lessonForm).subscribe({
         next: () => { this.savingLesson = false; this.closeLessonModal(); this.loadCourse(); },
-        error: (err) => { this.savingLesson = false; alert('Failed to update lesson: ' + (err.error?.message || err.message)); }
+        error: (err) => { this.savingLesson = false; this.errors.show(err, 'Failed to update lesson'); }
       });
     } else {
       this.api.post(`/api/lessons/module/${this.activeModuleForLesson.id}`, this.lessonForm).subscribe({
         next: () => { this.savingLesson = false; this.closeLessonModal(); this.loadCourse(); },
-        error: (err) => { this.savingLesson = false; alert('Failed to add lesson: ' + (err.error?.message || err.message)); }
+        error: (err) => { this.savingLesson = false; this.errors.show(err, 'Failed to add lesson'); }
       });
     }
   }
@@ -239,7 +241,7 @@ export class CourseDetailComponent implements OnInit {
     if (!confirm(`Delete lesson "${l.title}"?`)) return;
     this.api.delete(`/api/lessons/${l.id}`).subscribe({
       next: () => this.loadCourse(),
-      error: () => alert('Failed to delete lesson')
+      error: (err) => this.errors.show(err, 'Failed to delete lesson')
     });
   }
 

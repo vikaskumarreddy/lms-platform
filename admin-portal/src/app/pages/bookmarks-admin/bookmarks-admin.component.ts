@@ -1,9 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Bookmark {
   id: number;
+  userId: number;
+  studentName?: string;
+  studentEmail?: string;
   lessonId: number;
   lessonTitle: string;
   lessonType: string;
@@ -28,6 +32,7 @@ interface Bookmark {
       <table>
         <thead>
           <tr>
+            <th>Student</th>
             <th>Lesson Title</th>
             <th>Type</th>
             <th>Course</th>
@@ -37,7 +42,8 @@ interface Bookmark {
         </thead>
         <tbody>
           <tr *ngFor="let b of bookmarks">
-            <td style="font-weight:600;">{{b.lessonTitle}}</td>
+            <td style="font-weight:600;">{{b.studentName || b.studentEmail || 'Unknown'}}</td>
+            <td>{{b.lessonTitle}}</td>
             <td><span class="badge badge-info">{{b.lessonType}}</span></td>
             <td>{{b.courseName || 'N/A'}}</td>
             <td>{{b.bookmarkedAt}}</td>
@@ -52,6 +58,7 @@ interface Bookmark {
 })
 export class BookmarksAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
   bookmarks: Bookmark[] = [];
 
   ngOnInit(): void {
@@ -71,13 +78,12 @@ export class BookmarksAdminComponent implements OnInit {
 
   deleteBookmark(bookmark: Bookmark): void {
     if (!confirm(`Delete bookmark for "${bookmark.lessonTitle}"?`)) return;
-    this.api.delete(`/api/bookmarks/user/0/lesson/${bookmark.lessonId}`).subscribe({
+    this.api.delete(`/api/bookmarks/user/${bookmark.userId}/lesson/${bookmark.lessonId}`).subscribe({
       next: () => {
         this.bookmarks = this.bookmarks.filter(b => b.id !== bookmark.id);
       },
       error: (err: any) => {
-        console.error('Failed to delete bookmark', err);
-        alert('Failed to delete bookmark');
+        this.errors.show(err, 'Could not delete that bookmark');
       }
     });
   }

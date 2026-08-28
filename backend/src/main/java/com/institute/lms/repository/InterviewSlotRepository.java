@@ -11,4 +11,7 @@ public interface InterviewSlotRepository extends JpaRepository<InterviewSlot, Lo
     List<InterviewSlot> findByDriveIdOrderBySlotTimeAsc(Long driveId);
     List<InterviewSlot> findByBookedByUserId(Long userId);
     List<InterviewSlot> findByBookedByUserIdIsNotNull();
+
+    /** Used to block a student from holding two slots on the same drive at once. */
+    List<InterviewSlot> findByDriveIdAndBookedByUserId(Long driveId, Long userId);
 }

@@ -1,0 +1,72 @@
+# Backend
+backend/target/
+backend/.idea/
+backend/*.iml
+backend/.classpath
+backend/.project
+backend/.settings/
+backend/bin/
+*.class
+*.jar
+*.war
+*.ear
+
+# Node (any depth, any package under the repo)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Admin Portal
+admin-portal/dist/
+admin-portal/.angular/
+admin-portal/coverage/
+
+# JVM crash dumps / diagnostic dumps that Java drops in the cwd on crash
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+
+# Misc log / diff dumps accidentally left at repo root
+*.log
+diffout.txt
+*.iml
+
+# Mobile App
+mobile-app/.dart_tool/
+mobile-app/build/
+mobile-app/pubspec.lock
+mobile-app/.packages
+mobile-app/.flutter-plugins
+mobile-app/.flutter-plugins-dependencies
+mobile-app/.gradle/
+mobile-app/android/local.properties
+mobile-app/android/build/
+mobile-app/android/app/build/
+mobile-app/android/sqflite-build-info.txt
+mobile-app/android/sqflite-debug.txt
+mobile-app/.artifacts/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+application.properties.local
+
+# OS
+$RECYCLE.BIN/
+.Spotlight-V100
+.Trashes
+
+# Temporary
+*.tmp
+*.temp
+.tmp_*

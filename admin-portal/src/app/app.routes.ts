@@ -22,6 +22,8 @@ import { BatchesComponent } from './pages/batches/batches.component';
 import { GradingAdminComponent } from './pages/grading-admin/grading-admin.component';
 import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
+import { AssessmentPaperComponent } from './pages/assessment-paper/assessment-paper.component';
+import { PaymentSettingsComponent } from './pages/payment-settings/payment-settings.component';
 import { OrganizationsComponent } from './pages/organizations/organizations.component';
 import { OrgSubscriptionsComponent } from './pages/org-subscriptions/org-subscriptions.component';
 import { AccountComponent } from './pages/account/account.component';
@@ -54,6 +56,8 @@ export const routes: Routes = [
       { path: 'calendar-events', component: CalendarEventsComponent },
       { path: 'assignments-admin', component: AssignmentsAdminComponent },
       { path: 'exams-admin', component: ExamsAdminComponent },
+      // Question-paper builder for an in-app assignment/exam; :type is "assignments" or "exams".
+      { path: 'assessment-paper/:type/:id', component: AssessmentPaperComponent },
       { path: 'grading-admin', component: GradingAdminComponent },
       { path: 'attendance-admin', component: AttendanceAdminComponent },
       { path: 'certificates-admin', component: CertificatesAdminComponent },
@@ -64,6 +68,9 @@ export const routes: Routes = [
       { path: 'bookmarks-admin', component: BookmarksAdminComponent },
       { path: 'batches', component: BatchesComponent },
       { path: 'payments', component: PaymentsComponent },
+      // The tenant's own Razorpay credentials — fees are collected into the
+      // institute's account, so the keys are per-organization, not per-deployment.
+      { path: 'payment-settings', component: PaymentSettingsComponent },
       { path: 'settings', component: SettingsComponent }
     ]
   },

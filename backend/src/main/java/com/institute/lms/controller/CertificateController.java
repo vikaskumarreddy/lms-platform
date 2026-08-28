@@ -12,20 +12,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.institute.lms.service.NotificationService;
 
 @RestController
 @RequestMapping("/api/certificates")
 public class CertificateController {
 
     private final CertificateRepository certificateRepository;
+    private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final UserContext userContext;
 
     public CertificateController(CertificateRepository certificateRepository, UserRepository userRepository,
-                                 UserContext userContext) {
+                                 UserContext userContext,
+                                 NotificationService notificationService) {
         this.certificateRepository = certificateRepository;
         this.userRepository = userRepository;
         this.userContext = userContext;
+        this.notificationService = notificationService;
     }
 
     @GetMapping
@@ -64,7 +68,16 @@ public class CertificateController {
         cert.setDuration(body.get("duration") != null ? String.valueOf(body.get("duration")) : null);
         cert.setCredentialId("CERT-" + userId + "-" + System.currentTimeMillis());
 
-        return ResponseEntity.ok(toMap(certificateRepository.save(cert)));
+        Certificate saved = certificateRepository.save(cert);
+
+        // A certificate belongs to exactly one student, so no audience resolution.
+        notificationService.safeNotifyUser(
+                userId,
+                "Certificate issued",
+                "Your certificate for " + saved.getCourseName() + " is ready to download.",
+                "certificate", "/certificates");
+
+        return ResponseEntity.ok(toMap(saved));
     }
 
     @DeleteMapping("/{id}")

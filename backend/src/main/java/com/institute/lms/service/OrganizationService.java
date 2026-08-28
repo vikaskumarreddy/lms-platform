@@ -223,6 +223,36 @@ public class OrganizationService {
         return org;
     }
 
+    /** Sets the org's category (SCHOOL/COLLEGE/ACADEMY/TRAINING_INSTITUTE/OTHER). Null/blank leaves it unchanged. */
+    public Organization updateCategory(Long id, String category) {
+        Organization org = organizationRepository.findById(id).orElseThrow(() ->
+                ResourceNotFoundException.of("Organization", id));
+        if (category != null && !category.isBlank()) {
+            try {
+                org.setCategory(com.institute.lms.entity.OrgCategory.valueOf(category.trim().toUpperCase()));
+                organizationRepository.save(org);
+            } catch (IllegalArgumentException ignored) {
+                // Unknown category value: leave the existing category untouched rather than fail the request.
+            }
+        }
+        return org;
+    }
+
+    /** Which payment gateway {@code StudentPaymentService} uses to collect this org's fees. */
+    public Organization updateActiveGateway(Long id, String gateway) {
+        Organization org = organizationRepository.findById(id).orElseThrow(() ->
+                ResourceNotFoundException.of("Organization", id));
+        if (gateway != null && !gateway.isBlank()) {
+            try {
+                org.setActiveGateway(com.institute.lms.entity.PaymentGateway.valueOf(gateway.trim().toUpperCase()));
+                organizationRepository.save(org);
+            } catch (IllegalArgumentException ignored) {
+                // Unknown gateway value: leave the existing gateway untouched rather than fail the request.
+            }
+        }
+        return org;
+    }
+
     /** Updates the billing identity and contact details shown on the Account page. */
     public Organization updateBillingDetails(Long id, Map<String, String> fields) {
         Organization org = organizationRepository.findById(id).orElseThrow(() ->

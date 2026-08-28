@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
 
 interface SubscriptionPlan {
@@ -187,6 +188,7 @@ interface CalendarEvent {
 })
 export class CalendarEventsComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
   showForm = false;
   editingId: number | null = null;
   eventTab: 'basic' | 'details' = 'basic';
@@ -225,14 +227,14 @@ export class CalendarEventsComponent implements OnInit {
   loadPlans() {
     this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (data) => { this.plans = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load subscription plans')
     });
   }
 
   loadBatches() {
     this.api.get<Batch[]>('/api/batches').subscribe({
       next: (data) => { this.batches = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load batches')
     });
   }
 
@@ -326,7 +328,7 @@ export class CalendarEventsComponent implements OnInit {
     if (confirm('Delete this event?')) {
       this.api.delete(`/api/events/${e.id}`).subscribe({
         next: () => { this.events = this.events.filter(ev => ev.id !== e.id); },
-        error: (err) => { console.error('Failed to delete event:', err); alert('Failed to delete event'); }
+        error: (err) => { this.errors.show(err, 'Failed to delete event'); }
       });
     }
   }

@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Plan {
   id: number;
@@ -14,6 +15,23 @@ interface Plan {
   color: string;
   period: string;
   isPopular: boolean;
+}
+
+/** A student's request to move plan, raised from the mobile app. */
+interface PlanRequest {
+  id: number;
+  studentId: number;
+  studentName: string;
+  studentEmail?: string;
+  requestedPlanId: number;
+  requestedPlanName: string;
+  currentPlanId?: number | null;
+  currentPlanName?: string | null;
+  status: string;
+  studentNote?: string | null;
+  decisionNote?: string | null;
+  createdAt?: string;
+  decidedAt?: string | null;
 }
 
 interface Subscription {
@@ -60,6 +78,85 @@ interface PlanFormData {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">⭐ Subscription Plans</h1>
       <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Plan' }}</button>
+    </div>
+
+    <!-- Upgrade requests. Sits above everything else because it is the only part
+         of this page with a queue waiting on the admin. -->
+    <div class="card" style="margin-bottom:20px;" *ngIf="planRequests.length || requestsLoaded">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <h3 style="margin:0;">
+          📥 Plan Upgrade Requests
+          <span class="badge" *ngIf="pendingRequests.length"
+                style="background:#FEF3C7;color:#92400E;margin-left:8px;">
+            {{ pendingRequests.length }} pending
+          </span>
+        </h3>
+        <label style="font-size:13px;color:#64748B;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" [(ngModel)]="showDecidedRequests" (change)="loadPlanRequests()">
+          Show decided
+        </label>
+      </div>
+      <p style="color:#64748B;font-size:13px;margin:0 0 16px;">
+        Raised by students from the mobile app. Approving moves the student onto the plan
+        immediately and notifies them.
+      </p>
+
+      <table *ngIf="visibleRequests.length">
+        <thead>
+          <tr>
+            <th>Student</th><th>From → To</th><th>Note</th><th>Requested</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of visibleRequests">
+            <td>
+              <div style="font-weight:600;">{{ r.studentName }}</div>
+              <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
+            </td>
+            <td style="font-size:13px;">
+              <span style="color:#64748B;">{{ r.currentPlanName || 'No plan' }}</span>
+              <span style="margin:0 6px;">→</span>
+              <strong>{{ r.requestedPlanName }}</strong>
+            </td>
+            <td style="max-width:220px;font-size:13px;color:#475569;">
+              {{ r.studentNote || '—' }}
+              <div *ngIf="r.decisionNote" style="color:#94A3B8;font-size:12px;margin-top:2px;">
+                Decision: {{ r.decisionNote }}
+              </div>
+            </td>
+            <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
+            <td>
+              <span class="badge"
+                    [class.badge-warning]="r.status === 'PENDING'"
+                    [class.badge-success]="r.status === 'APPROVED'"
+                    [class.badge-danger]="r.status === 'REJECTED'">
+                {{ r.status }}
+              </span>
+            </td>
+            <td style="white-space:nowrap;">
+              <ng-container *ngIf="r.status === 'PENDING'">
+                <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-right:6px;"
+                        [disabled]="decidingId === r.id" (click)="decideRequest(r, true)">
+                  {{ decidingId === r.id ? '…' : 'Approve' }}
+                </button>
+                <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;"
+                        [disabled]="decidingId === r.id" (click)="decideRequest(r, false)">
+                  Reject
+                </button>
+              </ng-container>
+              <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="!visibleRequests.length" style="color:#64748B;padding:16px;text-align:center;">
+        {{ showDecidedRequests ? 'No upgrade requests yet.' : 'No pending requests.' }}
+      </div>
+
+      <div *ngIf="requestError" style="margin-top:12px;padding:10px 12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:13px;">
+        {{ requestError }}
+      </div>
     </div>
 
     <!-- Plan Form -->
@@ -186,6 +283,7 @@ interface PlanFormData {
 })
 export class SubscriptionsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
   plans: Plan[] = [];
   subscriptions: Subscription[] = [];
   students: Student[] = [];
@@ -194,6 +292,12 @@ export class SubscriptionsAdminComponent implements OnInit {
   editingId: number | null = null;
   loading = false;
   errorMsg = '';
+
+  planRequests: PlanRequest[] = [];
+  requestsLoaded = false;
+  showDecidedRequests = false;
+  decidingId: number | null = null;
+  requestError = '';
 
   assignForm: { studentId: number | null; planId: number | null } = { studentId: null, planId: null };
   assigning = false;
@@ -208,6 +312,71 @@ export class SubscriptionsAdminComponent implements OnInit {
     this.loadPlans();
     this.loadSubscriptions();
     this.loadStudents();
+    this.loadPlanRequests();
+  }
+
+  get pendingRequests(): PlanRequest[] {
+    return this.planRequests.filter(r => r.status === 'PENDING');
+  }
+
+  /** Pending only by default; decided rows are history and would bury the queue. */
+  get visibleRequests(): PlanRequest[] {
+    return this.showDecidedRequests ? this.planRequests : this.pendingRequests;
+  }
+
+  loadPlanRequests() {
+    const status = this.showDecidedRequests ? 'ALL' : 'PENDING';
+    this.api.get<PlanRequest[]>(`/api/student-plan-requests?status=${status}`).subscribe({
+      next: (data) => { this.planRequests = data || []; this.requestsLoaded = true; },
+      error: (err) => {
+        console.error('Failed to load plan requests', err);
+        this.planRequests = [];
+        this.requestsLoaded = true;
+      }
+    });
+  }
+
+  decideRequest(request: PlanRequest, approve: boolean) {
+    const verb = approve ? 'Approve' : 'Reject';
+    const confirmText = approve
+      ? `Move ${request.studentName} to the ${request.requestedPlanName} plan?`
+      : `Reject ${request.studentName}'s request for ${request.requestedPlanName}?`;
+    if (!confirm(confirmText)) return;
+
+    // A rejection without a reason is unhelpful to the student, so ask for one —
+    // but do not force it, since the admin may have explained in person.
+    let note: string | null = null;
+    if (!approve) {
+      note = prompt('Reason (optional, shown to the student):', '');
+      if (note === null) return; // cancelled the prompt
+    }
+
+    this.decidingId = request.id;
+    this.requestError = '';
+    const action = approve ? 'approve' : 'reject';
+
+    this.api.put(`/api/student-plan-requests/${request.id}/${action}`, { note }).subscribe({
+      next: () => {
+        this.decidingId = null;
+        this.loadPlanRequests();
+        // The student's plan changed, so the assignment tables below are now stale.
+        this.loadStudents();
+        this.loadSubscriptions();
+      },
+      error: (err) => {
+        this.decidingId = null;
+        console.error(`Failed to ${action} request`, err);
+        this.requestError = err.error?.error || `Could not ${verb.toLowerCase()} the request.`;
+      }
+    });
+  }
+
+  formatDate(value?: string | null): string {
+    if (!value) return '—';
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    });
   }
 
   loadStudents() {
@@ -259,7 +428,7 @@ export class SubscriptionsAdminComponent implements OnInit {
         this.onStudentSelected(this.assignForm.studentId);
         this.loadSubscriptions();
       },
-      error: () => { alert('Failed to remove subscription'); }
+      error: (err) => { this.errors.show(err, 'Could not remove that subscription'); }
     });
   }
 
@@ -274,7 +443,7 @@ export class SubscriptionsAdminComponent implements OnInit {
   loadSubscriptions() {
     this.api.get<Subscription[]>('/api/subscriptions').subscribe({
       next: (data) => { this.subscriptions = data; },
-      error: () => {}
+      error: (err) => this.errors.show(err, 'Could not load subscriptions')
     });
   }
 

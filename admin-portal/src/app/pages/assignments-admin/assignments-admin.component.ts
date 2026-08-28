@@ -1,7 +1,9 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
 
 interface SubscriptionPlan { id: number; name: string; price: number; period: string; }
@@ -59,8 +61,19 @@ interface Batch { id: number; name: string; isActive: boolean; }
                 <input type="datetime-local" [(ngModel)]="formData.dueDate" name="dueDate">
               </div>
               <div>
+                <label>Delivery Mode</label>
+                <select [(ngModel)]="formData.deliveryMode" name="deliveryMode">
+                  <option value="WEB">Web - open a link</option>
+                  <option value="IN_APP">In-App - question paper</option>
+                </select>
+              </div>
+              <div *ngIf="formData.deliveryMode !== 'IN_APP'">
                 <label>Link URL</label>
                 <input type="text" [(ngModel)]="formData.link" name="link" placeholder="https://example.com">
+              </div>
+              <div *ngIf="formData.deliveryMode === 'IN_APP'" class="full-width"
+                   style="background:#F0FDFA;border:1px solid #5EEAD4;border-radius:10px;padding:10px 12px;font-size:13px;color:#134E4A;">
+                Students answer this inside the app. Save it, then use <strong>Create Paper</strong> in the Actions column to add questions.
               </div>
             </div>
           </fieldset>
@@ -118,7 +131,7 @@ interface Batch { id: number; name: string; isActive: boolean; }
     </div>
 
     <div class="card">
-      <table><thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Subscription</th><th>Batch</th><th>Status</th><th>Marks</th><th>Link</th><th>Actions</th></tr></thead>
+      <table><thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Subscription</th><th>Batch</th><th>Status</th><th>Marks</th><th>Mode</th><th>Link / Paper</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let a of assignments">
             <td style="font-weight:600;">{{a.title}}</td>
@@ -128,14 +141,29 @@ interface Batch { id: number; name: string; isActive: boolean; }
             <td><span *ngIf="a.batchIds?.length" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{getBatchNames(a.batchIds)}}</span><span *ngIf="!a.batchIds?.length" style="color:#64748B;font-size:13px;">All</span></td>
             <td><span class="badge" [class.badge-warning]="a.status === 'Pending'" [class.badge-success]="a.status === 'Graded'" [class.badge-danger]="a.status === 'Overdue'">{{a.status || 'Pending'}}</span></td>
             <td>{{a.totalMarks || a.marks}}</td>
-            <td><a *ngIf="a.link" href="{{a.link}}" target="_blank" style="color:#0F172A;text-decoration:underline;">🔗 Link</a><span *ngIf="!a.link" style="color:#94A3B8;">-</span></td>
             <td>
+              <span class="badge" [style.background]="a.deliveryMode === 'IN_APP' ? '#CCFBF1' : '#EEF2FF'"
+                    [style.color]="a.deliveryMode === 'IN_APP' ? '#134E4A' : '#4338CA'">
+                {{a.deliveryMode === 'IN_APP' ? 'In-App' : 'Web'}}
+              </span>
+            </td>
+            <td>
+              <span *ngIf="a.deliveryMode === 'IN_APP'" class="badge" style="background:#F1F5F9;color:#475569;">
+                {{questionCounts[a.id] || 0}} question{{(questionCounts[a.id] || 0) === 1 ? '' : 's'}}
+              </span>
+              <a *ngIf="a.deliveryMode !== 'IN_APP' && a.link" href="{{a.link}}" target="_blank" style="color:#0F172A;text-decoration:underline;">🔗 Link</a>
+              <span *ngIf="a.deliveryMode !== 'IN_APP' && !a.link" style="color:#94A3B8;">-</span>
+            </td>
+            <td>
+              <button *ngIf="a.deliveryMode === 'IN_APP'" class="btn btn-primary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openPaper(a)">
+                {{questionCounts[a.id] ? 'Edit Paper' : 'Create Paper'}}
+              </button>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="edit(a)">Edit</button>
               <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="delete(a)">Delete</button>
             </td>
           </tr>
           <tr *ngIf="assignments.length === 0">
-            <td colspan="9" style="text-align:center;padding:32px;color:#64748B;">No assignments found. Click "+ Add Assignment" to create one.</td>
+            <td colspan="11" style="text-align:center;padding:32px;color:#64748B;">No assignments found. Click "+ Add Assignment" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -144,6 +172,8 @@ interface Batch { id: number; name: string; isActive: boolean; }
 })
 export class AssignmentsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private router = inject(Router);
+  private errors = inject(ApiErrorService);
   showModal = false; editingId: number | null = null;
   assignTab: 'basic' | 'details' = 'basic';
   saving = false;
@@ -151,33 +181,52 @@ export class AssignmentsAdminComponent implements OnInit {
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   selectedBatchIds: number[] = [];
-  formData: any = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, batchIds: [] };
+  /** Question count per assignment id, so every In-App row can be badged from one request. */
+  questionCounts: Record<number, number> = {};
+  formData: any = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, batchIds: [], deliveryMode: 'WEB', link: '' };
       assignments: any[] = [];
 
   ngOnInit() {
     this.loadPlans();
     this.loadBatches();
     this.loadAssignments();
+    this.loadQuestionCounts();
+  }
+
+  /** One request badges every In-App row, instead of one request per row. */
+  loadQuestionCounts() {
+    this.api.get<Record<string, number>>('/api/assessments/assignments/question-counts').subscribe({
+      next: (data) => {
+        const counts: Record<number, number> = {};
+        Object.keys(data || {}).forEach(k => counts[Number(k)] = (data as any)[k]);
+        this.questionCounts = counts;
+      },
+      error: err => this.errors.show(err, 'Could not load question counts')
+    });
+  }
+
+  openPaper(a: any) {
+    this.router.navigate(['/assessment-paper', 'assignments', a.id]);
   }
 
   loadAssignments() {
     this.api.get<any[]>('/api/assignments').subscribe({
       next: (data) => { this.assignments = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load assignments')
     });
   }
 
   loadPlans() {
     this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (data) => { this.plans = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load subscription plans')
     });
   }
 
   loadBatches() {
     this.api.get<Batch[]>('/api/batches').subscribe({
       next: (data) => { this.batches = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load batches')
     });
   }
 
@@ -204,7 +253,9 @@ export class AssignmentsAdminComponent implements OnInit {
       batchIds: this.selectedBatchIds.length > 0 ? this.selectedBatchIds : [],
       courseId: Number(this.formData.courseId) || null,
       isActive: true,
-      link: this.formData.link || null
+      deliveryMode: this.formData.deliveryMode || 'WEB',
+      // An in-app paper has no external link; keeping a stale one would confuse the app.
+      link: this.formData.deliveryMode === 'IN_APP' ? null : (this.formData.link || null)
     };
 
     if (this.editingId) {
@@ -213,8 +264,9 @@ export class AssignmentsAdminComponent implements OnInit {
           const i = this.assignments.findIndex(a => a.id === this.editingId);
           if (i > -1) this.assignments[i] = { ...payload, id: this.editingId, status: this.formData.status, planId: this.formData.planId, batchIds: this.selectedBatchIds };
           this.resetForm();
+          this.loadQuestionCounts();
         },
-        error: (err) => { console.error('Failed to update:', err); alert('Failed to update assignment'); }
+        error: (err) => { console.error('Failed to update:', err); this.errors.show(err, 'Could not update assignment'); }
       });
     } else {
       this.api.post<any>('/api/assignments', payload).subscribe({
@@ -222,7 +274,7 @@ export class AssignmentsAdminComponent implements OnInit {
           this.assignments.push({ ...payload, id: saved?.id || Date.now(), status: this.formData.status, planId: this.formData.planId, batchIds: this.selectedBatchIds });
           this.resetForm();
         },
-        error: (err) => { console.error('Failed to create:', err); alert('Failed to create assignment'); }
+        error: (err) => { console.error('Failed to create:', err); this.errors.show(err, 'Could not create assignment'); }
       });
     }
   }
@@ -231,7 +283,7 @@ export class AssignmentsAdminComponent implements OnInit {
     this.editingId = null;
     this.errorMessage = '';
     this.assignTab = 'basic';
-    this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, batchIds: [], link: '' };
+    this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, batchIds: [], link: '', deliveryMode: 'WEB' };
     this.selectedBatchIds = [];
     this.showModal = true;
   }
@@ -253,7 +305,8 @@ export class AssignmentsAdminComponent implements OnInit {
       marks: a.totalMarks || a.marks || 100,
       description: a.description,
       planId: a.planId || null,
-      link: a.link || ''
+      link: a.link || '',
+      deliveryMode: a.deliveryMode || 'WEB'
     };
     this.selectedBatchIds = a.batchIds || [];
     this.showModal = true;
@@ -263,7 +316,7 @@ export class AssignmentsAdminComponent implements OnInit {
     if (confirm('Delete assignment?')) {
       this.api.delete(`/api/assignments/${a.id}`).subscribe({
         next: () => { this.assignments = this.assignments.filter(x => x.id !== a.id); },
-        error: (err) => { console.error('Failed to delete:', err); alert('Failed to delete assignment'); }
+        error: (err) => { console.error('Failed to delete:', err); this.errors.show(err, 'Could not delete assignment'); }
       });
     }
   }
@@ -273,7 +326,7 @@ export class AssignmentsAdminComponent implements OnInit {
   }
 
   resetForm() {
-    this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, link: '', batchIds: [] };
+    this.formData = { title: '', courseId: null, dueDate: '', status: 'Pending', marks: 100, description: '', planId: null, link: '', batchIds: [], deliveryMode: 'WEB' };
     this.selectedBatchIds = [];
     this.editingId = null;
     this.assignTab = 'basic';

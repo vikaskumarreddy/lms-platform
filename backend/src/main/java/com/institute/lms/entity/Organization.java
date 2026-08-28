@@ -43,6 +43,16 @@ public class Organization {
     @Column(nullable = false)
     private String status = "ACTIVE";
 
+    /** Broad institution type; drives category-specific admin menu items. Null on legacy rows means OTHER. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 30)
+    private OrgCategory category;
+
+    /** Payment gateway used to collect student fees. Null on legacy rows means RAZORPAY. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "active_gateway", length = 30)
+    private PaymentGateway activeGateway;
+
     /** Date the current subscription / plan was purchased (or renewed). */
     @Column(name = "purchase_date")
     private LocalDateTime purchaseDate;

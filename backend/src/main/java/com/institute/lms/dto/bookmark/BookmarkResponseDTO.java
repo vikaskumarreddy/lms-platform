@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 @Data
 public class BookmarkResponseDTO {
     private Long id;
+    private Long userId;
+    private String studentName;
+    private String studentEmail;
     private Long lessonId;
     private String lessonTitle;
     private String lessonType;

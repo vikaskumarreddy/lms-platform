@@ -1,11 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay } from '../../utils/date.util';
 
-interface Assignment { id: number; title: string; totalMarks?: number; }
-interface Exam { id: number; title: string; totalMarks?: number; }
+interface Assignment { id: number; title: string; totalMarks?: number; deliveryMode?: string; }
+interface Exam { id: number; title: string; totalMarks?: number; deliveryMode?: string; }
 interface SubmissionUser { id: number; fullName?: string; name?: string; email?: string; }
 interface AssignmentSubmission {
   id: number;
@@ -51,6 +53,11 @@ interface ExamSubmission {
       </select>
     </div>
 
+    <div class="card" style="margin-bottom:20px;background:#F0FDFA;border:1px solid #5EEAD4;color:#134E4A;font-size:13px;padding:12px 16px;">
+      Submissions marked <strong>Auto</strong> come from an in-app question paper and are already graded.
+      Use <strong>Answers</strong> to see exactly which options each student picked.
+    </div>
+
     <div class="card" *ngIf="tab==='assignments'">
       <table>
         <thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>Content</th><th>Marks</th><th>Feedback</th><th>Status</th><th>Actions</th></tr></thead>
@@ -65,8 +72,14 @@ interface ExamSubmission {
               <span style="color:#94A3B8;font-size:12px;">/ {{ getAssignmentMax(s.assignmentId) }}</span>
             </td>
             <td style="width:180px;"><textarea [(ngModel)]="s._feedback" rows="1" placeholder="Feedback" style="width:100%;padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;"></textarea></td>
-            <td><span class="badge" [class.badge-success]="s.isGraded" [class.badge-warning]="!s.isGraded">{{ s.isGraded ? 'Graded' : 'Pending' }}</span></td>
-            <td><button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" (click)="gradeAssignment(s)">Save & Grade</button></td>
+            <td>
+              <span class="badge" [class.badge-success]="s.isGraded" [class.badge-warning]="!s.isGraded">{{ s.isGraded ? 'Graded' : 'Pending' }}</span>
+              <span *ngIf="isInAppAssignment(s.assignmentId)" class="badge" style="background:#CCFBF1;color:#134E4A;margin-left:6px;">Auto</span>
+            </td>
+            <td style="white-space:nowrap;">
+              <button *ngIf="isInAppAssignment(s.assignmentId)" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;margin-right:6px;" (click)="viewAnswers('assignments', s.assignmentId)">👁 Answers</button>
+              <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" (click)="gradeAssignment(s)">Save & Grade</button>
+            </td>
           </tr>
           <tr *ngIf="filteredAssignmentSubmissions.length === 0">
             <td colspan="8" style="text-align:center;padding:32px;color:#64748B;">No assignment submissions found.</td>
@@ -89,8 +102,14 @@ interface ExamSubmission {
               <span style="color:#94A3B8;font-size:12px;">/ {{ getExamMax(s.examId) }}</span>
             </td>
             <td style="width:180px;"><textarea [(ngModel)]="s._remarks" rows="1" placeholder="Remarks" style="width:100%;padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;"></textarea></td>
-            <td><span class="badge" [class.badge-success]="s.isGraded" [class.badge-warning]="!s.isGraded">{{ s.isGraded ? 'Graded' : 'Pending' }}</span></td>
-            <td><button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" (click)="gradeExam(s)">Save & Grade</button></td>
+            <td>
+              <span class="badge" [class.badge-success]="s.isGraded" [class.badge-warning]="!s.isGraded">{{ s.isGraded ? 'Graded' : 'Pending' }}</span>
+              <span *ngIf="isInAppExam(s.examId)" class="badge" style="background:#CCFBF1;color:#134E4A;margin-left:6px;">Auto</span>
+            </td>
+            <td style="white-space:nowrap;">
+              <button *ngIf="isInAppExam(s.examId)" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;margin-right:6px;" (click)="viewAnswers('exams', s.examId)">👁 Answers</button>
+              <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" (click)="gradeExam(s)">Save & Grade</button>
+            </td>
           </tr>
           <tr *ngIf="filteredExamSubmissions.length === 0">
             <td colspan="8" style="text-align:center;padding:32px;color:#64748B;">No exam submissions found.</td>
@@ -102,6 +121,8 @@ interface ExamSubmission {
 })
 export class GradingAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private router = inject(Router);
+  private errors = inject(ApiErrorService);
 
   tab: 'assignments' | 'exams' = 'assignments';
   statusFilter: 'all' | 'pending' | 'graded' = 'all';
@@ -133,14 +154,14 @@ export class GradingAdminComponent implements OnInit {
   loadAssignments() {
     this.api.get<Assignment[]>('/api/assignments').subscribe({
       next: (data) => { this.assignments = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load assignments')
     });
   }
 
   loadExams() {
     this.api.get<Exam[]>('/api/exams').subscribe({
       next: (data) => { this.exams = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load exams')
     });
   }
 
@@ -149,7 +170,7 @@ export class GradingAdminComponent implements OnInit {
       next: (data) => {
         this.assignmentSubmissions = data.map(s => ({ ...s, _marks: s.marksObtained ?? null, _feedback: s.feedback ?? '' }));
       },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load assignment submissions')
     });
   }
 
@@ -158,7 +179,7 @@ export class GradingAdminComponent implements OnInit {
       next: (data) => {
         this.examSubmissions = data.map(s => ({ ...s, _marks: s.marksObtained ?? null, _remarks: s.remarks ?? '' }));
       },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load exam submissions')
     });
   }
 
@@ -182,6 +203,20 @@ export class GradingAdminComponent implements OnInit {
     return e?.totalMarks ?? 100;
   }
 
+  /** In-app papers are auto-graded, so the mentor reviews answers rather than marking. */
+  isInAppAssignment(id: number): boolean {
+    return this.assignments.find(x => x.id === id)?.deliveryMode === 'IN_APP';
+  }
+
+  isInAppExam(id: number): boolean {
+    return this.exams.find(x => x.id === id)?.deliveryMode === 'IN_APP';
+  }
+
+  /** Opens the paper builder straight on its Student Responses tab. */
+  viewAnswers(type: 'assignments' | 'exams', id: number) {
+    this.router.navigate(['/assessment-paper', type, id], { queryParams: { tab: 'responses' } });
+  }
+
   formatDate(value?: string): string {
     return formatDateTimeDisplay(value);
   }
@@ -197,9 +232,9 @@ export class GradingAdminComponent implements OnInit {
       next: (updated) => {
         const i = this.assignmentSubmissions.findIndex(x => x.id === s.id);
         if (i > -1) this.assignmentSubmissions[i] = { ...this.assignmentSubmissions[i], ...updated, _marks: updated.marksObtained, _feedback: updated.feedback };
-        alert('Assignment graded successfully.');
+        this.errors.success('Assignment graded successfully.');
       },
-      error: (err) => { console.error('Failed to grade assignment:', err); alert('Failed to save grade.'); }
+      error: (err) => { console.error('Failed to grade assignment:', err); this.errors.show(err, 'Could not save grade'); }
     });
   }
 
@@ -214,9 +249,9 @@ export class GradingAdminComponent implements OnInit {
       next: (updated) => {
         const i = this.examSubmissions.findIndex(x => x.id === s.id);
         if (i > -1) this.examSubmissions[i] = { ...this.examSubmissions[i], ...updated, _marks: updated.marksObtained, _remarks: updated.remarks };
-        alert('Exam graded successfully.');
+        this.errors.success('Exam graded successfully.');
       },
-      error: (err) => { console.error('Failed to grade exam:', err); alert('Failed to save grade.'); }
+      error: (err) => { console.error('Failed to grade exam:', err); this.errors.show(err, 'Could not save grade'); }
     });
   }
 }

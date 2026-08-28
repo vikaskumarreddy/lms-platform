@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
 
 class InterviewHistoryScreen extends StatefulWidget {
@@ -9,17 +10,65 @@ class InterviewHistoryScreen extends StatefulWidget {
 }
 
 class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
+  final ApiService _api = ApiService();
+  final TextEditingController _searchController = TextEditingController();
   String _selectedTab = 'Upcoming';
-  final List<_InterviewItem> _interviews = [
-    _InterviewItem(id: 1, company: 'TCS', date: '20 Jan 2026', time: '10:00 AM', type: 'Technical', status: 'Upcoming', round: 'Round 1'),
-    _InterviewItem(id: 2, company: 'Infosys', date: '22 Jan 2026', time: '02:00 PM', type: 'HR', status: 'Upcoming', round: 'Round 2'),
-    _InterviewItem(id: 3, company: 'Wipro', date: '15 Jan 2026', time: '11:00 AM', type: 'Technical', status: 'Completed', round: 'Round 1', result: 'Selected'),
-    _InterviewItem(id: 4, company: 'Cognizant', date: '10 Jan 2026', time: '09:00 AM', type: 'Technical', status: 'Completed', round: 'Final', result: 'On Hold'),
-  ];
+  String _searchQuery = '';
+  bool _loading = true;
+  List<_InterviewItem> _interviews = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInterviews();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadInterviews() async {
+    setState(() => _loading = true);
+    final raw = await _api.getMyInterviewHistory();
+    if (!mounted) return;
+
+    final interviews = raw.map((entry) {
+      final status = (entry['status'] as String?) ?? 'BOOKED';
+      final slotTime = DateTime.tryParse((entry['slotTime'] as String?) ?? '');
+      return _InterviewItem(
+        id: (entry['id'] as num?)?.toInt() ?? 0,
+        company: (entry['companyName'] as String?) ?? 'Unknown Company',
+        role: (entry['role'] as String?) ?? '',
+        location: (entry['location'] as String?) ?? '',
+        slotTime: slotTime,
+        status: status,
+      );
+    }).toList();
+
+    setState(() {
+      _interviews = interviews;
+      _loading = false;
+    });
+  }
+
+  bool get _isUpcomingTab => _selectedTab == 'Upcoming';
+
+  List<_InterviewItem> get _filteredInterviews {
+    return _interviews.where((i) {
+      final matchesTab = _isUpcomingTab ? i.status == 'BOOKED' : i.status != 'BOOKED';
+      if (!matchesTab) return false;
+      if (_searchQuery.isEmpty) return true;
+      final query = _searchQuery.toLowerCase();
+      return i.company.toLowerCase().contains(query) || i.role.toLowerCase().contains(query);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF0F172A);
+    final interviews = _filteredInterviews;
 
     return Scaffold(
       appBar: const CommonHeader(title: 'Interview History'),
@@ -29,6 +78,8 @@ class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: Colors.grey.shade50),
             child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
                 hintText: 'Search interviews...',
                 prefixIcon: const Icon(Icons.search, size: 20),
@@ -52,80 +103,123 @@ class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _interviews.where((i) => i.status == _selectedTab).length,
-              itemBuilder: (context, index) {
-                final interview = _interviews.where((i) => i.status == _selectedTab).toList()[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: primaryColor,
-                              child: Text(interview.company[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(interview.company, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                  Text(interview.round, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                                ],
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : interviews.isEmpty
+                    ? Center(
+                        child: Text(
+                          _isUpcomingTab ? 'No upcoming interviews.' : 'No completed interviews yet.',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadInterviews,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: interviews.length,
+                          itemBuilder: (context, index) {
+                            final interview = interviews[index];
+                            final isCompleted = interview.status != 'BOOKED';
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: primaryColor,
+                                          child: Text(
+                                            interview.company.isNotEmpty ? interview.company[0] : '?',
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(interview.company, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                              if (interview.role.isNotEmpty)
+                                                Text(interview.role, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isCompleted ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            _statusLabel(interview.status),
+                                            style: TextStyle(fontSize: 11, color: isCompleted ? Colors.green : Colors.blue, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Text(_formatDate(interview.slotTime), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                                        const SizedBox(width: 16),
+                                        Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Text(_formatTime(interview.slotTime), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                                      ],
+                                    ),
+                                    if (interview.location.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                                          const SizedBox(width: 4),
+                                          Text(interview.location, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: interview.status == 'Upcoming' ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(interview.status, style: TextStyle(fontSize: 11, color: interview.status == 'Upcoming' ? Colors.blue : Colors.green, fontWeight: FontWeight.bold)),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
-                            const SizedBox(width: 4),
-                            Text(interview.date, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                            const SizedBox(width: 16),
-                            Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                            const SizedBox(width: 4),
-                            Text(interview.time, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.category, size: 16, color: Colors.grey.shade600),
-                            const SizedBox(width: 4),
-                            Text(interview.type, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                            if (interview.result != null) ...[
-                              const SizedBox(width: 16),
-                              Icon(Icons.check_circle, size: 16, color: Colors.green),
-                              const SizedBox(width: 4),
-                              Text(interview.result!, style: TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.bold)),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                      ),
           ),
         ],
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'BOOKED':
+        return 'Upcoming';
+      case 'COMPLETED':
+        return 'Completed';
+      case 'CANCELLED':
+        return 'Cancelled';
+      default:
+        return status;
+    }
+  }
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '-';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '-';
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute $period';
   }
 }
 
@@ -158,21 +252,17 @@ class _TabButton extends StatelessWidget {
 class _InterviewItem {
   final int id;
   final String company;
-  final String date;
-  final String time;
-  final String type;
+  final String role;
+  final String location;
+  final DateTime? slotTime;
   final String status;
-  final String round;
-  final String? result;
 
   _InterviewItem({
     required this.id,
     required this.company,
-    required this.date,
-    required this.time,
-    required this.type,
+    required this.role,
+    required this.location,
+    required this.slotTime,
     required this.status,
-    required this.round,
-    this.result,
   });
 }

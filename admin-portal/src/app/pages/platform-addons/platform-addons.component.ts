@@ -200,11 +200,11 @@ export class PlatformAddonsComponent implements OnInit {
     this.load();
     this.api.get<any>('/api/plan-addons/schema').subscribe({
       next: s => (this.schema = s),
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load the add-on schema')
     });
     this.api.get<any>('/api/org-subscriptions/schema').subscribe({
       next: s => (this.planSchema = s),
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load the plan schema')
     });
   }
 

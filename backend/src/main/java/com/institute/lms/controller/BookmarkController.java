@@ -2,6 +2,7 @@ package com.institute.lms.controller;
 
 import com.institute.lms.dto.bookmark.BookmarkResponseDTO;
 import com.institute.lms.service.BookmarkService;
+import com.institute.lms.util.UserContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +19,23 @@ import java.util.List;
 public class BookmarkController {
 
     private final BookmarkService bookmarkService;
+    private final UserContext userContext;
+
+    /** Admin list of every bookmark in this org (student + lesson, so admins can revoke). */
+    @GetMapping
+    public ResponseEntity<List<BookmarkResponseDTO>> getAllBookmarks() {
+        userContext.requireOrgAdmin();
+        try {
+            return ResponseEntity.ok(bookmarkService.getAllBookmarks());
+        } catch (Exception e) {
+            log.error("Error fetching all bookmarks", e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<BookmarkResponseDTO>> getUserBookmarks(@PathVariable Long userId) {
+        userContext.requireSelfOrAdmin(userId);
         try {
             List<BookmarkResponseDTO> bookmarks = bookmarkService.getUserBookmarks(userId);
             return ResponseEntity.ok(bookmarks);
@@ -32,12 +47,14 @@ public class BookmarkController {
 
     @GetMapping("/check")
     public ResponseEntity<Boolean> isBookmarked(@RequestParam Long userId, @RequestParam Long lessonId) {
+        userContext.requireSelfOrAdmin(userId);
         boolean bookmarked = bookmarkService.isBookmarked(userId, lessonId);
         return ResponseEntity.ok(bookmarked);
     }
 
     @PostMapping("/toggle")
     public ResponseEntity<Void> toggleBookmark(@RequestParam Long userId, @RequestParam Long lessonId) {
+        userContext.requireSelfOrAdmin(userId);
         try {
             bookmarkService.toggleBookmark(userId, lessonId);
             return ResponseEntity.ok().build();
@@ -51,6 +68,7 @@ public class BookmarkController {
 
     @DeleteMapping("/user/{userId}/lesson/{lessonId}")
     public ResponseEntity<Void> deleteBookmark(@PathVariable Long userId, @PathVariable Long lessonId) {
+        userContext.requireSelfOrAdmin(userId);
         try {
             bookmarkService.deleteBookmark(userId, lessonId);
             return ResponseEntity.noContent().build();

@@ -31,6 +31,13 @@ public class BookmarkService {
                 .toList();
     }
 
+    /** All bookmarks in the current org (tenant-scoped via {@code findAll()}) — for the admin list view. */
+    public List<BookmarkResponseDTO> getAllBookmarks() {
+        return bookmarkRepository.findAll().stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
     public boolean isBookmarked(Long userId, Long lessonId) {
         return bookmarkRepository.existsByUserIdAndLessonId(userId, lessonId);
     }
@@ -64,6 +71,11 @@ public class BookmarkService {
     private BookmarkResponseDTO convertToDTO(Bookmark bookmark) {
         BookmarkResponseDTO dto = new BookmarkResponseDTO();
         dto.setId(bookmark.getId());
+        if (bookmark.getUser() != null) {
+            dto.setUserId(bookmark.getUser().getId());
+            dto.setStudentName(bookmark.getUser().getName());
+            dto.setStudentEmail(bookmark.getUser().getEmail());
+        }
         dto.setLessonId(bookmark.getLesson().getId());
         dto.setLessonTitle(bookmark.getLesson().getTitle());
         dto.setBookmarkedAt(bookmark.getBookmarkedAt());

@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Course {
   id: number;
@@ -154,6 +155,8 @@ export class CoursesComponent implements OnInit {
   courseTab: 'basic' | 'access' = 'basic';
   courseForm: any = { title: '', description: '', thumbnailUrl: '', instructorId: null, planId: null };
 
+  private errors = inject(ApiErrorService);
+
   constructor(private apiService: ApiService, private router: Router) {}
 
   ngOnInit() {
@@ -252,7 +255,7 @@ export class CoursesComponent implements OnInit {
     if (!confirm(`Are you sure you want to delete "${course.title}"?`)) return;
     this.apiService.delete(`/api/courses/${course.id}`).subscribe({
       next: () => { this.loadCourses(); },
-      error: (err) => { console.error('Failed to delete course', err); alert('Failed to delete course'); }
+      error: (err) => { this.errors.show(err, 'Could not delete that course'); }
     });
   }
 }

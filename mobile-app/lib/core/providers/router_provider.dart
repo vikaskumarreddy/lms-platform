@@ -29,7 +29,6 @@ import '../../presentation/screens/payment/payment_history_screen.dart';
 import '../../presentation/screens/attendance/attendance_screen.dart';
 import '../../presentation/screens/feedback/feedback_screen.dart';
 import '../../presentation/screens/interviews/interview_history_screen.dart';
-import '../../presentation/screens/quiz/quiz_screen.dart';
 import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/notes/notes_screen.dart';
 import '../../presentation/screens/onboarding/onboarding_screen.dart';
@@ -37,6 +36,7 @@ import '../../presentation/screens/bookmarks/bookmarks_screen.dart';
 import '../../presentation/screens/leaderboard/leaderboard_screen.dart';
 import '../../presentation/screens/qa/qa_screen.dart';
 import '../../presentation/screens/browser/in_app_browser_screen.dart';
+import '../../presentation/screens/assessment/assessment_paper_screen.dart';
 import '../../presentation/screens/main_shell_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
@@ -83,7 +83,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         url: state.uri.queryParameters['url'] ?? '',
         title: state.uri.queryParameters['title'] ?? 'Browser',
       )),
-      GoRoute(path: AppRoutes.quiz, builder: (context, state) => QuizScreen(lessonId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      // Outside the shell: a paper in progress should not show the bottom nav.
+      GoRoute(
+        path: AppRoutes.assessmentPaper,
+        builder: (context, state) => AssessmentPaperScreen(
+          type: state.pathParameters['type'] ?? 'assignments',
+          assessmentId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          title: state.uri.queryParameters['title'] ?? 'Question Paper',
+          durationMinutes: int.tryParse(state.uri.queryParameters['duration'] ?? ''),
+          totalMarks: int.tryParse(state.uri.queryParameters['marks'] ?? ''),
+        ),
+      ),
       GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
       GoRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
       GoRoute(path: AppRoutes.payment, builder: (context, state) => PaymentScreen(planId: int.tryParse(state.pathParameters['planId'] ?? '') ?? 0)),

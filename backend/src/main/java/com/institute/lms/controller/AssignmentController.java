@@ -1,11 +1,14 @@
 package com.institute.lms.controller;
 
+import com.institute.lms.entity.AssessmentType;
 import com.institute.lms.entity.Assignment;
 import com.institute.lms.entity.AssignmentSubmission;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.AssignmentRepository;
 import com.institute.lms.repository.AssignmentSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.service.AssessmentPaperService;
+import com.institute.lms.service.NotificationService;
 import com.institute.lms.util.OrganizationContext;
 import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
@@ -24,17 +27,23 @@ public class AssignmentController {
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final UserContext userContext;
     private final OrganizationContext organizationContext;
+    private final AssessmentPaperService paperService;
+    private final NotificationService notificationService;
 
     public AssignmentController(AssignmentRepository assignmentRepository, 
                                UserRepository userRepository,
                                AssignmentSubmissionRepository assignmentSubmissionRepository,
                                UserContext userContext,
-                               OrganizationContext organizationContext) {
+                               OrganizationContext organizationContext,
+                               AssessmentPaperService paperService,
+                                NotificationService notificationService) {
         this.assignmentRepository = assignmentRepository;
         this.userRepository = userRepository;
         this.assignmentSubmissionRepository = assignmentSubmissionRepository;
         this.userContext = userContext;
         this.organizationContext = organizationContext;
+        this.paperService = paperService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping
@@ -95,6 +104,11 @@ public class AssignmentController {
                     detail.put("courseId", assignment.getCourseId());
                     detail.put("isActive", assignment.getIsActive());
                     detail.put("link", assignment.getLink());
+                    detail.put("deliveryMode", assignment.getDeliveryMode() != null
+                            ? assignment.getDeliveryMode().name() : "WEB");
+                    boolean inApp = assignment.getDeliveryMode() == com.institute.lms.entity.DeliveryMode.IN_APP;
+                    detail.put("questionCount", inApp
+                            ? paperService.questionCount(AssessmentType.ASSIGNMENT, assignment.getId()) : 0L);
                     
                     AssignmentSubmission submission = submissionMap.get(assignment.getId());
                     if (submission != null) {
@@ -112,7 +126,12 @@ public class AssignmentController {
                     Map<String, String> links = new LinkedHashMap<>();
                     links.put("self", "/api/assignments/" + assignment.getId());
                     links.put("submission", "/api/assignments/" + assignment.getId() + "/submit");
-                    if (assignment.getLink() != null && !assignment.getLink().isEmpty()) {
+                    if (inApp) {
+                        // In-app papers are answered inside the app, never in the browser.
+                        links.put("paper", "/api/assessments/assignments/" + assignment.getId() + "/paper");
+                        links.put("attempt", "/api/assessments/assignments/" + assignment.getId() + "/attempt");
+                        links.put("review", "/api/assessments/assignments/" + assignment.getId() + "/review");
+                    } else if (assignment.getLink() != null && !assignment.getLink().isEmpty()) {
                         links.put("details", assignment.getLink());
                     }
                     detail.put("_links", links);
@@ -145,7 +164,19 @@ public class AssignmentController {
     @PostMapping
     public Assignment createAssignment(@RequestBody Assignment assignment) {
         if (assignment.getIsActive() == null) assignment.setIsActive(true);
-        return assignmentRepository.save(assignment);
+        Assignment saved = assignmentRepository.save(assignment);
+
+        // Tell the students it was published to. An empty batch list means "All
+        // Batches" in the admin portal, which audienceForBatches reads as everyone.
+        notificationService.safeNotify(
+                notificationService.audienceForBatches(saved.getBatchIds()),
+                "New assignment: " + saved.getTitle(),
+                saved.getDueDate() != null
+                        ? "Due " + saved.getDueDate().toLocalDate() + ". Open the app to start."
+                        : "A new assignment has been posted.",
+                "assignment", "/assignments", "BATCH", saved.getId());
+
+        return saved;
     }
 
     @PutMapping("/{id}")
@@ -160,6 +191,7 @@ public class AssignmentController {
                     existing.setCourseId(assignment.getCourseId());
                     existing.setIsActive(assignment.getIsActive());
                     existing.setLink(assignment.getLink());
+                    if (assignment.getDeliveryMode() != null) existing.setDeliveryMode(assignment.getDeliveryMode());
                     return ResponseEntity.ok(assignmentRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -167,6 +199,8 @@ public class AssignmentController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
+        // The paper points back by (type, id) rather than a FK, so it has to be swept here.
+        paperService.deletePaper(AssessmentType.ASSIGNMENT, id);
         assignmentRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

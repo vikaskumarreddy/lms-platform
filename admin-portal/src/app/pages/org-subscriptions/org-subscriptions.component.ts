@@ -318,7 +318,7 @@ export class OrgSubscriptionsComponent implements OnInit {
     this.load();
     this.api.get<any>('/api/org-subscriptions/schema').subscribe({
       next: s => (this.schema = s),
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load the plan schema')
     });
   }
 

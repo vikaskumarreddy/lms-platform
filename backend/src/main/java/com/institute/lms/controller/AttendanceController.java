@@ -2,13 +2,21 @@ package com.institute.lms.controller;
 
 import com.institute.lms.entity.Attendance;
 import com.institute.lms.entity.Event;
+import com.institute.lms.entity.MessagingChannel;
+import com.institute.lms.entity.NotifyMedium;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.AttendanceRepository;
 import com.institute.lms.repository.EventRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.service.NotificationService;
+import com.institute.lms.service.OrgFeatureSettingsService;
+import com.institute.lms.service.messaging.MessagingService;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,14 +29,54 @@ public class AttendanceController {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
+    private final UserContext userContext;
+    private final OrgFeatureSettingsService featureSettingsService;
+    private final MessagingService messagingService;
+    private final NotificationService notificationService;
 
     public AttendanceController(AttendanceRepository attendanceRepository, EventRepository eventRepository,
                                  UserRepository userRepository,
-                                 com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
+                                 com.institute.lms.service.subscription.ActivityMeterService activityMeter,
+                                 UserContext userContext,
+                                 OrgFeatureSettingsService featureSettingsService,
+                                 MessagingService messagingService,
+                                 NotificationService notificationService) {
         this.attendanceRepository = attendanceRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.activityMeter = activityMeter;
+        this.userContext = userContext;
+        this.featureSettingsService = featureSettingsService;
+        this.messagingService = messagingService;
+        this.notificationService = notificationService;
+    }
+
+    /**
+     * Finds (or creates) the one {@code DAILY_ATTENDANCE} event for this batch and
+     * calendar day, so daily attendance reuses the existing per-event mark/grid
+     * flow instead of a parallel data model. The admin UI calls this first, then
+     * marks attendance on the returned event id via the existing
+     * {@code /event/{id}/mark} endpoint below.
+     */
+    @PostMapping("/daily/{batchId}/{date}")
+    public ResponseEntity<Map<String, Object>> getOrCreateDailyAttendanceEvent(@PathVariable Long batchId, @PathVariable String date) {
+        userContext.requireOrgAdminOrFaculty();
+        LocalDateTime startTime = LocalDate.parse(date).atStartOfDay();
+        Event event = eventRepository.findByBatchIdAndEventTypeAndStartTime(batchId, "DAILY_ATTENDANCE", startTime)
+                .orElseGet(() -> {
+                    Event e = new Event();
+                    e.setTitle("Daily Attendance - " + date);
+                    e.setEventType("DAILY_ATTENDANCE");
+                    e.setBatchId(batchId);
+                    e.setStartTime(startTime);
+                    e.setEndTime(startTime.withHour(23).withMinute(59));
+                    e.setAttendanceRequired(true);
+                    return eventRepository.save(e);
+                });
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("eventId", event.getId());
+        response.put("eventTitle", event.getTitle());
+        return ResponseEntity.ok(response);
     }
 
     /** All attendance records for an event, including students who are not yet marked. */
@@ -69,6 +117,7 @@ public class AttendanceController {
     /** Bulk mark attendance for an event. Body: { "records": [ {"userId":1,"present":true,"remarks":""} ] } */
     @PostMapping("/event/{eventId}/mark")
     public ResponseEntity<List<Attendance>> markAttendance(@PathVariable Long eventId, @RequestBody Map<String, Object> body) {
+        userContext.requireOrgAdminOrFaculty();
         Event event = eventRepository.findById(eventId).orElseThrow(() -> new RuntimeException("Event not found"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> records = (List<Map<String, Object>>) body.get("records");
@@ -97,9 +146,45 @@ public class AttendanceController {
                     activityMeter.record(user.getOrganizationId(), user.getId(),
                             com.institute.lms.subscription.ActivityType.CLASS_ATTENDANCE);
                 }
+
+                if (!present && user.getRole() == User.UserRole.STUDENT) {
+                    notifyAbsentee(user, event);
+                }
             }
         }
         return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Tells a parent their child was marked absent today, if the org has opted in.
+     * Non-fatal by design (matches the existing safeNotify resilience pattern) —
+     * a messaging outage must never block attendance marking.
+     */
+    private void notifyAbsentee(User student, Event event) {
+        try {
+            if (!featureSettingsService.getEffective(student.getOrganizationId()).getAttendanceNotificationsEnabled()) {
+                return;
+            }
+            String title = "Absence recorded";
+            String message = student.getName() + " was marked absent for " + event.getTitle() + " today.";
+            NotifyMedium medium = student.getNotifyMedium() != null ? student.getNotifyMedium() : NotifyMedium.PUSH;
+
+            switch (medium) {
+                case SMS -> sendToParent(student, MessagingChannel.SMS, message);
+                case WHATSAPP -> sendToParent(student, MessagingChannel.WHATSAPP, message);
+                default -> notificationService.notifyStudents(List.of(student), title, message,
+                        "attendance", "/attendance", "EVENT", event.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send absentee notification for user "
+                    + student.getId() + ": " + e.getMessage());
+        }
+    }
+
+    private void sendToParent(User student, MessagingChannel channel, String message) {
+        String phone = student.getParentPhone();
+        if (phone == null || phone.isBlank()) return;
+        messagingService.send(student.getOrganizationId(), channel, phone, message);
     }
 
     /** Attendance history + summary percentage for a student. */

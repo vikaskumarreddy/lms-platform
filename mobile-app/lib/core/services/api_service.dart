@@ -17,6 +17,13 @@ import '../../data/models/placement_drive_model.dart';
 class ApiService {
   static const String baseUrl = AppConfig.apiBaseUrl;
 
+  /// The logged-in student's own ID, as stored on login. Used client-side to
+  /// tell "my booking" apart from other students' slots in a shared list.
+  Future<int?> getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('userId');
+  }
+
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
@@ -45,11 +52,69 @@ class ApiService {
     }
   }
 
+  // ------------------------------------------------------------- plan upgrades
+  // Students can ask to change plan but never grant it themselves; an org admin
+  // approves the request, and only then does the student's plan actually move.
+
+  /// This student's upgrade requests, newest first. Used to show pending state.
+  Future<List<Map<String, dynamic>>> getMyPlanRequests() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/student-plan-requests/student/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body) as List;
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching plan requests: $e');
+      return [];
+    }
+  }
+
+  /// Raises an upgrade request. Returns null on success, or the server's message
+  /// (e.g. "You already have an upgrade request awaiting review.") on refusal.
+  Future<String?> requestPlanUpgrade(int planId, {String? note}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return 'Please log in again.';
+
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/student-plan-requests'),
+        headers: headers,
+        body: json.encode({
+          'studentId': userId,
+          'requestedPlanId': planId,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      );
+      if (response.statusCode == 200) return null;
+
+      try {
+        final body = json.decode(response.body);
+        if (body is Map && body['error'] != null) return body['error'].toString();
+      } catch (_) {}
+      return 'Could not send your request. Please try again.';
+    } catch (e) {
+      print('Error requesting plan upgrade: $e');
+      return 'Could not reach the server. Check your connection.';
+    }
+  }
+
   Future<bool> updateUserPlan(int planId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
-      
+
       if (userId == null) return false;
 
       final headers = await _getHeaders();
@@ -604,6 +669,79 @@ class ApiService {
     }
   }
 
+  // ---------------------------------------------------------------- in-app papers
+  // [type] is 'assignments' or 'exams', matching the admin portal URLs.
+
+  /// The paper as the student is allowed to see it: no answer key, no explanations.
+  Future<Map<String, dynamic>?> getAssessmentPaper(String type, int assessmentId, int userId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/assessments/$type/$assessmentId/paper?userId=$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching assessment paper: $e');
+      return null;
+    }
+  }
+
+  /// Submits and auto-grades in one call; the response already contains the key
+  /// and explanations so the review screen needs no second request.
+  /// [answers] is questionId -> the option ids the student ticked.
+  Future<Map<String, dynamic>?> submitAssessmentAttempt(
+    String type,
+    int assessmentId,
+    int userId,
+    Map<int, List<int>> answers, {
+    int? timeTakenSeconds,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/assessments/$type/$assessmentId/attempt'),
+        headers: headers,
+        body: json.encode({
+          'userId': userId,
+          'timeTakenSeconds': timeTakenSeconds,
+          'answers': answers.entries
+              .map((e) => {'questionId': e.key, 'selectedOptionIds': e.value})
+              .toList(),
+        }),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      print('Attempt rejected (${response.statusCode}): ${response.body}');
+      return null;
+    } catch (e) {
+      print('Error submitting assessment attempt: $e');
+      return null;
+    }
+  }
+
+  /// A previous attempt with the key and explanations, for re-opening the review.
+  Future<Map<String, dynamic>?> getAssessmentReview(String type, int assessmentId, int userId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/assessments/$type/$assessmentId/review?userId=$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching assessment review: $e');
+      return null;
+    }
+  }
+
   Future<List<QuestionModel>> getQuestions() async {
     try {
       final headers = await _getHeaders();
@@ -811,6 +949,52 @@ class ApiService {
     } catch (e) {
       print('Error cancelling interview slot: $e');
       return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMyInterviewHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interview-slots/student/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching interview history: $e');
+      return [];
+    }
+  }
+
+  // MARK: - Payment History APIs
+
+  Future<List<Map<String, dynamic>>> getPaymentHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/payments/history/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching payment history: $e');
+      return [];
     }
   }
 
@@ -1024,6 +1208,86 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       print('Error grading exam submission: $e');
+      return false;
+    }
+  }
+
+  // MARK: - Feedback APIs
+
+  Future<List<Map<String, dynamic>>> getMyFeedback() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/feedback/me'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching feedback: $e');
+      return [];
+    }
+  }
+
+  Future<bool> submitFeedback({required String type, required int rating, required String comment}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/feedback'),
+        headers: headers,
+        body: json.encode({
+          'type': type,
+          'rating': rating,
+          'comment': comment,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error submitting feedback: $e');
+      return false;
+    }
+  }
+
+  // MARK: - Comment APIs
+
+  Future<List<Map<String, dynamic>>> getCommentsForLesson(int lessonId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/comments/lesson/$lessonId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching comments: $e');
+      return [];
+    }
+  }
+
+  Future<bool> postComment({required int lessonId, required String content, int? parentId}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/comments'),
+        headers: headers,
+        body: json.encode({
+          'lessonId': lessonId,
+          'content': content,
+          if (parentId != null) 'parentId': parentId,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error posting comment: $e');
       return false;
     }
   }

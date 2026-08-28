@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.institute.lms.entity.StudentPaymentInfo;
+import java.util.Optional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +34,18 @@ public class AuthService {
         private final OrganizationRepository organizationRepository;
         private final OrganizationContext organizationContext;
         private final ActivityMeterService activityMeter;
+    private final StudentPaymentService studentPaymentService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                          OrganizationRepository organizationRepository, OrganizationContext organizationContext,
-                         ActivityMeterService activityMeter) {
+                         ActivityMeterService activityMeter, StudentPaymentService studentPaymentService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.organizationRepository = organizationRepository;
         this.organizationContext = organizationContext;
         this.activityMeter = activityMeter;
+        this.studentPaymentService = studentPaymentService;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -153,21 +157,37 @@ public class AuthService {
         String refreshToken = jwtService.generateRefreshToken(user);
         String roleName = user.getRole() != null ? user.getRole().name() : "STUDENT";
 
+        // Payment info for students
+        AuthResponse.UserInfo.UserInfoBuilder userInfoBuilder = AuthResponse.UserInfo.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getName())
+                .role(roleName)
+                .roles(List.of(roleName))
+                .planId(user.getPlanId())
+                .batchId(user.getBatchId())
+                .organizationId(user.getOrganizationId());
+
+        if (user.getRole() == User.UserRole.STUDENT && user.getOrganizationId() != null) {
+            Optional<StudentPaymentInfo> paymentInfo = studentPaymentService.getPaymentInfo(user.getId(), user.getOrganizationId());
+            if (paymentInfo.isPresent()) {
+                var info = paymentInfo.get();
+                userInfoBuilder.paymentRequired(info.isPaymentDue());
+                userInfoBuilder.paymentMethod(info.getPaymentMethod());
+                userInfoBuilder.paymentStatus(info.getPaymentStatus());
+                userInfoBuilder.amountDue(info.getAmountDue());
+            } else {
+                userInfoBuilder.paymentRequired(false);
+                userInfoBuilder.paymentMethod("CASH");
+            }
+        }
+
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtExpiration)
-                .user(AuthResponse.UserInfo.builder()
-                        .id(user.getId())
-                        .email(user.getEmail())
-                        .fullName(user.getName())
-                        .role(roleName)
-                        .roles(List.of(roleName))
-                        .planId(user.getPlanId())
-                        .batchId(user.getBatchId())
-                        .organizationId(user.getOrganizationId())
-                        .build())
+                .user(userInfoBuilder.build())
                 .build();
     }
 }

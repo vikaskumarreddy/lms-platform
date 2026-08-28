@@ -6,6 +6,7 @@ import com.institute.lms.entity.User;
 import com.institute.lms.repository.PlacementDriveRepository;
 import com.institute.lms.repository.StudentPlacementRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,14 +23,17 @@ public class StudentPlacementController {
     private final UserRepository userRepository;
     private final PlacementDriveRepository placementDriveRepository;
     private final com.institute.lms.service.subscription.ActivityMeterService activityMeter;
+    private final UserContext userContext;
 
     public StudentPlacementController(StudentPlacementRepository placementRepository, UserRepository userRepository,
                                        PlacementDriveRepository placementDriveRepository,
-                                       com.institute.lms.service.subscription.ActivityMeterService activityMeter) {
+                                       com.institute.lms.service.subscription.ActivityMeterService activityMeter,
+                                       UserContext userContext) {
         this.placementRepository = placementRepository;
         this.userRepository = userRepository;
         this.placementDriveRepository = placementDriveRepository;
         this.activityMeter = activityMeter;
+        this.userContext = userContext;
     }
 
     @GetMapping
@@ -134,6 +138,7 @@ public class StudentPlacementController {
 
     @PostMapping
     public ResponseEntity<StudentPlacement> createPlacement(@RequestBody StudentPlacement placement) {
+        userContext.requireOrgAdmin();
         User user = userRepository.findById(placement.getUser().getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
         placement.setUser(user);
@@ -144,6 +149,7 @@ public class StudentPlacementController {
 
     @PutMapping("/{id}")
     public ResponseEntity<StudentPlacement> updatePlacement(@PathVariable Long id, @RequestBody StudentPlacement placement) {
+        userContext.requireOrgAdmin();
         return placementRepository.findById(id)
                 .map(existing -> {
                     existing.setCompanyName(placement.getCompanyName());
@@ -166,6 +172,7 @@ public class StudentPlacementController {
      */
     @PutMapping("/{id}/status")
     public ResponseEntity<StudentPlacement> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        userContext.requireOrgAdmin();
         return placementRepository.findById(id)
                 .map(existing -> {
                     StudentPlacement.Status status = StudentPlacement.Status.valueOf(body.get("status"));
@@ -178,6 +185,7 @@ public class StudentPlacementController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePlacement(@PathVariable Long id) {
+        userContext.requireOrgAdmin();
         placementRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

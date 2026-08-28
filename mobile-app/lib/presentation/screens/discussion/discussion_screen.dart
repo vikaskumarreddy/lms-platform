@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
 
 class DiscussionScreen extends StatefulWidget {
@@ -10,14 +11,99 @@ class DiscussionScreen extends StatefulWidget {
 }
 
 class _DiscussionScreenState extends State<DiscussionScreen> {
-  String _selectedFilter = 'All';
+  final ApiService _api = ApiService();
   final TextEditingController _commentController = TextEditingController();
-  final List<_CommentItem> _comments = [
-    _CommentItem(id: 1, author: 'Rahul Kumar', text: 'Can someone explain this concept again?', time: '2 hours ago', likes: 5, replies: 2),
-    _CommentItem(id: 2, author: 'Priya Sharma', text: 'Great explanation! Very helpful.', time: '5 hours ago', likes: 12, replies: 0),
-    _CommentItem(id: 3, author: 'Arjun Nair', text: 'I have a doubt about the implementation.', time: '1 day ago', likes: 3, replies: 1),
-    _CommentItem(id: 4, author: 'Sneha Reddy', text: 'This helped me a lot. Thank you!', time: '2 days ago', likes: 8, replies: 0),
-  ];
+  List<_CommentItem> _topLevelComments = [];
+  bool _loading = true;
+  bool _posting = false;
+  int? _replyingToId;
+  final TextEditingController _replyController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComments();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadComments() async {
+    setState(() => _loading = true);
+    final raw = await _api.getCommentsForLesson(widget.lessonId);
+    if (!mounted) return;
+
+    final byId = <int, _CommentItem>{};
+    for (final entry in raw) {
+      final item = _CommentItem(
+        id: (entry['id'] as num).toInt(),
+        author: (entry['authorName'] as String?) ?? 'Anonymous',
+        text: (entry['content'] as String?) ?? '',
+        time: (entry['createdAt'] as String?) ?? '',
+        parentId: (entry['parentId'] as num?)?.toInt(),
+      );
+      byId[item.id] = item;
+    }
+
+    final topLevel = <_CommentItem>[];
+    for (final item in byId.values) {
+      if (item.parentId != null && byId.containsKey(item.parentId)) {
+        byId[item.parentId]!.replies.add(item);
+      } else {
+        topLevel.add(item);
+      }
+    }
+
+    setState(() {
+      _topLevelComments = topLevel;
+      _loading = false;
+    });
+  }
+
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _posting) return;
+
+    setState(() => _posting = true);
+    final success = await _api.postComment(lessonId: widget.lessonId, content: text);
+    if (!mounted) return;
+    setState(() => _posting = false);
+
+    if (success) {
+      _commentController.clear();
+      _loadComments();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to post comment. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _submitReply(int parentId) async {
+    final text = _replyController.text.trim();
+    if (text.isEmpty || _posting) return;
+
+    setState(() => _posting = true);
+    final success = await _api.postComment(lessonId: widget.lessonId, content: text, parentId: parentId);
+    if (!mounted) return;
+    setState(() {
+      _posting = false;
+      if (success) _replyingToId = null;
+    });
+
+    if (success) {
+      _replyController.clear();
+      _loadComments();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to post reply. Please try again.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +118,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _commentController,
                     decoration: InputDecoration(
                       hintText: 'Add a comment...',
                       prefixIcon: const Icon(Icons.comment, size: 20),
@@ -39,95 +126,119 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                       fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
+                    onSubmitted: (_) => _submitComment(),
                   ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _posting ? null : _submitComment,
+                  icon: const Icon(Icons.send),
                 ),
               ],
             ),
           ),
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: ['All', 'Questions', 'Praise', 'General'].map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedFilter = filter),
-                    selectedColor: const Color(0xFFEAB308),
-                    backgroundColor: Colors.grey.shade100,
-                    labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.grey.shade700),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _comments.length,
-              itemBuilder: (context, index) {
-                final comment = _comments[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _topLevelComments.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No comments yet. Start the discussion!',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadComments,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _topLevelComments.length,
+                          itemBuilder: (context, index) => _buildCommentCard(_topLevelComments[index]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentCard(_CommentItem comment, {bool isReply = false}) {
+    return Padding(
+      padding: EdgeInsets.only(left: isReply ? 32 : 0, bottom: 12),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    child: Text(
+                      comment.author.isNotEmpty ? comment.author[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.blue.withOpacity(0.1),
-                              child: Text(comment.author[0], style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(comment.author, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  Text(comment.time, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(comment.text, style: const TextStyle(fontSize: 14)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () {},
-                              icon: Icon(Icons.thumb_up_outlined, size: 18, color: Colors.grey.shade600),
-                            ),
-                            Text('${comment.likes}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                            const SizedBox(width: 16),
-                            IconButton(
-                              onPressed: () {},
-                              icon: Icon(Icons.comment_outlined, size: 18, color: Colors.grey.shade600),
-                            ),
-                            Text('${comment.replies}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                            const SizedBox(width: 16),
-                            IconButton(
-                              onPressed: () {},
-                              icon: Icon(Icons.share_outlined, size: 18, color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
+                        Text(comment.author, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(comment.time, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(comment.text, style: const TextStyle(fontSize: 14)),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _replyingToId = _replyingToId == comment.id ? null : comment.id;
+                    _replyController.clear();
+                  });
+                },
+                icon: Icon(Icons.reply, size: 16, color: Colors.grey.shade600),
+                label: Text('Reply', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+              ),
+              if (_replyingToId == comment.id) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _replyController,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: 'Write a reply...',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                        onSubmitted: (_) => _submitReply(comment.id),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _posting ? null : () => _submitReply(comment.id),
+                      icon: const Icon(Icons.send, size: 18),
+                    ),
+                  ],
+                ),
+              ],
+              for (final reply in comment.replies) ...[
+                const SizedBox(height: 12),
+                _buildCommentCard(reply, isReply: true),
+              ],
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -138,15 +249,15 @@ class _CommentItem {
   final String author;
   final String text;
   final String time;
-  final int likes;
-  final int replies;
+  final int? parentId;
+  final List<_CommentItem> replies;
 
   _CommentItem({
     required this.id,
     required this.author,
     required this.text,
     required this.time,
-    required this.likes,
-    required this.replies,
-  });
+    this.parentId,
+    List<_CommentItem>? replies,
+  }) : replies = replies ?? [];
 }

@@ -21,6 +21,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   bool _isBookmarked = false;
   bool _togglingComplete = false;
   bool _togglingBookmark = false;
+  bool _videoLoadFailed = false;
+  int _videoRetryKey = 0;
 
   @override
   void initState() {
@@ -141,19 +143,43 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                         ],
                       ),
                     )
-                  : InAppWebView(
-                      initialUrlRequest: URLRequest(
-                        url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
-                      ),
-                      initialSettings: InAppWebViewSettings(
-                        javaScriptEnabled: true,
-                        allowsInlineMediaPlayback: true,
-                        mediaPlaybackRequiresUserGesture: false,
-                        transparentBackground: true,
-                      ),
-                      onWebViewCreated: (controller) {},
-                      onReceivedError: (controller, request, error) {},
-                    ),
+                  : _videoLoadFailed
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.grey.shade400, size: 48),
+                              const SizedBox(height: 12),
+                              Text('Video failed to load', style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+                              const SizedBox(height: 12),
+                              TextButton.icon(
+                                onPressed: () => setState(() {
+                                  _videoLoadFailed = false;
+                                  _videoRetryKey++;
+                                }),
+                                icon: const Icon(Icons.refresh, color: Colors.white),
+                                label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        )
+                      : InAppWebView(
+                          key: ValueKey(_videoRetryKey),
+                          initialUrlRequest: URLRequest(
+                            url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
+                          ),
+                          initialSettings: InAppWebViewSettings(
+                            javaScriptEnabled: true,
+                            allowsInlineMediaPlayback: true,
+                            mediaPlaybackRequiresUserGesture: false,
+                            transparentBackground: true,
+                          ),
+                          onReceivedError: (controller, request, error) {
+                            if (request.isForMainFrame ?? true) {
+                              setState(() => _videoLoadFailed = true);
+                            }
+                          },
+                        ),
             ),
           ),
           const SizedBox(height: 16),

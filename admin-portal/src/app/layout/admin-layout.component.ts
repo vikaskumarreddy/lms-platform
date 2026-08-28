@@ -2,7 +2,9 @@ import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { ApiService } from '../services/api.service';
+import { CurrentOrgService } from '../services/current-org.service';
 import { ToastHostComponent } from '../components/toast-host.component';
+import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_SECTIONS } from './admin-layout-menu';
 
 @Component({
   selector: 'app-admin-layout',
@@ -15,75 +17,21 @@ import { ToastHostComponent } from '../components/toast-host.component';
         <span>{{ orgName || 'Axisora' }}</span>
       </div>
 
-      <!-- PLATFORM MENU (placements.com) — dedicated super-admin workspace.
-           Rendered only for ADMIN users on the platform root domain. -->
-      @if (isPlatform && auth.isAdmin) {
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-item">📊 Dashboard</a>
-        <a routerLink="/organizations" routerLinkActive="active" class="nav-item">🏢 Organizations</a>
-
-        <div class="nav-group">Billing &amp; Plans</div>
-        <a routerLink="/org-subscriptions" routerLinkActive="active" class="nav-item">⭐ Platform Plans</a>
-        <a routerLink="/platform-addons" routerLinkActive="active" class="nav-item">🧩 Add-ons</a>
-        <a routerLink="/platform-billing" routerLinkActive="active" class="nav-item">
-          🧾 Subscriptions
-          @if (pendingApprovals > 0) {
-            <span class="nav-badge">{{ pendingApprovals }}</span>
-          }
-        </a>
-
-        <div class="nav-group">Platform</div>
-        <a routerLink="/payments" routerLinkActive="active" class="nav-item">💳 Payments</a>
-        <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
-        <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>
-      } @else if (auth.isInstructor) {
-        <!-- INSTRUCTOR MENU — batch-scoped teaching workflows only.
-             Instructors cannot manage organizations, org subscriptions,
-             batches, faculty, or subscriptions. -->
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-item">📊 Dashboard</a>
-        <a routerLink="/students" routerLinkActive="active" class="nav-item">🎓 Students</a>
-        <a routerLink="/courses" routerLinkActive="active" class="nav-item">📚 Courses</a>
-        <a routerLink="/placements" routerLinkActive="active" class="nav-item">💼 Placements</a>
-        <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
-        <a routerLink="/events-admin" routerLinkActive="active" class="nav-item">🎉 Events</a>
-        <a routerLink="/calendar-events" routerLinkActive="active" class="nav-item">📅 Calendar Events</a>
-        <a routerLink="/assignments-admin" routerLinkActive="active" class="nav-item">📝 Assignments</a>
-        <a routerLink="/exams-admin" routerLinkActive="active" class="nav-item">📋 Exams</a>
-        <a routerLink="/grading-admin" routerLinkActive="active" class="nav-item">✅ Grading</a>
-        <a routerLink="/attendance-admin" routerLinkActive="active" class="nav-item">🗓️ Attendance</a>
-        <a routerLink="/certificates-admin" routerLinkActive="active" class="nav-item">🎓 Certificates</a>
-        <a routerLink="/qa-admin" routerLinkActive="active" class="nav-item">💬 Q&A</a>
-        <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>
-      } @else {
-        <!-- TENANT MENU (axisora.placements.com, manyasree.placements.com, ...) -->
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-item">📊 Dashboard</a>
-        <a routerLink="/students" routerLinkActive="active" class="nav-item">🎓 Students</a>
-        <a routerLink="/batches" routerLinkActive="active" class="nav-item">👥 Batches</a>
-        <a routerLink="/courses" routerLinkActive="active" class="nav-item">📚 Courses</a>
-        <a routerLink="/faculty" routerLinkActive="active" class="nav-item">👨🏫 Faculty</a>
-        <a routerLink="/placements" routerLinkActive="active" class="nav-item">💼 Placements</a>
-        <a routerLink="/subscriptions-admin" routerLinkActive="active" class="nav-item">⭐ Subscriptions</a>
-        <a routerLink="/notifications-admin" routerLinkActive="active" class="nav-item">🔔 Notifications</a>
-        <a routerLink="/events-admin" routerLinkActive="active" class="nav-item">🎉 Events</a>
-        <a routerLink="/bookmarks-admin" routerLinkActive="active" class="nav-item">🔖 Bookmarks</a>
-        <a routerLink="/calendar-events" routerLinkActive="active" class="nav-item">📅 Calendar Events</a>
-        <a routerLink="/assignments-admin" routerLinkActive="active" class="nav-item">📝 Assignments</a>
-        <a routerLink="/exams-admin" routerLinkActive="active" class="nav-item">📋 Exams</a>
-        <a routerLink="/grading-admin" routerLinkActive="active" class="nav-item">✅ Grading</a>
-        <a routerLink="/attendance-admin" routerLinkActive="active" class="nav-item">🗓️ Attendance</a>
-        <a routerLink="/certificates-admin" routerLinkActive="active" class="nav-item">🎓 Certificates</a>
-        <a routerLink="/qa-admin" routerLinkActive="active" class="nav-item">💬 Q&A</a>
-        <a routerLink="/payments" routerLinkActive="active" class="nav-item">💳 Payments</a>
-
-        <!-- The tenant's own subscription surface: plan, usage, add-ons, billing.
-             Shown to organization admins regardless of hostname, since in dev every
-             host resolves to the platform domain. -->
-        <a routerLink="/account" routerLinkActive="active" class="nav-item">
-          🧾 Account
-          @if (accountNeedsAttention) {
-            <span class="nav-badge nav-badge-alert">!</span>
-          }
-        </a>
-        <a routerLink="/settings" routerLinkActive="active" class="nav-item">⚙️ Settings</a>
+      @for (section of menuSections; track $index) {
+        @if (section.groupLabel) {
+          <div class="nav-group">{{ section.groupLabel }}</div>
+        }
+        @for (item of visibleItems(section.items); track item.id) {
+          <a [routerLink]="item.route" routerLinkActive="active" [routerLinkActiveOptions]="{exact: !!item.exact}" class="nav-item">
+            {{ item.label }}
+            @if (item.badge === 'pendingApprovals' && pendingApprovals > 0) {
+              <span class="nav-badge">{{ pendingApprovals }}</span>
+            }
+            @if (item.badge === 'account' && accountNeedsAttention) {
+              <span class="nav-badge nav-badge-alert">!</span>
+            }
+          </a>
+        }
       }
 
       <a (click)="logout()" class="nav-item" style="margin-top:auto;color:#F87171;">🚪 Logout</a>
@@ -142,6 +90,7 @@ import { ToastHostComponent } from '../components/toast-host.component';
 export class AdminLayoutComponent implements OnInit {
   auth = inject(AuthService);
   private api = inject(ApiService);
+  private currentOrg = inject(CurrentOrgService);
 
   /** Current organization name (tenant context). Falls back to "Axisora" on the platform. */
   orgName = '';
@@ -158,9 +107,11 @@ export class AdminLayoutComponent implements OnInit {
   pendingApprovals = 0;
 
   ngOnInit() {
-    // Resolve the current tenant's org name so the sidebar reads "<orgName> Admin".
-    // On the platform root (placements.com) there is no tenant, so this stays empty
-    // and the logo falls back to "Axisora Admin".
+    // Resolve the current tenant's org (name + category) so the sidebar reads
+    // "<orgName> Admin" and category-specific menu items (e.g. Daily Attendance
+    // for schools) can be filtered in. On the platform root (placements.com)
+    // there is no tenant, so this stays empty/OTHER and nothing extra shows.
+    this.currentOrg.load();
     this.api.get<any>('/api/organizations/current').subscribe({
       next: (org) => {
         if (org && org.name) this.orgName = org.name;
@@ -173,6 +124,19 @@ export class AdminLayoutComponent implements OnInit {
     } else {
       this.loadSubscriptionNotice();
     }
+  }
+
+  /** Menu sections for the current audience (platform / instructor / tenant). */
+  get menuSections(): MenuSection[] {
+    if (this.isPlatform && this.auth.isAdmin) return PLATFORM_SECTIONS;
+    if (this.auth.isInstructor) return INSTRUCTOR_SECTIONS;
+    return TENANT_SECTIONS;
+  }
+
+  /** Filters a section's items down to those valid for the current org's category. */
+  visibleItems(items: MenuItem[]): MenuItem[] {
+    const category = this.currentOrg.category();
+    return items.filter((item) => !item.categories || item.categories.includes(category));
   }
 
   /**

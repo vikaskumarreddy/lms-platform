@@ -1,7 +1,9 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
 
 interface SubscriptionPlan { id: number; name: string; price: number; period: string; }
@@ -58,6 +60,13 @@ interface Batch { id: number; name: string; isActive: boolean; }
                 <label>Duration (minutes)</label>
                 <input type="number" [(ngModel)]="formData.durationMinutes" name="durationMinutes" placeholder="e.g. 120">
               </div>
+              <div class="full-width">
+                <label>Delivery Mode</label>
+                <select [(ngModel)]="formData.deliveryMode" name="deliveryMode">
+                  <option value="WEB">Web - open a link</option>
+                  <option value="IN_APP">In-App - question paper</option>
+                </select>
+              </div>
             </div>
           </fieldset>
 
@@ -73,9 +82,13 @@ interface Batch { id: number; name: string; isActive: boolean; }
                 <label>Passing Marks</label>
                 <input type="number" [(ngModel)]="formData.passingMarks" name="passingMarks" placeholder="e.g. 40">
               </div>
-              <div class="full-width">
+              <div class="full-width" *ngIf="formData.deliveryMode !== 'IN_APP'">
                 <label>Link URL</label>
                 <input type="text" [(ngModel)]="formData.link" name="link" placeholder="https://example.com">
+              </div>
+              <div *ngIf="formData.deliveryMode === 'IN_APP'" class="full-width"
+                   style="background:#F0FDFA;border:1px solid #5EEAD4;border-radius:10px;padding:10px 12px;font-size:13px;color:#134E4A;">
+                Students answer this inside the app. Save it, then use <strong>Create Paper</strong> in the Actions column to add questions.
               </div>
               <div class="full-width">
                 <label>Description</label>
@@ -114,7 +127,7 @@ interface Batch { id: number; name: string; isActive: boolean; }
     </div>
 
     <div class="card">
-      <table><thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Duration</th><th>Subscription</th><th>Batch</th><th>Marks</th><th>Link</th><th>Actions</th></tr></thead>
+      <table><thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Duration</th><th>Subscription</th><th>Batch</th><th>Marks</th><th>Mode</th><th>Link / Paper</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let e of exams">
             <td style="font-weight:600;">{{e.title}}</td>
@@ -124,14 +137,29 @@ interface Batch { id: number; name: string; isActive: boolean; }
             <td><span *ngIf="e.planId" class="badge badge-warning">⭐ {{getPlanName(e.planId)}}</span><span *ngIf="!e.planId" style="color:#64748B;font-size:13px;">All</span></td>
             <td><span *ngIf="e.batchIds?.length" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{getBatchNames(e.batchIds)}}</span><span *ngIf="!e.batchIds?.length" style="color:#64748B;font-size:13px;">All</span></td>
             <td>{{e.totalMarks}}</td>
-            <td><a *ngIf="e.link" href="{{e.link}}" target="_blank" style="color:#0F172A;text-decoration:underline;">🔗 Link</a><span *ngIf="!e.link" style="color:#94A3B8;">-</span></td>
             <td>
+              <span class="badge" [style.background]="e.deliveryMode === 'IN_APP' ? '#CCFBF1' : '#EEF2FF'"
+                    [style.color]="e.deliveryMode === 'IN_APP' ? '#134E4A' : '#4338CA'">
+                {{e.deliveryMode === 'IN_APP' ? 'In-App' : 'Web'}}
+              </span>
+            </td>
+            <td>
+              <span *ngIf="e.deliveryMode === 'IN_APP'" class="badge" style="background:#F1F5F9;color:#475569;">
+                {{questionCounts[e.id] || 0}} question{{(questionCounts[e.id] || 0) === 1 ? '' : 's'}}
+              </span>
+              <a *ngIf="e.deliveryMode !== 'IN_APP' && e.link" href="{{e.link}}" target="_blank" style="color:#0F172A;text-decoration:underline;">🔗 Link</a>
+              <span *ngIf="e.deliveryMode !== 'IN_APP' && !e.link" style="color:#94A3B8;">-</span>
+            </td>
+            <td>
+              <button *ngIf="e.deliveryMode === 'IN_APP'" class="btn btn-primary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openPaper(e)">
+                {{questionCounts[e.id] ? 'Edit Paper' : 'Create Paper'}}
+              </button>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="edit(e)">Edit</button>
               <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="delete(e)">Delete</button>
             </td>
           </tr>
           <tr *ngIf="exams.length === 0">
-            <td colspan="9" style="text-align:center;padding:32px;color:#64748B;">No exams found. Click "+ Add Exam" to create one.</td>
+            <td colspan="11" style="text-align:center;padding:32px;color:#64748B;">No exams found. Click "+ Add Exam" to create one.</td>
           </tr>
         </tbody>
       </table>
@@ -140,6 +168,8 @@ interface Batch { id: number; name: string; isActive: boolean; }
 })
 export class ExamsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private router = inject(Router);
+  private errors = inject(ApiErrorService);
   showModal = false; editingId: number | null = null;
   examTab: 'basic' | 'details' = 'basic';
   saving = false;
@@ -147,33 +177,52 @@ export class ExamsAdminComponent implements OnInit {
   plans: SubscriptionPlan[] = [];
   batches: Batch[] = [];
   selectedBatchIds: number[] = [];
-  formData: any = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, batchIds: [], link: '' };
+  /** Question count per exam id, so every In-App row can be badged from one request. */
+  questionCounts: Record<number, number> = {};
+  formData: any = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, batchIds: [], link: '', deliveryMode: 'WEB' };
   exams: any[] = [];
 
   ngOnInit() {
     this.loadPlans();
     this.loadBatches();
     this.loadExams();
+    this.loadQuestionCounts();
+  }
+
+  /** One request badges every In-App row, instead of one request per row. */
+  loadQuestionCounts() {
+    this.api.get<Record<string, number>>('/api/assessments/exams/question-counts').subscribe({
+      next: (data) => {
+        const counts: Record<number, number> = {};
+        Object.keys(data || {}).forEach(k => counts[Number(k)] = (data as any)[k]);
+        this.questionCounts = counts;
+      },
+      error: err => this.errors.show(err, 'Could not load question counts')
+    });
+  }
+
+  openPaper(e: any) {
+    this.router.navigate(['/assessment-paper', 'exams', e.id]);
   }
 
   loadExams() {
     this.api.get<any[]>('/api/exams').subscribe({
       next: (data) => { this.exams = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load exams')
     });
   }
 
   loadPlans() {
     this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (data) => { this.plans = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load subscription plans')
     });
   }
 
   loadBatches() {
     this.api.get<Batch[]>('/api/batches').subscribe({
       next: (data) => { this.batches = data; },
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load batches')
     });
   }
 
@@ -217,7 +266,9 @@ export class ExamsAdminComponent implements OnInit {
       batchIds: this.selectedBatchIds.length > 0 ? this.selectedBatchIds : [],
       courseId: Number(this.formData.courseId) || null,
       isActive: true,
-      link: this.formData.link || null
+      deliveryMode: this.formData.deliveryMode || 'WEB',
+      // An in-app paper has no external link; keeping a stale one would confuse the app.
+      link: this.formData.deliveryMode === 'IN_APP' ? null : (this.formData.link || null)
     };
 
     if (this.editingId) {
@@ -253,7 +304,8 @@ export class ExamsAdminComponent implements OnInit {
       passingMarks: e.passingMarks || 40,
       description: e.description,
       planId: e.planId || null,
-      link: e.link || ''
+      link: e.link || '',
+      deliveryMode: e.deliveryMode || 'WEB'
     };
     this.selectedBatchIds = e.batchIds || [];
     this.examTab = 'basic';
@@ -265,7 +317,7 @@ export class ExamsAdminComponent implements OnInit {
     if (confirm('Delete exam?')) {
       this.api.delete(`/api/exams/${e.id}`).subscribe({
         next: () => { this.exams = this.exams.filter(x => x.id !== e.id); },
-        error: (err) => { console.error('Failed to delete:', err); alert('Failed to delete exam'); }
+        error: (err) => { console.error('Failed to delete:', err); this.errors.show(err, 'Could not delete exam'); }
       });
     }
   }
@@ -275,7 +327,7 @@ export class ExamsAdminComponent implements OnInit {
   }
 
   private resetFormData() {
-    this.formData = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, link: '', batchIds: [] };
+    this.formData = { title: '', courseId: null, examDate: '', durationMinutes: 120, totalMarks: 100, passingMarks: 40, description: '', planId: null, link: '', batchIds: [], deliveryMode: 'WEB' };
     this.selectedBatchIds = [];
   }
 

@@ -105,6 +105,25 @@ public class UserContext {
         }
     }
 
+    /** Asserts the caller is an org admin or Faculty — the audience for course-content writes. */
+    public void requireOrgAdminOrFaculty() {
+        if (!isAnyAdmin() && !isFaculty()) {
+            throw com.institute.lms.exception.UnauthorizedException.requiresRole("Organization Admin or Faculty");
+        }
+    }
+
+    /**
+     * Asserts the caller either owns {@code targetUserId} or is an org admin — for
+     * personal-resource writes (notes, bookmarks) where the id comes from the request
+     * body/params rather than the authenticated session.
+     */
+    public void requireSelfOrAdmin(Long targetUserId) {
+        User u = currentUser();
+        if (u != null && u.getId().equals(targetUserId)) return;
+        if (isAnyAdmin()) return;
+        throw com.institute.lms.exception.UnauthorizedException.requiresRole("Account Owner or Organization Admin");
+    }
+
 
     /**
      * The batch id a Faculty user is scoped to, or {@code null} when the current

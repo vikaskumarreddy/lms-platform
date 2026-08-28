@@ -6,15 +6,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.institute.lms.service.NotificationService;
+import com.institute.lms.util.UserContext;
 
 @RestController
 @RequestMapping("/api/placement-drives")
 public class PlacementDriveController {
 
     private final PlacementDriveRepository placementDriveRepository;
+    private final NotificationService notificationService;
+    private final UserContext userContext;
 
-    public PlacementDriveController(PlacementDriveRepository placementDriveRepository) {
+    public PlacementDriveController(PlacementDriveRepository placementDriveRepository,
+                                    NotificationService notificationService,
+                                    UserContext userContext) {
         this.placementDriveRepository = placementDriveRepository;
+        this.notificationService = notificationService;
+        this.userContext = userContext;
     }
 
     @GetMapping
@@ -29,13 +37,27 @@ public class PlacementDriveController {
 
     @PostMapping
     public PlacementDrive createDrive(@RequestBody PlacementDrive drive) {
+        userContext.requireOrgAdmin();
         if (drive.getIsActive() == null) drive.setIsActive(true);
         if (drive.getDriveType() == null || drive.getDriveType().isBlank()) drive.setDriveType("EXTERNAL");
-        return placementDriveRepository.save(drive);
+        PlacementDrive saved = placementDriveRepository.save(drive);
+
+        // Drives are gated by subscription plan; a null planId means open to all.
+        String role = saved.getRole() != null ? saved.getRole() : "New opening";
+        notificationService.safeNotify(
+                notificationService.audienceForPlan(saved.getPlanId()),
+                saved.getCompanyName() + " is hiring",
+                role + (saved.getDeadline() != null
+                        ? " - apply by " + saved.getDeadline().toLocalDate() + "."
+                        : " - open now."),
+                "placement", "/placement-drives", "SUBSCRIPTION", saved.getId());
+
+        return saved;
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<PlacementDrive> updateDrive(@PathVariable Long id, @RequestBody PlacementDrive drive) {
+        userContext.requireOrgAdmin();
         return placementDriveRepository.findById(id)
                 .map(existing -> {
                     existing.setCompanyName(drive.getCompanyName());
@@ -66,6 +88,7 @@ public class PlacementDriveController {
      */
     @PutMapping("/{id}/criteria")
     public ResponseEntity<PlacementDrive> updateCriteria(@PathVariable Long id, @RequestBody PlacementDrive criteria) {
+        userContext.requireOrgAdmin();
         return placementDriveRepository.findById(id)
                 .map(existing -> {
                     existing.setMinAttendancePercent(criteria.getMinAttendancePercent());
@@ -79,6 +102,7 @@ public class PlacementDriveController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDrive(@PathVariable Long id) {
+        userContext.requireOrgAdmin();
         placementDriveRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

@@ -259,7 +259,7 @@ export class PlatformBillingComponent implements OnInit {
     });
     this.api.get<any[]>('/api/platform/subscriptions/addon-requests').subscribe({
       next: data => (this.addonRequests = data),
-      error: () => {}
+      error: err => this.errors.show(err, 'Could not load add-on requests')
     });
   }
 

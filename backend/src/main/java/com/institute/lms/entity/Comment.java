@@ -10,14 +10,18 @@ import java.time.LocalDateTime;
 @Table(name = "comments")
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(callSuper = true, exclude = {"user", "course"})
+@EqualsAndHashCode(callSuper = true, exclude = {"user", "course", "lesson"})
 public class Comment extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "course_id", nullable = false)
+    @JoinColumn(name = "lesson_id")
+    private Lesson lesson;
+
+    @ManyToOne
+    @JoinColumn(name = "course_id")
     private Course course;
 
     @Column(columnDefinition = "TEXT")

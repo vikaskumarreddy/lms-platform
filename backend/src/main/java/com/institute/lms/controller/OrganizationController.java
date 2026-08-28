@@ -113,6 +113,13 @@ public class OrganizationController {
         // without going back to the customer for a GSTIN.
         organizationService.updateBillingDetails(org.getId(), billingFields(body));
 
+        if (body.containsKey("category")) {
+            organizationService.updateCategory(org.getId(), str(body.get("category")));
+        }
+        if (body.containsKey("activeGateway")) {
+            organizationService.updateActiveGateway(org.getId(), str(body.get("activeGateway")));
+        }
+
         return ResponseEntity.ok(toOrgMap(
                 organizationRepository.findById(org.getId()).orElse(org)));
     }
@@ -208,6 +215,12 @@ public class OrganizationController {
         if (!billing.isEmpty()) {
             org = organizationService.updateBillingDetails(id, billing);
         }
+        if (body.containsKey("category")) {
+            org = organizationService.updateCategory(id, str(body.get("category")));
+        }
+        if (body.containsKey("activeGateway")) {
+            org = organizationService.updateActiveGateway(id, str(body.get("activeGateway")));
+        }
         return ResponseEntity.ok(toOrgMap(org));
     }
 
@@ -288,6 +301,8 @@ public class OrganizationController {
         map.put("domain", org.getDomain());
         map.put("logoUrl", org.getLogoUrl());
         map.put("isActive", org.getIsActive());
+        map.put("category", org.getCategory() != null ? org.getCategory().name() : "OTHER");
+        map.put("activeGateway", org.getActiveGateway() != null ? org.getActiveGateway().name() : "RAZORPAY");
         map.put("planId", org.getPlanId());
         map.put("orgSubscriptionId", org.getOrgSubscriptionId());
         String subName = null;

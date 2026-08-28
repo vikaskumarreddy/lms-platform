@@ -69,6 +69,16 @@
         <input [(ngModel)]="formData.domain" name="domain" type="text" placeholder="example.com" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
       </div>
       <div>
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">Category</label>
+        <select [(ngModel)]="formData.category" name="category" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:4px;font-size:14px;">
+          <option value="SCHOOL">School</option>
+          <option value="COLLEGE">College</option>
+          <option value="ACADEMY">Academy</option>
+          <option value="TRAINING_INSTITUTE">Training Institute</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div>
         <label style="display:block;margin-bottom:8px;font-weight:600;color:#333;">
           <input [(ngModel)]="formData.isActive" name="isActive" type="checkbox"> Active
         </label>

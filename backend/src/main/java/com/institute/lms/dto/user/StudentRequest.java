@@ -28,4 +28,14 @@ public class StudentRequest {
     private String linkedin;
 
     private String github;
+
+    private String paymentMethod; // CASH or ONLINE
+
+    private String parentName;
+
+    private String parentPhone;
+
+    private String parentEmail;
+
+    private String notifyMedium; // PUSH, SMS, or WHATSAPP
 }

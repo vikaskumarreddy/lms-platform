@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Batch {
   id: number;
@@ -295,6 +296,7 @@ interface SubscriptionPlan {
 })
 export class BatchesComponent implements OnInit {
   private api = inject(ApiService);
+  private errors = inject(ApiErrorService);
 
   batches: Batch[] = [];
   allStudents: Student[] = [];
@@ -471,7 +473,7 @@ export class BatchesComponent implements OnInit {
     if (!confirm(`Are you sure you want to delete batch "${batch.name}"? Students will remain but will be unassigned from this batch.`)) return;
     this.api.delete(`/api/batches/${batch.id}`).subscribe({
       next: () => { this.loadBatches(); },
-      error: (err) => { console.error('Failed to delete batch', err); alert('Failed to delete batch'); }
+      error: (err) => { this.errors.show(err, 'Failed to delete batch'); }
     });
   }
 
@@ -518,8 +520,7 @@ export class BatchesComponent implements OnInit {
         this.showAddStudent = false;
       },
       error: (err) => {
-        console.error('Failed to add student to batch', err);
-        alert('Failed to add student to batch');
+        this.errors.show(err, 'Failed to add student to batch');
       }
     });
   }
@@ -541,8 +542,7 @@ export class BatchesComponent implements OnInit {
         this.batchStudents = this.allStudents.filter(s => s.batchId === this.selectedBatch!.id);
       },
       error: (err) => {
-        console.error('Failed to remove student from batch', err);
-        alert('Failed to remove student from batch');
+        this.errors.show(err, 'Failed to remove student from batch');
       }
     });
   }

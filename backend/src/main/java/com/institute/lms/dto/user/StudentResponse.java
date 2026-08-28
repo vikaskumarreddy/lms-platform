@@ -25,7 +25,13 @@ public class StudentResponse {
     // Social links
     private String linkedin;
     private String github;
-    
+
+    // Parent/guardian contact, used for daily-attendance absentee alerts etc.
+    private String parentName;
+    private String parentPhone;
+    private String parentEmail;
+    private String notifyMedium;
+
     // Batch details
     private String batchName;
     
@@ -39,4 +45,10 @@ public class StudentResponse {
     private String placedCompany;
     private String placedRole;
     private Double placedPackage;
+
+    // Enrollment fee: CASH students reach the dashboard straight after login,
+    // ONLINE students are held at the payment screen until paymentStatus is COMPLETED.
+    private String paymentMethod;
+    private String paymentStatus;
+    private Long amountDue;
 }

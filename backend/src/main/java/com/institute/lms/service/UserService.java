@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import com.institute.lms.entity.StudentPaymentInfo;
 
 @Service
 public class UserService {
@@ -29,15 +30,19 @@ public class UserService {
     private final BatchRepository batchRepository;
     private final OrganizationContext organizationContext;
 
+    private final StudentPaymentService studentPaymentService;
+
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        StudentPlacementRepository placementRepository, SubscriptionPlanRepository subscriptionPlanRepository,
-                       BatchRepository batchRepository, OrganizationContext organizationContext) {
+                       BatchRepository batchRepository, OrganizationContext organizationContext,
+                       StudentPaymentService studentPaymentService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.placementRepository = placementRepository;
         this.subscriptionPlanRepository = subscriptionPlanRepository;
         this.batchRepository = batchRepository;
         this.organizationContext = organizationContext;
+        this.studentPaymentService = studentPaymentService;
     }
 
 
@@ -102,8 +107,26 @@ public class UserService {
         user.setOrganizationId(orgId);
         user.setLinkedin(request.getLinkedin());
         user.setGithub(request.getGithub());
+        user.setParentName(request.getParentName());
+        user.setParentPhone(request.getParentPhone());
+        user.setParentEmail(request.getParentEmail());
+        user.setNotifyMedium(parseNotifyMedium(request.getNotifyMedium()));
 
-        return toResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+
+        // Create payment record based on payment method selection
+        String paymentMethod = request.getPaymentMethod();
+        if (paymentMethod == null || paymentMethod.isEmpty()) {
+            paymentMethod = "CASH"; // default to cash
+        }
+        try {
+            studentPaymentService.createPaymentForNewStudent(savedUser.getId(), orgId, paymentMethod);
+        } catch (Exception e) {
+            // Log but don't fail - payment creation is best-effort
+            System.err.println("Warning: Failed to create payment record for student: " + e.getMessage());
+        }
+
+        return toResponse(savedUser);
     }
 
     @Transactional
@@ -133,8 +156,24 @@ public class UserService {
         user.setBatchId(request.getBatchId());
         user.setLinkedin(request.getLinkedin());
         user.setGithub(request.getGithub());
+        user.setParentName(request.getParentName());
+        user.setParentPhone(request.getParentPhone());
+        user.setParentEmail(request.getParentEmail());
+        if (request.getNotifyMedium() != null && !request.getNotifyMedium().isBlank()) {
+            user.setNotifyMedium(parseNotifyMedium(request.getNotifyMedium()));
+        }
 
         return Optional.of(toResponse(userRepository.save(user)));
+    }
+
+    /** Parses a notify-medium string, defaulting to PUSH for blank/unknown values rather than failing the request. */
+    private com.institute.lms.entity.NotifyMedium parseNotifyMedium(String value) {
+        if (value == null || value.isBlank()) return com.institute.lms.entity.NotifyMedium.PUSH;
+        try {
+            return com.institute.lms.entity.NotifyMedium.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return com.institute.lms.entity.NotifyMedium.PUSH;
+        }
     }
 
     @Transactional
@@ -173,7 +212,12 @@ public class UserService {
                 user.getLastLogin(),
                 user.getLinkedin(),
                 user.getGithub(),
-                null, null, null, null, null, null, null, null
+                user.getParentName(),
+                user.getParentPhone(),
+                user.getParentEmail(),
+                user.getNotifyMedium() != null ? user.getNotifyMedium().name() : "PUSH",
+                null, null, null, null, null, null, null, null,
+                null, null, null
         );
         
         // Add batch details
@@ -206,7 +250,19 @@ public class UserService {
         } else {
             response.setIsPlaced(false);
         }
-        
+
+        // Enrollment fee state. Students created before this feature have no row,
+        // which reads as CASH — they already have access and must not be gated.
+        studentPaymentService.getPaymentInfo(user.getId(), user.getOrganizationId())
+                .ifPresentOrElse(info -> {
+                    response.setPaymentMethod(info.getPaymentMethod());
+                    response.setPaymentStatus(info.getPaymentStatus());
+                    response.setAmountDue(info.getAmountDue());
+                }, () -> {
+                    response.setPaymentMethod("CASH");
+                    response.setPaymentStatus("COMPLETED");
+                });
+
         return response;
     }
 

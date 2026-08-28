@@ -158,7 +158,20 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
   Future<void> _showSlotPicker(WidgetRef ref, PlacementDriveModel drive) async {
     final api = ref.read(apiServiceProvider);
     final slots = await api.getInterviewSlotsForDrive(drive.id);
+    final userId = await api.getCurrentUserId();
     if (!mounted) return;
+
+    // If this student already holds a slot on this drive, show it instead of
+    // letting them pick another one -- only an admin resetting the slot frees
+    // it back up.
+    Map<String, dynamic>? mySlot;
+    for (final s in slots) {
+      final bookedBy = (s['bookedByUserId'] as num?)?.toInt();
+      if (bookedBy != null && bookedBy == userId) {
+        mySlot = s;
+        break;
+      }
+    }
 
     final available = slots.where((s) => s['status'] == 'AVAILABLE').toList();
 
@@ -172,11 +185,14 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Available Interview Slots', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text(mySlot != null ? 'Your Interview Slot' : 'Available Interview Slots',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text(drive.companyName, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
             const SizedBox(height: 16),
-            if (available.isEmpty)
+            if (mySlot != null)
+              _BookedSlotSummary(slot: mySlot)
+            else if (available.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: Text('No open slots right now. Check back later.', style: TextStyle(color: Colors.grey.shade500))),
@@ -211,6 +227,61 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The confirmed slot a student already holds for a drive -- shown instead of
+/// the booking list so they can't pick a second one out from under it.
+class _BookedSlotSummary extends StatelessWidget {
+  final Map<String, dynamic> slot;
+  const _BookedSlotSummary({required this.slot});
+
+  @override
+  Widget build(BuildContext context) {
+    final location = (slot['location'] ?? '').toString();
+    final notes = (slot['notes'] ?? '').toString();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF5),
+        border: Border.all(color: const Color(0xFF6EE7B7)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.check_circle, color: Color(0xFF059669), size: 20),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Your slot is confirmed', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46))),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Icon(Icons.schedule, size: 16, color: Colors.grey.shade700),
+            const SizedBox(width: 8),
+            Text((slot['slotTime'] ?? '').toString().replaceFirst('T', '  '), style: const TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+          if (location.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.location_on, size: 16, color: Colors.grey.shade700),
+              const SizedBox(width: 8),
+              Expanded(child: Text(location)),
+            ]),
+          ],
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(notes, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ],
+          const SizedBox(height: 12),
+          Text('Contact your institute if you need to reschedule.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        ],
       ),
     );
   }

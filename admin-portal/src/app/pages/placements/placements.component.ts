@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Drive {
   id: number;
@@ -377,6 +378,7 @@ interface SubscriptionPlan {
   `]
 })
 export class PlacementsComponent implements OnInit {
+  private errors = inject(ApiErrorService);
   drives: Drive[] = [];
   plans: SubscriptionPlan[] = [];
   applications: StudentApplication[] = [];
@@ -433,7 +435,7 @@ export class PlacementsComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to update status', err);
-        alert('Failed to update application status.');
+        this.errors.show(err, 'Could not update application status');
       }
     });
   }
@@ -546,7 +548,7 @@ export class PlacementsComponent implements OnInit {
       error: (err) => {
         this.savingCriteria = false;
         console.error('Failed to save criteria', err);
-        alert('Failed to save criteria. Please try again.');
+        this.errors.show(err, 'Could not save eligibility criteria');
       }
     });
   }
@@ -584,7 +586,7 @@ export class PlacementsComponent implements OnInit {
         this.loadSlots(this.slotsForDrive!.id);
         this.newSlot = { slotTime: '', location: this.slotsForDrive!.location || '', notes: '' };
       },
-      error: () => alert('Failed to add interview slot')
+      error: err => this.errors.show(err, 'Could not add interview slot')
     });
   }
 
@@ -592,7 +594,7 @@ export class PlacementsComponent implements OnInit {
     if (!confirm('Delete this interview slot?')) return;
     this.apiService.delete(`/api/interview-slots/${slot.id}`).subscribe({
       next: () => this.loadSlots(this.slotsForDrive!.id),
-      error: () => alert('Failed to delete slot')
+      error: err => this.errors.show(err, 'Could not delete interview slot')
     });
   }
 
@@ -643,7 +645,7 @@ export class PlacementsComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to delete drive', err);
-        alert('Failed to delete drive');
+        this.errors.show(err, 'Could not delete placement drive');
       }
     });
   }

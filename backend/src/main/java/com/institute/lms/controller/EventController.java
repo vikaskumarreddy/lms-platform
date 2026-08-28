@@ -7,15 +7,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.institute.lms.service.NotificationService;
 
 @RestController
 @RequestMapping("/api/events")
 public class EventController {
 
     private final EventRepository eventRepository;
+    private final NotificationService notificationService;
     private final UserContext userContext;
 
-    public EventController(EventRepository eventRepository, UserContext userContext) {
+    public EventController(EventRepository eventRepository, UserContext userContext,
+                           NotificationService notificationService) {
+        this.notificationService = notificationService;
         this.eventRepository = eventRepository;
         this.userContext = userContext;
     }
@@ -50,7 +54,19 @@ public class EventController {
     @PostMapping
     public Event createEvent(@RequestBody Event event) {
         if (event.getAttendanceRequired() == null) event.setAttendanceRequired(true);
-        return eventRepository.save(event);
+        Event saved = eventRepository.save(event);
+
+        // Events can be scoped by batch, by plan, or both; when both are set the
+        // audience is the intersection, not the union.
+        notificationService.safeNotify(
+                notificationService.audienceForBatchAndPlan(saved.getBatchId(), saved.getPlanId()),
+                saved.getTitle(),
+                saved.getStartTime() != null
+                        ? "Starts " + saved.getStartTime().toLocalDate() + "."
+                        : "A new event has been added to your calendar.",
+                "event", "/calendar", "BATCH", saved.getId());
+
+        return saved;
     }
 
     @PutMapping("/{id}")

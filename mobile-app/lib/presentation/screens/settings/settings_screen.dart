@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../core/providers/router_provider.dart';
 import '../../../core/providers/notification_preferences_provider.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/constants/routes.dart';
 import '../../../core/utils/avatar_utils.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -109,9 +107,7 @@ class SettingsScreen extends ConsumerWidget {
 
           // About section
           Card(child: Column(children: [
-            ListTile(leading: const Icon(Icons.language), title: const Text('Language'), subtitle: const Text('English'), trailing: const Icon(Icons.chevron_right), onTap: () {}),
-            const Divider(height: 1),
-            ListTile(leading: const Icon(Icons.info_outline), title: const Text('App Version'), subtitle: const Text('1.0.0'), trailing: const Icon(Icons.chevron_right), onTap: () {}),
+            ListTile(leading: const Icon(Icons.info_outline), title: const Text('App Version'), subtitle: const Text('1.0.0')),
           ])),
         ],
       ),

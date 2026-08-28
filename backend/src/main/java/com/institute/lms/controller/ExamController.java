@@ -1,11 +1,14 @@
 package com.institute.lms.controller;
 
+import com.institute.lms.entity.AssessmentType;
 import com.institute.lms.entity.Exam;
 import com.institute.lms.entity.ExamSubmission;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.ExamRepository;
 import com.institute.lms.repository.ExamSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.service.AssessmentPaperService;
+import com.institute.lms.service.NotificationService;
 import com.institute.lms.util.OrganizationContext;
 import com.institute.lms.util.UserContext;
 import org.springframework.http.ResponseEntity;
@@ -24,17 +27,23 @@ public class ExamController {
     private final ExamSubmissionRepository examSubmissionRepository;
     private final UserContext userContext;
     private final OrganizationContext organizationContext;
+    private final AssessmentPaperService paperService;
+    private final NotificationService notificationService;
 
     public ExamController(ExamRepository examRepository,
                          UserRepository userRepository,
                          ExamSubmissionRepository examSubmissionRepository,
                          UserContext userContext,
-                         OrganizationContext organizationContext) {
+                         OrganizationContext organizationContext,
+                         AssessmentPaperService paperService,
+                          NotificationService notificationService) {
         this.examRepository = examRepository;
         this.userRepository = userRepository;
         this.examSubmissionRepository = examSubmissionRepository;
         this.userContext = userContext;
         this.organizationContext = organizationContext;
+        this.paperService = paperService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping
@@ -97,6 +106,11 @@ public class ExamController {
                     detail.put("courseId", exam.getCourseId());
                     detail.put("isActive", exam.getIsActive());
                     detail.put("link", exam.getLink());
+                    detail.put("deliveryMode", exam.getDeliveryMode() != null
+                            ? exam.getDeliveryMode().name() : "WEB");
+                    boolean inApp = exam.getDeliveryMode() == com.institute.lms.entity.DeliveryMode.IN_APP;
+                    detail.put("questionCount", inApp
+                            ? paperService.questionCount(AssessmentType.EXAM, exam.getId()) : 0L);
 
                     ExamSubmission submission = submissionMap.get(exam.getId());
                     if (submission != null) {
@@ -115,7 +129,12 @@ public class ExamController {
                     links.put("self", "/api/exams/" + exam.getId());
                     links.put("submission", "/api/exams/" + exam.getId() + "/submit");
                     links.put("result", "/api/exams/" + exam.getId() + "/result");
-                    if (exam.getLink() != null && !exam.getLink().isEmpty()) {
+                    if (inApp) {
+                        // In-app papers are answered inside the app, never in the browser.
+                        links.put("paper", "/api/assessments/exams/" + exam.getId() + "/paper");
+                        links.put("attempt", "/api/assessments/exams/" + exam.getId() + "/attempt");
+                        links.put("review", "/api/assessments/exams/" + exam.getId() + "/review");
+                    } else if (exam.getLink() != null && !exam.getLink().isEmpty()) {
                         links.put("details", exam.getLink());
                     }
                     detail.put("_links", links);
@@ -153,7 +172,17 @@ public class ExamController {
     @PostMapping
     public Exam createExam(@RequestBody Exam exam) {
         if (exam.getIsActive() == null) exam.setIsActive(true);
-        return examRepository.save(exam);
+        Exam saved = examRepository.save(exam);
+
+        notificationService.safeNotify(
+                notificationService.audienceForBatches(saved.getBatchIds()),
+                "New exam: " + saved.getTitle(),
+                saved.getExamDate() != null
+                        ? "Scheduled for " + saved.getExamDate().toLocalDate() + "."
+                        : "A new exam has been scheduled.",
+                "exam", "/exams", "BATCH", saved.getId());
+
+        return saved;
     }
 
     @PutMapping("/{id}")
@@ -170,6 +199,7 @@ public class ExamController {
                     existing.setCourseId(exam.getCourseId());
                     existing.setIsActive(exam.getIsActive());
                     existing.setLink(exam.getLink());
+                    if (exam.getDeliveryMode() != null) existing.setDeliveryMode(exam.getDeliveryMode());
                     return ResponseEntity.ok(examRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -177,6 +207,8 @@ public class ExamController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExam(@PathVariable Long id) {
+        // The paper points back by (type, id) rather than a FK, so it has to be swept here.
+        paperService.deletePaper(AssessmentType.EXAM, id);
         examRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

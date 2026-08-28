@@ -36,6 +36,7 @@ public class DashboardController {
     private final ExamSubmissionRepository examSubmissionRepository;
     private final ProgressRepository progressRepository;
     private final UserContext userContext;
+    private final StudentPaymentInfoRepository studentPaymentInfoRepository;
 
     public DashboardController(UserRepository userRepository, CourseRepository courseRepository,
                                SubscriptionRepository subscriptionRepository, SubscriptionPlanRepository subscriptionPlanRepository,
@@ -43,7 +44,7 @@ public class DashboardController {
                                ExamRepository examRepository, EventRepository eventRepository, EnrollmentRepository enrollmentRepository,
                                AttendanceRepository attendanceRepository, AssignmentSubmissionRepository assignmentSubmissionRepository,
                                ExamSubmissionRepository examSubmissionRepository, ProgressRepository progressRepository,
-                               UserContext userContext) {
+                               UserContext userContext, StudentPaymentInfoRepository studentPaymentInfoRepository) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -58,6 +59,7 @@ public class DashboardController {
         this.examSubmissionRepository = examSubmissionRepository;
         this.progressRepository = progressRepository;
         this.userContext = userContext;
+        this.studentPaymentInfoRepository = studentPaymentInfoRepository;
     }
 
     @GetMapping("/student/{studentId}")
@@ -213,13 +215,12 @@ public class DashboardController {
             totalStudents = userRepository.countByRole(User.UserRole.STUDENT);
             activeCourses = courseRepository.countByIsPublishedTrue();
 
-            totalRevenue = BigDecimal.ZERO;
-            List<Subscription> activeSubscriptions = subscriptionRepository.findAll();
-            for (Subscription subscription : activeSubscriptions) {
-                if (subscription.getPlan() != null && subscription.getPlan().getPrice() != null) {
-                    totalRevenue = totalRevenue.add(subscription.getPlan().getPrice());
-                }
-            }
+            // Revenue = actual money collected from students (amountDue is in paise), converted to rupees.
+            long collectedPaise = studentPaymentInfoRepository.findAll().stream()
+                    .filter(StudentPaymentInfo::isPaid)
+                    .mapToLong(info -> info.getAmountDue() != null ? info.getAmountDue() : 0L)
+                    .sum();
+            totalRevenue = BigDecimal.valueOf(collectedPaise).divide(BigDecimal.valueOf(100), MathContext.DECIMAL64);
 
             placedStudents = placementRepository.countByIsPlacedTrue();
             placementPercentage = totalStudents > 0 ? (placedStudents * 100.0 / totalStudents) : 0.0;

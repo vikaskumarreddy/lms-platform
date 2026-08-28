@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface Faculty {
   id: number;
@@ -132,6 +133,8 @@ export class FacultyComponent implements OnInit {
     isActive: true
   };
 
+  private errors = inject(ApiErrorService);
+
   constructor(private apiService: ApiService) {}
 
   ngOnInit() {
@@ -222,8 +225,7 @@ export class FacultyComponent implements OnInit {
         this.loadFaculty();
       },
       error: (err) => {
-        console.error('Failed to delete faculty', err);
-        alert('Failed to delete faculty');
+        this.errors.show(err, 'Could not delete that faculty member');
       }
     });
   }
