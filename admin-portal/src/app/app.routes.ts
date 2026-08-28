@@ -23,12 +23,14 @@ import { GradingAdminComponent } from './pages/grading-admin/grading-admin.compo
 import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
 import { AssessmentPaperComponent } from './pages/assessment-paper/assessment-paper.component';
+import { CompanyQuestionsComponent } from './pages/company-questions/company-questions.component';
 import { PaymentSettingsComponent } from './pages/payment-settings/payment-settings.component';
 import { OrganizationsComponent } from './pages/organizations/organizations.component';
 import { OrgSubscriptionsComponent } from './pages/org-subscriptions/org-subscriptions.component';
 import { AccountComponent } from './pages/account/account.component';
 import { PlatformAddonsComponent } from './pages/platform-addons/platform-addons.component';
 import { PlatformBillingComponent } from './pages/platform-billing/platform-billing.component';
+import { LeaderboardAdminComponent } from './pages/leaderboard-admin/leaderboard-admin.component';
 import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
@@ -62,6 +64,8 @@ export const routes: Routes = [
       { path: 'attendance-admin', component: AttendanceAdminComponent },
       { path: 'certificates-admin', component: CertificatesAdminComponent },
       { path: 'qa-admin', component: QaAdminComponent },
+      { path: 'company-questions', component: CompanyQuestionsComponent },
+      { path: 'leaderboard-admin', component: LeaderboardAdminComponent },
       { path: 'notifications-admin', component: NotificationsAdminComponent },
       { path: 'subscriptions-admin', component: SubscriptionsAdminComponent },
       { path: 'events-admin', component: EventsAdminComponent },

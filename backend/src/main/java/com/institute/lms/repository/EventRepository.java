@@ -21,4 +21,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // One DAILY_ATTENDANCE event per batch per calendar day, reusing the existing
     // Event/Attendance/mark-attendance machinery instead of a parallel data model.
     Optional<Event> findByBatchIdAndEventTypeAndStartTime(Long batchId, String eventType, LocalDateTime startTime);
+
+    // Same as above but scoped to a subject, for the subject-tabbed daily attendance UI.
+    // The no-subject method above is left untouched as the default "no subject" path.
+    Optional<Event> findByBatchIdAndEventTypeAndStartTimeAndSubject(Long batchId, String eventType, LocalDateTime startTime, String subject);
 }

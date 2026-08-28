@@ -200,6 +200,14 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
                   },
                 ),
                 _DrawerItem(
+                  icon: Icons.business_outlined,
+                  title: 'Company Questions',
+                  onTap: () {
+                    context.go(AppRoutes.companyQuestions);
+                    Navigator.pop(context);
+                  },
+                ),
+                _DrawerItem(
                   icon: Icons.bookmark_outlined,
                   title: 'Bookmarks',
                   onTap: () {

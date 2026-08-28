@@ -7,6 +7,7 @@ import com.institute.lms.repository.AssignmentSubmissionRepository;
 import com.institute.lms.repository.AttendanceRepository;
 import com.institute.lms.repository.ExamSubmissionRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.UserContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -32,15 +33,18 @@ public class LeaderboardController {
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final ExamSubmissionRepository examSubmissionRepository;
     private final AttendanceRepository attendanceRepository;
+    private final UserContext userContext;
 
     public LeaderboardController(UserRepository userRepository,
                                   AssignmentSubmissionRepository assignmentSubmissionRepository,
                                   ExamSubmissionRepository examSubmissionRepository,
-                                  AttendanceRepository attendanceRepository) {
+                                  AttendanceRepository attendanceRepository,
+                                  UserContext userContext) {
         this.userRepository = userRepository;
         this.assignmentSubmissionRepository = assignmentSubmissionRepository;
         this.examSubmissionRepository = examSubmissionRepository;
         this.attendanceRepository = attendanceRepository;
+        this.userContext = userContext;
     }
 
     /**
@@ -52,11 +56,28 @@ public class LeaderboardController {
     @GetMapping
     public Map<String, Object> getWeeklyLeaderboard(@RequestParam(required = false) Long batchId,
                                                       @RequestParam(required = false) Long studentId) {
+        // Scope batchId/studentId to what the caller is actually allowed to see. A
+        // STUDENT can only ever see their own rank and their own batch's ranking
+        // (params are silently overridden rather than rejected, so well-behaved
+        // clients that already send the right values are unaffected). Faculty
+        // default to their own batch when none is specified. Admins are trusted
+        // with arbitrary values (needed for the admin-portal cross-batch dashboard).
+        User caller = userContext.currentUser();
+        if (caller != null && caller.getRole() == User.UserRole.STUDENT) {
+            studentId = caller.getId();
+            batchId = caller.getBatchId();
+        } else if (caller != null && caller.getRole() == User.UserRole.INSTRUCTOR && batchId == null) {
+            batchId = userContext.facultyBatchId();
+        }
+
+        final Long effectiveBatchId = batchId;
+        final Long effectiveStudentId = studentId;
+
         LocalDateTime weekStart = LocalDateTime.now().with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
                 .toLocalDate().atStartOfDay();
 
         List<User> students = userRepository.findByRole(User.UserRole.STUDENT).stream()
-                .filter(u -> batchId == null || batchId.equals(u.getBatchId()))
+                .filter(u -> effectiveBatchId == null || effectiveBatchId.equals(u.getBatchId()))
                 .toList();
 
         List<Map<String, Object>> entries = new java.util.ArrayList<>();
@@ -88,7 +109,9 @@ public class LeaderboardController {
             entries.add(entry);
         }
 
-        entries.sort((a, b) -> Double.compare((Double) b.get("score"), (Double) a.get("score")));
+        entries.sort(Comparator
+                .comparing((Map<String, Object> e) -> (Double) e.get("score")).reversed()
+                .thenComparing(e -> (Long) e.get("userId")));
         for (int i = 0; i < entries.size(); i++) {
             entries.get(i).put("rank", i + 1);
         }
@@ -96,9 +119,9 @@ public class LeaderboardController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("weekStart", weekStart.toLocalDate().toString());
         response.put("entries", entries.stream().limit(20).toList());
-        if (studentId != null) {
+        if (effectiveStudentId != null) {
             entries.stream()
-                    .filter(e -> studentId.equals(e.get("userId")))
+                    .filter(e -> effectiveStudentId.equals(e.get("userId")))
                     .findFirst()
                     .ifPresent(mine -> response.put("myRank", mine));
         }

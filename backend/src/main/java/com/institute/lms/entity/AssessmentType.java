@@ -10,12 +10,19 @@ package com.institute.lms.entity;
  */
 public enum AssessmentType {
     ASSIGNMENT,
-    EXAM;
+    EXAM,
+    COMPANY_KIT;
 
-    /** Lenient parse used by the path-variable binding ("exam", "EXAM", "exams" all work). */
+    /**
+     * Lenient parse used by the path-variable binding ("exam", "EXAM", "exams",
+     * "company-kit" all work). Hyphens are normalized to underscores before the
+     * trailing-"S" strip so multi-word types like COMPANY_KIT survive a hyphenated
+     * URL segment — existing single-word inputs have no hyphens, so this is a
+     * no-op for them.
+     */
     public static AssessmentType from(String raw) {
         if (raw == null) throw new IllegalArgumentException("Assessment type is required");
-        String normalized = raw.trim().toUpperCase();
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
         if (normalized.endsWith("S")) normalized = normalized.substring(0, normalized.length() - 1);
         return AssessmentType.valueOf(normalized);
     }

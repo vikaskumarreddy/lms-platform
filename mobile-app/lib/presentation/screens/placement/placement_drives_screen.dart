@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/constants/routes.dart';
 import '../../../core/providers/subscription_provider.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
@@ -21,7 +23,16 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
     final drivesAsync = ref.watch(placementDrivesProvider);
 
     return Scaffold(
-      appBar: const CommonHeader(title: 'Placements'),
+      appBar: CommonHeader(
+        title: 'Placements',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.support_agent_outlined, color: Colors.white),
+            tooltip: 'Request Support',
+            onPressed: () => context.push(AppRoutes.supportRequest),
+          ),
+        ],
+      ),
       body: drivesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(

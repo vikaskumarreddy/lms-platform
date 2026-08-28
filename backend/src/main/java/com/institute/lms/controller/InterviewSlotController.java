@@ -1,5 +1,6 @@
 package com.institute.lms.controller;
 
+import com.institute.lms.dto.placement.InterviewSlotAdminDTO;
 import com.institute.lms.dto.placement.InterviewSlotHistoryDTO;
 import com.institute.lms.entity.InterviewSlot;
 import com.institute.lms.entity.PlacementDrive;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Manages interview slots for INTERNAL placement drives: admin creates the
@@ -45,8 +47,33 @@ public class InterviewSlotController {
 
     /** All slots for a drive (used by both admin management and the student booking screen). */
     @GetMapping("/drive/{driveId}")
-    public List<InterviewSlot> getSlotsForDrive(@PathVariable Long driveId) {
-        return interviewSlotRepository.findByDriveIdOrderBySlotTimeAsc(driveId);
+    public List<InterviewSlotAdminDTO> getSlotsForDrive(@PathVariable Long driveId) {
+        List<InterviewSlot> slots = interviewSlotRepository.findByDriveIdOrderBySlotTimeAsc(driveId);
+        List<Long> bookedUserIds = slots.stream()
+                .map(InterviewSlot::getBookedByUserId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, User> usersById = userRepository.findAllById(bookedUserIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        return slots.stream().map(slot -> {
+            InterviewSlotAdminDTO dto = new InterviewSlotAdminDTO();
+            dto.setId(slot.getId());
+            dto.setDriveId(slot.getDriveId());
+            dto.setLocation(slot.getLocation());
+            dto.setNotes(slot.getNotes());
+            dto.setSlotTime(slot.getSlotTime());
+            dto.setStatus(slot.getStatus());
+            dto.setBookedByUserId(slot.getBookedByUserId());
+            dto.setBookedAt(slot.getBookedAt());
+            User bookedBy = slot.getBookedByUserId() != null ? usersById.get(slot.getBookedByUserId()) : null;
+            if (bookedBy != null) {
+                dto.setBookedByName(bookedBy.getName());
+                dto.setBookedByEmail(bookedBy.getEmail());
+            }
+            return dto;
+        }).toList();
     }
 
     /** The student's own booked slots, across all drives, most recent first. */

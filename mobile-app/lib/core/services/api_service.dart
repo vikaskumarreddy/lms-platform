@@ -693,23 +693,30 @@ class ApiService {
   /// Submits and auto-grades in one call; the response already contains the key
   /// and explanations so the review screen needs no second request.
   /// [answers] is questionId -> the option ids the student ticked.
+  /// [textAnswers] is questionId -> typed text, for FILL_IN_BLANK/CODING questions.
   Future<Map<String, dynamic>?> submitAssessmentAttempt(
     String type,
     int assessmentId,
     int userId,
     Map<int, List<int>> answers, {
+    Map<int, String>? textAnswers,
     int? timeTakenSeconds,
   }) async {
     try {
       final headers = await _getHeaders();
+      final questionIds = <int>{...answers.keys, ...?textAnswers?.keys};
       final response = await http.post(
         Uri.parse('$baseUrl/assessments/$type/$assessmentId/attempt'),
         headers: headers,
         body: json.encode({
           'userId': userId,
           'timeTakenSeconds': timeTakenSeconds,
-          'answers': answers.entries
-              .map((e) => {'questionId': e.key, 'selectedOptionIds': e.value})
+          'answers': questionIds
+              .map((id) => {
+                    'questionId': id,
+                    'selectedOptionIds': answers[id] ?? const [],
+                    'answerText': textAnswers?[id],
+                  })
               .toList(),
         }),
       );
@@ -1212,6 +1219,65 @@ class ApiService {
     }
   }
 
+  // MARK: - Company Question Kit APIs
+
+  /// Published tiles only; [studentId] flags each with the student's favorite state.
+  Future<List<Map<String, dynamic>>> getCompanyKits(int studentId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/company-kits/published?studentId=$studentId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching company kits: $e');
+      return [];
+    }
+  }
+
+  Future<List<int>> getCompanyKitFavorites(int studentId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/company-kits/favorites/$studentId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.whereType<num>().map((n) => n.toInt()).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching company kit favorites: $e');
+      return [];
+    }
+  }
+
+  /// Toggles - adds if absent, removes if present. Returns the new favorite state.
+  Future<bool?> toggleCompanyKitFavorite({required int studentId, required int kitId}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/company-kits/favorites/toggle'),
+        headers: headers,
+        body: json.encode({'studentId': studentId, 'kitId': kitId}),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return data['isFavorite'] == true;
+      }
+      return null;
+    } catch (e) {
+      print('Error toggling company kit favorite: $e');
+      return null;
+    }
+  }
+
   // MARK: - Feedback APIs
 
   Future<List<Map<String, dynamic>>> getMyFeedback() async {
@@ -1249,6 +1315,64 @@ class ApiService {
     } catch (e) {
       print('Error submitting feedback: $e');
       return false;
+    }
+  }
+
+  // MARK: - Support Request APIs
+  // A student asking placements staff about a drive (or an off-list company
+  // via "Other"). No approve/reject cycle — an admin replies once and the
+  // student sees the reply here.
+
+  Future<List<Map<String, dynamic>>> getMySupportRequests() async {
+    try {
+      final userId = await getCurrentUserId();
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/support-requests/student/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body) as List;
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching support requests: $e');
+      return [];
+    }
+  }
+
+  /// Raises a support request, either against a real [driveId] or a free-text
+  /// [companyName] when the student picked "Other". Returns null on success,
+  /// or the server's error message on refusal.
+  Future<String?> submitSupportRequest({int? driveId, String? companyName, required String message}) async {
+    try {
+      final userId = await getCurrentUserId();
+      if (userId == null) return 'Please log in again.';
+
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/support-requests'),
+        headers: headers,
+        body: json.encode({
+          'studentId': userId,
+          if (driveId != null) 'driveId': driveId,
+          if (companyName != null && companyName.isNotEmpty) 'companyName': companyName,
+          'message': message,
+        }),
+      );
+      if (response.statusCode == 200) return null;
+
+      try {
+        final body = json.decode(response.body);
+        if (body is Map && body['error'] != null) return body['error'].toString();
+      } catch (_) {}
+      return 'Could not send your request. Please try again.';
+    } catch (e) {
+      print('Error submitting support request: $e');
+      return 'Could not reach the server. Check your connection.';
     }
   }
 

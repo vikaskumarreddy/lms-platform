@@ -31,6 +31,7 @@ public class StudentStatsDTO {
         private String name;
         private String email;
         private String phone;
+        private Long batchId;
         private String batchName;
         private String planName;
     }
@@ -103,6 +104,9 @@ public class StudentStatsDTO {
         private String date;
         private boolean present;
         private String remarks;
+        private String subject;
+        /** Raw ISO date (yyyy-MM-dd), for calendar-grid bucketing — {@link #date} is a display string. */
+        private String isoDate;
     }
 
     @Data

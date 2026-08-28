@@ -101,6 +101,16 @@ public class AssessmentPaperController {
         if (form == null || form.questionText == null || form.questionText.isBlank()) {
             return "Question text is required";
         }
+        if (form.questionType == AssessmentQuestion.QuestionType.FILL_IN_BLANK) {
+            if (form.answerText == null || form.answerText.isBlank()) {
+                return "Enter the correct answer";
+            }
+            return null;
+        }
+        if (form.questionType == AssessmentQuestion.QuestionType.CODING) {
+            // No sandbox/test-case runner - only the prompt itself is required.
+            return null;
+        }
         long usable = form.options == null ? 0 : form.options.stream()
                 .filter(o -> o.optionText != null && !o.optionText.isBlank()).count();
         if (usable < 2) return "Add at least two options";

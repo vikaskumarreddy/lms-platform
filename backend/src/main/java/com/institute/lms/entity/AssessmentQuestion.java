@@ -52,6 +52,14 @@ public class AssessmentQuestion extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 
+    /**
+     * Reference answer for FILL_IN_BLANK (exact-match string) or optional non-graded
+     * notes for CODING. Never sent to students pre-submission — same rule as
+     * {@code isCorrect} on options today.
+     */
+    @Column(name = "answer_text", columnDefinition = "TEXT")
+    private String answerText;
+
     @JsonIgnore
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("displayOrder ASC, id ASC")
@@ -71,6 +79,10 @@ public class AssessmentQuestion extends BaseEntity {
         /** Exactly one correct option — rendered as radio buttons. */
         SINGLE_CHOICE,
         /** One or more correct options — rendered as checkboxes. */
-        MULTIPLE_ANSWER
+        MULTIPLE_ANSWER,
+        /** Student types a short answer, graded by exact string match against {@link #answerText}. */
+        FILL_IN_BLANK,
+        /** Student types a free-form answer; not auto-graded (no execution sandbox). */
+        CODING
     }
 }

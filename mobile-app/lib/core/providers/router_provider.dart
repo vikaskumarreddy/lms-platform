@@ -35,6 +35,8 @@ import '../../presentation/screens/onboarding/onboarding_screen.dart';
 import '../../presentation/screens/bookmarks/bookmarks_screen.dart';
 import '../../presentation/screens/leaderboard/leaderboard_screen.dart';
 import '../../presentation/screens/qa/qa_screen.dart';
+import '../../presentation/screens/company_questions/company_questions_screen.dart';
+import '../../presentation/screens/placement/support_request_screen.dart';
 import '../../presentation/screens/browser/in_app_browser_screen.dart';
 import '../../presentation/screens/assessment/assessment_paper_screen.dart';
 import '../../presentation/screens/main_shell_screen.dart';
@@ -77,6 +79,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.bookmarks, builder: (context, state) => const BookmarksScreen()),
           GoRoute(path: AppRoutes.leaderboard, builder: (context, state) => const LeaderboardScreen()),
           GoRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
+          GoRoute(path: AppRoutes.companyQuestions, builder: (context, state) => const CompanyQuestionsScreen()),
+          GoRoute(path: AppRoutes.supportRequest, builder: (context, state) => const SupportRequestScreen()),
         ],
       ),
       GoRoute(path: AppRoutes.inAppBrowser, builder: (context, state) => InAppBrowserScreen(

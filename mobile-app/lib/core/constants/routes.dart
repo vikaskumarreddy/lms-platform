@@ -29,6 +29,8 @@ class AppRoutes {
   static const String bookmarks = '/bookmarks';
   static const String leaderboard = '/leaderboard';
   static const String qa = '/qa';
+  static const String companyQuestions = '/company-questions';
+  static const String supportRequest = '/support-request';
   static const String inAppBrowser = '/browser';
   /// In-app question paper; :type is 'assignments' or 'exams'.
   static const String assessmentPaper = '/assessment-paper/:type/:id';

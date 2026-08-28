@@ -11,13 +11,16 @@ interface PaperOption {
   isCorrect: boolean;
 }
 
+type QuestionType = 'SINGLE_CHOICE' | 'MULTIPLE_ANSWER' | 'FILL_IN_BLANK' | 'CODING';
+
 interface PaperQuestion {
   id: number;
   questionText: string;
-  questionType: 'SINGLE_CHOICE' | 'MULTIPLE_ANSWER';
+  questionType: QuestionType;
   explanation?: string;
   marks: number;
   displayOrder: number;
+  answerText?: string;
   options: Array<{ id: number; optionText: string; isCorrect: boolean }>;
 }
 
@@ -72,9 +75,8 @@ interface PaperQuestion {
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
               <span style="background:#0D9488;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;">{{i + 1}}</span>
-              <span class="badge" [style.background]="q.questionType === 'MULTIPLE_ANSWER' ? '#FEF3C7' : '#CCFBF1'"
-                    [style.color]="q.questionType === 'MULTIPLE_ANSWER' ? '#92400E' : '#134E4A'">
-                {{q.questionType === 'MULTIPLE_ANSWER' ? 'Multiple answers' : 'Single choice'}}
+              <span class="badge" [style.background]="typeBadgeColor(q.questionType).bg" [style.color]="typeBadgeColor(q.questionType).fg">
+                {{typeLabelFor(q.questionType)}}
               </span>
               <span class="badge" style="background:#F1F5F9;color:#475569;">{{q.marks}} mark{{q.marks === 1 ? '' : 's'}}</span>
             </div>
@@ -88,7 +90,7 @@ interface PaperQuestion {
           </div>
         </div>
 
-        <div style="margin-top:12px;display:grid;gap:8px;">
+        <div style="margin-top:12px;display:grid;gap:8px;" *ngIf="q.questionType === 'SINGLE_CHOICE' || q.questionType === 'MULTIPLE_ANSWER'">
           <div *ngFor="let o of q.options; let oi = index"
                [style.background]="o.isCorrect ? '#ECFDF5' : '#F8FAFC'"
                [style.border]="o.isCorrect ? '1px solid #6EE7B7' : '1px solid #E2E8F0'"
@@ -97,6 +99,15 @@ interface PaperQuestion {
             <span style="flex:1;color:#134E4A;">{{o.optionText}}</span>
             <span *ngIf="o.isCorrect" style="color:#047857;font-weight:700;font-size:12px;">✓ Correct</span>
           </div>
+        </div>
+
+        <div *ngIf="q.questionType === 'FILL_IN_BLANK'" style="margin-top:12px;padding:10px 12px;background:#ECFDF5;border-radius:8px;font-size:13px;color:#047857;">
+          <strong>Correct answer:</strong> {{q.answerText}}
+        </div>
+
+        <div *ngIf="q.questionType === 'CODING'" style="margin-top:12px;padding:10px 12px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:8px;font-size:13px;color:#475569;">
+          Not auto-graded — a mentor reviews the student's typed answer manually.
+          <div *ngIf="q.answerText" style="margin-top:6px;"><strong>Notes:</strong> {{q.answerText}}</div>
         </div>
 
         <div *ngIf="q.explanation" style="margin-top:12px;padding:10px 12px;background:#F0F9FF;border-left:3px solid #0EA5E9;border-radius:6px;font-size:13px;color:#0C4A6E;">
@@ -160,21 +171,29 @@ interface PaperQuestion {
 
           <div *ngIf="expanded[st.userId]" style="margin-top:16px;border-top:1px solid #E2E8F0;padding-top:16px;display:grid;gap:14px;">
             <div *ngFor="let a of st.answers; let ai = index" style="padding:12px;border-radius:10px;"
-                 [style.background]="a.isCorrect ? '#ECFDF5' : (a.attempted ? '#FEF2F2' : '#F8FAFC')">
+                 [style.background]="a.questionType === 'CODING' ? '#F8FAFC' : (a.isCorrect ? '#ECFDF5' : (a.attempted ? '#FEF2F2' : '#F8FAFC'))">
               <div style="font-weight:600;color:#134E4A;margin-bottom:6px;">
                 {{ai + 1}}. {{a.questionText}}
-                <span class="badge" style="margin-left:8px;" [class.badge-success]="a.isCorrect" [class.badge-danger]="!a.isCorrect">
+                <span class="badge" style="margin-left:8px;" *ngIf="a.questionType === 'CODING'">Not auto-graded</span>
+                <span class="badge" style="margin-left:8px;" *ngIf="a.questionType !== 'CODING'" [class.badge-success]="a.isCorrect" [class.badge-danger]="!a.isCorrect">
                   {{a.isCorrect ? '✓ Correct' : (a.attempted ? '✕ Wrong' : 'Not answered')}}
                 </span>
               </div>
-              <div style="font-size:13px;color:#475569;">
+              <div style="font-size:13px;color:#475569;" *ngIf="a.questionType === 'SINGLE_CHOICE' || a.questionType === 'MULTIPLE_ANSWER'">
                 <div><strong>Chose:</strong>
                   <span *ngIf="a.selectedOptions?.length">{{a.selectedOptions.join(', ')}}</span>
                   <span *ngIf="!a.selectedOptions?.length" style="color:#94A3B8;">— nothing selected —</span>
                 </div>
                 <div *ngIf="!a.isCorrect"><strong>Correct answer:</strong> {{a.correctOptions.join(', ')}}</div>
-                <div *ngIf="a.explanation" style="margin-top:4px;color:#0C4A6E;"><strong>Why:</strong> {{a.explanation}}</div>
               </div>
+              <div style="font-size:13px;color:#475569;" *ngIf="a.questionType === 'FILL_IN_BLANK' || a.questionType === 'CODING'">
+                <div><strong>Answer:</strong>
+                  <span *ngIf="a.answerText">{{a.answerText}}</span>
+                  <span *ngIf="!a.answerText" style="color:#94A3B8;">— not answered —</span>
+                </div>
+                <div *ngIf="a.questionType === 'FILL_IN_BLANK' && !a.isCorrect"><strong>Correct answer:</strong> {{a.correctAnswerText}}</div>
+              </div>
+              <div *ngIf="a.explanation" style="margin-top:4px;color:#0C4A6E;font-size:13px;"><strong>Why:</strong> {{a.explanation}}</div>
             </div>
           </div>
         </div>
@@ -193,7 +212,7 @@ interface PaperQuestion {
                 <textarea [(ngModel)]="qForm.questionText" name="questionText" rows="3" required placeholder="Type the question exactly as the student should read it"></textarea>
               </div>
 
-              <div class="full-width">
+              <div class="full-width" *ngIf="qForm.questionType === 'SINGLE_CHOICE' || qForm.questionType === 'MULTIPLE_ANSWER'">
                 <label>Options * (tick the correct answer)</label>
                 <div style="display:grid;gap:8px;">
                   <div *ngFor="let opt of qForm.options; let i = index" style="display:flex;align-items:center;gap:10px;">
@@ -210,9 +229,19 @@ interface PaperQuestion {
                 <button type="button" class="btn btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:13px;" (click)="addOption()">+ Add Option</button>
               </div>
 
+              <div class="full-width" *ngIf="qForm.questionType === 'FILL_IN_BLANK'">
+                <label>Correct answer *</label>
+                <input type="text" [(ngModel)]="qForm.answerText" name="answerText" placeholder="Exact text the student must type">
+              </div>
+
+              <div class="full-width" *ngIf="qForm.questionType === 'CODING'">
+                <label>Notes (optional, not shown to students until reviewed)</label>
+                <textarea [(ngModel)]="qForm.answerText" name="answerText" rows="3" placeholder="Reference solution / grading notes for the mentor — not auto-graded"></textarea>
+              </div>
+
               <div class="full-width">
                 <label>Answer type</label>
-                <div style="display:flex;gap:20px;padding-top:4px;">
+                <div style="display:flex;gap:20px;padding-top:4px;flex-wrap:wrap;">
                   <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
                     <input type="radio" name="questionType" value="SINGLE_CHOICE" [(ngModel)]="qForm.questionType"
                            (ngModelChange)="onTypeChange()" style="width:auto;margin:0;">
@@ -221,6 +250,14 @@ interface PaperQuestion {
                   <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
                     <input type="radio" name="questionType" value="MULTIPLE_ANSWER" [(ngModel)]="qForm.questionType" style="width:auto;margin:0;">
                     Multiple answers (checkboxes in the app)
+                  </label>
+                  <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
+                    <input type="radio" name="questionType" value="FILL_IN_BLANK" [(ngModel)]="qForm.questionType" style="width:auto;margin:0;">
+                    Fill in the blank (text answer)
+                  </label>
+                  <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
+                    <input type="radio" name="questionType" value="CODING" [(ngModel)]="qForm.questionType" style="width:auto;margin:0;">
+                    Coding (not auto-graded)
                   </label>
                 </div>
               </div>
@@ -280,10 +317,30 @@ export class AssessmentPaperComponent implements OnInit {
   editingQuestionId: number | null = null;
   savingQuestion = false;
   modalError = '';
-  qForm: { questionText: string; questionType: 'SINGLE_CHOICE' | 'MULTIPLE_ANSWER'; marks: number; explanation: string; options: PaperOption[] } = this.blankForm();
+  qForm: { questionText: string; questionType: QuestionType; marks: number; explanation: string; answerText: string; options: PaperOption[] } = this.blankForm();
 
   get typeLabel(): string {
-    return this.type === 'exams' ? 'Exam' : 'Assignment';
+    if (this.type === 'exams') return 'Exam';
+    if (this.type === 'company-kit') return 'Company Kit';
+    return 'Assignment';
+  }
+
+  typeBadgeColor(type: QuestionType): { bg: string; fg: string } {
+    switch (type) {
+      case 'MULTIPLE_ANSWER': return { bg: '#FFFBEB', fg: '#B45309' };
+      case 'FILL_IN_BLANK': return { bg: '#ECFDF5', fg: '#047857' };
+      case 'CODING': return { bg: '#EEF2FF', fg: '#4338CA' };
+      default: return { bg: '#F0FDFA', fg: '#0D9488' };
+    }
+  }
+
+  typeLabelFor(type: QuestionType): string {
+    switch (type) {
+      case 'MULTIPLE_ANSWER': return 'Multiple answers';
+      case 'FILL_IN_BLANK': return 'Fill in the blank';
+      case 'CODING': return 'Coding';
+      default: return 'Single choice';
+    }
   }
 
   ngOnInit() {
@@ -298,9 +355,10 @@ export class AssessmentPaperComponent implements OnInit {
   private blankForm() {
     return {
       questionText: '',
-      questionType: 'SINGLE_CHOICE' as 'SINGLE_CHOICE' | 'MULTIPLE_ANSWER',
+      questionType: 'SINGLE_CHOICE' as QuestionType,
       marks: 1,
       explanation: '',
+      answerText: '',
       options: [
         { optionText: '', isCorrect: false },
         { optionText: '', isCorrect: false }
@@ -309,10 +367,19 @@ export class AssessmentPaperComponent implements OnInit {
   }
 
   goBack() {
-    this.router.navigate([this.type === 'exams' ? '/exams-admin' : '/assignments-admin']);
+    if (this.type === 'exams') { this.router.navigate(['/exams-admin']); return; }
+    if (this.type === 'company-kit') { this.router.navigate(['/company-questions']); return; }
+    this.router.navigate(['/assignments-admin']);
   }
 
   loadAssessment() {
+    if (this.type === 'company-kit') {
+      this.api.get<any>(`/api/company-kits/${this.assessmentId}`).subscribe({
+        next: (data) => { this.assessmentTitle = data?.companyName || ''; },
+        error: err => this.errors.show(err, 'Could not load that company kit')
+      });
+      return;
+    }
     this.api.get<any>(`/api/${this.type}/${this.assessmentId}`).subscribe({
       next: (data) => { this.assessmentTitle = data?.title || ''; },
       error: err => this.errors.show(err, 'Could not load that assessment')
@@ -367,6 +434,7 @@ export class AssessmentPaperComponent implements OnInit {
       questionType: q.questionType,
       marks: q.marks || 1,
       explanation: q.explanation || '',
+      answerText: q.answerText || '',
       options: q.options.map(o => ({ id: o.id, optionText: o.optionText, isCorrect: o.isCorrect }))
     };
     if (this.qForm.options.length < 2) this.addOption();
@@ -412,13 +480,24 @@ export class AssessmentPaperComponent implements OnInit {
 
   saveQuestion() {
     this.modalError = '';
-    const options = this.qForm.options.filter(o => (o.optionText || '').trim().length > 0);
     if (!this.qForm.questionText || !this.qForm.questionText.trim()) { this.modalError = 'Question text is required'; return; }
-    if (options.length < 2) { this.modalError = 'Add at least two options'; return; }
-    if (!options.some(o => o.isCorrect)) { this.modalError = 'Tick at least one correct answer'; return; }
-    if (this.qForm.questionType === 'SINGLE_CHOICE' && options.filter(o => o.isCorrect).length > 1) {
-      this.modalError = 'A single-choice question can only have one correct answer';
-      return;
+
+    const isTextType = this.qForm.questionType === 'FILL_IN_BLANK' || this.qForm.questionType === 'CODING';
+    let options: PaperOption[] = [];
+
+    if (isTextType) {
+      if (this.qForm.questionType === 'FILL_IN_BLANK' && !(this.qForm.answerText || '').trim()) {
+        this.modalError = 'A correct answer is required for fill in the blank questions';
+        return;
+      }
+    } else {
+      options = this.qForm.options.filter(o => (o.optionText || '').trim().length > 0);
+      if (options.length < 2) { this.modalError = 'Add at least two options'; return; }
+      if (!options.some(o => o.isCorrect)) { this.modalError = 'Tick at least one correct answer'; return; }
+      if (this.qForm.questionType === 'SINGLE_CHOICE' && options.filter(o => o.isCorrect).length > 1) {
+        this.modalError = 'A single-choice question can only have one correct answer';
+        return;
+      }
     }
 
     const payload = {
@@ -426,6 +505,7 @@ export class AssessmentPaperComponent implements OnInit {
       questionType: this.qForm.questionType,
       explanation: this.qForm.explanation || null,
       marks: Number(this.qForm.marks) || 1,
+      answerText: isTextType ? (this.qForm.answerText || '').trim() || null : null,
       options: options.map(o => ({ optionText: o.optionText.trim(), isCorrect: !!o.isCorrect }))
     };
 

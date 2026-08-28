@@ -45,7 +45,12 @@ public class AssessmentResponse extends BaseEntity {
     @Convert(converter = LongListConverter.class)
     private List<Long> selectedOptionIds = new ArrayList<>();
 
-    @Column(name = "is_correct", nullable = false)
+    /** The student's typed answer for FILL_IN_BLANK/CODING questions. */
+    @Column(name = "answer_text", columnDefinition = "TEXT")
+    private String answerText;
+
+    /** Null means "not auto-graded" (CODING) rather than incorrect. */
+    @Column(name = "is_correct")
     private Boolean isCorrect = false;
 
     @Column(name = "marks_awarded", nullable = false)

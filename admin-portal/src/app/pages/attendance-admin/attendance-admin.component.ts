@@ -57,6 +57,8 @@ interface AttendanceRow {
       </select>
       <label style="font-weight:600;font-size:14px;">Date:</label>
       <input type="date" [(ngModel)]="selectedDate" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;">
+      <label style="font-weight:600;font-size:14px;">Subject (optional):</label>
+      <input type="text" [(ngModel)]="subject" (ngModelChange)="loadDailyAttendance()" placeholder="e.g. Maths" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;width:160px;">
       <button class="btn btn-primary" [disabled]="!selectedEventId || saving" (click)="saveAttendance()">{{ saving ? 'Saving...' : 'Save Attendance' }}</button>
     </div>
 
@@ -104,6 +106,7 @@ export class AttendanceAdminComponent implements OnInit {
   mode: 'event' | 'daily' = 'event';
   selectedBatchId: number | null = null;
   selectedDate: string = new Date().toISOString().slice(0, 10);
+  subject = '';
 
   ngOnInit() {
     this.loadEvents();
@@ -127,7 +130,8 @@ export class AttendanceAdminComponent implements OnInit {
       return;
     }
     this.loadingRows = true;
-    this.api.post<{ eventId: number; eventTitle: string }>(`/api/attendance/daily/${this.selectedBatchId}/${this.selectedDate}`, {}).subscribe({
+    const subjectParam = this.subject.trim() ? `?subject=${encodeURIComponent(this.subject.trim())}` : '';
+    this.api.post<{ eventId: number; eventTitle: string }>(`/api/attendance/daily/${this.selectedBatchId}/${this.selectedDate}${subjectParam}`, {}).subscribe({
       next: (data) => {
         this.selectedEventId = data.eventId;
         this.loadRowsForEvent(data.eventId);

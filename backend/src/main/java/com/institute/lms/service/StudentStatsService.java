@@ -182,6 +182,7 @@ public class StudentStatsService {
                 student.getName(),
                 student.getEmail(),
                 student.getPhone(),
+                student.getBatchId(),
                 batchName,
                 planName
         );
@@ -335,11 +336,15 @@ public class StudentStatsService {
             String eventName = "";
             String eventType = "";
             String date = "";
+            String subject = null;
+            String isoDate = null;
             if (a.getEvent() != null) {
                 eventName = a.getEvent().getTitle();
                 eventType = a.getEvent().getEventType();
+                subject = a.getEvent().getSubject();
                 if (a.getEvent().getStartTime() != null) {
                     date = a.getEvent().getStartTime().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+                    isoDate = a.getEvent().getStartTime().toLocalDate().toString();
                 }
             }
             return new StudentStatsDTO.AttendanceRecord(
@@ -348,7 +353,9 @@ public class StudentStatsService {
                     eventType,
                     date,
                     a.getPresent() != null && a.getPresent(),
-                    a.getRemarks()
+                    a.getRemarks(),
+                    subject,
+                    isoDate
             );
         }).collect(Collectors.toList());
     }

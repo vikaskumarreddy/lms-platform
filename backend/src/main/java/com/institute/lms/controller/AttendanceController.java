@@ -59,24 +59,33 @@ public class AttendanceController {
      * {@code /event/{id}/mark} endpoint below.
      */
     @PostMapping("/daily/{batchId}/{date}")
-    public ResponseEntity<Map<String, Object>> getOrCreateDailyAttendanceEvent(@PathVariable Long batchId, @PathVariable String date) {
+    public ResponseEntity<Map<String, Object>> getOrCreateDailyAttendanceEvent(
+            @PathVariable Long batchId, @PathVariable String date,
+            @RequestParam(required = false) String subject) {
         userContext.requireOrgAdminOrFaculty();
+        String normalizedSubject = (subject != null && !subject.isBlank()) ? subject.trim() : null;
         LocalDateTime startTime = LocalDate.parse(date).atStartOfDay();
-        Event event = eventRepository.findByBatchIdAndEventTypeAndStartTime(batchId, "DAILY_ATTENDANCE", startTime)
-                .orElseGet(() -> {
-                    Event e = new Event();
-                    e.setTitle("Daily Attendance - " + date);
-                    e.setEventType("DAILY_ATTENDANCE");
-                    e.setBatchId(batchId);
-                    e.setStartTime(startTime);
-                    e.setEndTime(startTime.withHour(23).withMinute(59));
-                    e.setAttendanceRequired(true);
-                    return eventRepository.save(e);
-                });
+        Event event = normalizedSubject == null
+                ? eventRepository.findByBatchIdAndEventTypeAndStartTime(batchId, "DAILY_ATTENDANCE", startTime)
+                        .orElseGet(() -> createDailyAttendanceEvent(batchId, date, startTime, null))
+                : eventRepository.findByBatchIdAndEventTypeAndStartTimeAndSubject(batchId, "DAILY_ATTENDANCE", startTime, normalizedSubject)
+                        .orElseGet(() -> createDailyAttendanceEvent(batchId, date, startTime, normalizedSubject));
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("eventId", event.getId());
         response.put("eventTitle", event.getTitle());
         return ResponseEntity.ok(response);
+    }
+
+    private Event createDailyAttendanceEvent(Long batchId, String date, LocalDateTime startTime, String subject) {
+        Event e = new Event();
+        e.setTitle("Daily Attendance - " + date + (subject != null ? " (" + subject + ")" : ""));
+        e.setEventType("DAILY_ATTENDANCE");
+        e.setBatchId(batchId);
+        e.setStartTime(startTime);
+        e.setEndTime(startTime.withHour(23).withMinute(59));
+        e.setAttendanceRequired(true);
+        e.setSubject(subject);
+        return eventRepository.save(e);
     }
 
     /** All attendance records for an event, including students who are not yet marked. */
@@ -202,6 +211,7 @@ public class AttendanceController {
             item.put("eventTitle", a.getEvent() != null ? a.getEvent().getTitle() : null);
             item.put("eventType", a.getEvent() != null ? a.getEvent().getEventType() : null);
             item.put("startTime", a.getEvent() != null ? a.getEvent().getStartTime() : null);
+            item.put("subject", a.getEvent() != null ? a.getEvent().getSubject() : null);
             item.put("present", a.getPresent());
             item.put("remarks", a.getRemarks());
             history.add(item);

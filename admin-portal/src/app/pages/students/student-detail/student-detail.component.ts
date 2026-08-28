@@ -1,7 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../services/api.service';
+
+interface LeaderboardMyRank {
+  rank: number;
+  score: number;
+  assignmentsSubmitted: number;
+  examsSubmitted: number;
+  attendancePercent: number;
+}
 
 interface StudentStats {
   student: {
@@ -9,6 +18,7 @@ interface StudentStats {
     name: string;
     email: string;
     phone: string;
+    batchId: number | null;
     batchName: string;
     planName: string;
   };
@@ -64,6 +74,14 @@ interface AttendanceRecord {
   date: string;
   present: boolean;
   remarks: string;
+  subject?: string | null;
+  isoDate?: string | null;
+}
+
+interface MonthGridCell {
+  day: number;
+  isoDate: string;
+  status: 'present' | 'absent' | 'none';
 }
 
 interface AssignmentRecord {
@@ -111,7 +129,7 @@ interface PlacementRecord {
 @Component({
   selector: 'app-student-detail',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="page-header">
       <div style="display:flex;align-items:center;gap:16px;">
@@ -224,6 +242,25 @@ interface PlacementRecord {
           </div>
           <div class="stat-badge" *ngIf="stats.placements.totalApplications > 0">
             {{stats.placements.selected}} selected / {{stats.placements.rejected}} rejected
+          </div>
+        </div>
+
+        <!-- Leaderboard Tile -->
+        <div class="stat-card">
+          <div class="stat-content">
+            <h3>Leaderboard</h3>
+            <ng-container *ngIf="myRank">
+              <div class="stat-value">#{{myRank.rank}}</div>
+              <p class="stat-detail">Score: {{myRank.score}} pts this week</p>
+              <p class="stat-detail text-muted">{{myRank.assignmentsSubmitted}} assignments · {{myRank.examsSubmitted}} exams</p>
+            </ng-container>
+            <ng-container *ngIf="!myRank">
+              <div class="stat-value">—</div>
+              <p class="stat-detail text-muted">No activity this week</p>
+            </ng-container>
+          </div>
+          <div class="stat-badge" *ngIf="myRank">
+            🏆 {{myRank.attendancePercent | number:'1.0-0'}}% att.
           </div>
         </div>
       </div>
@@ -423,6 +460,46 @@ interface PlacementRecord {
             </table>
           </div>
         </div>
+        </div>
+
+        <!-- Daily Attendance calendar grid -->
+        <div class="card" *ngIf="subjectOptions.length > 0 || dailyFilteredRecords.length > 0">
+          <h3 class="section-title">Daily Attendance</h3>
+
+          <div class="daily-toolbar">
+            <div class="subject-pills" *ngIf="subjectOptions.length > 0">
+              <button class="pill" [class.pill-active]="selectedSubject === null" (click)="selectedSubject = null">All</button>
+              <button class="pill" *ngFor="let s of subjectOptions" [class.pill-active]="selectedSubject === s" (click)="selectedSubject = s">{{s}}</button>
+            </div>
+            <div class="date-range">
+              <label>From</label>
+              <input type="date" [(ngModel)]="dateFrom">
+              <label>To</label>
+              <input type="date" [(ngModel)]="dateTo">
+            </div>
+            <div class="attendance-summary">
+              {{ dailyAttendancePercent }}% attended
+              <span class="text-muted">({{ dailyFilteredRecords.length }} days)</span>
+            </div>
+          </div>
+
+          <div class="month-grid-header">
+            <button class="btn btn-secondary" style="padding:4px 12px;" (click)="prevMonth()">‹</button>
+            <div style="font-weight:600;">{{ viewMonthLabel }}</div>
+            <button class="btn btn-secondary" style="padding:4px 12px;" (click)="nextMonth()">›</button>
+          </div>
+          <div class="month-grid">
+            <div class="month-grid-cell" *ngFor="let c of monthGridCells"
+                 [class.status-present]="c.status === 'present'"
+                 [class.status-absent]="c.status === 'absent'"
+                 [title]="c.isoDate">
+              {{ c.day }}
+            </div>
+          </div>
+          <div class="grid-legend">
+            <span><span class="legend-swatch status-present"></span> Present</span>
+            <span><span class="legend-swatch status-absent"></span> Absent</span>
+          </div>
         </div>
       </div>
     </div>
@@ -641,6 +718,119 @@ interface PlacementRecord {
       align-items: center;
       margin-bottom: 24px;
     }
+
+    .daily-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .subject-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .pill-active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .date-range {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #64748B;
+    }
+
+    .date-range input {
+      padding: 6px 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .attendance-summary {
+      font-weight: 700;
+      color: #1e293b;
+      font-size: 14px;
+    }
+
+    .month-grid-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .month-grid-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: #f1f5f9;
+      color: #64748B;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .month-grid-cell.status-present {
+      background: #dcfce7;
+      color: #059669;
+    }
+
+    .month-grid-cell.status-absent {
+      background: #fee2e2;
+      color: #DC2626;
+    }
+
+    .grid-legend {
+      display: flex;
+      gap: 20px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #64748B;
+    }
+
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .legend-swatch.status-present {
+      background: #dcfce7;
+    }
+
+    .legend-swatch.status-absent {
+      background: #fee2e2;
+    }
   `]
 })
 export class StudentDetailComponent implements OnInit {
@@ -648,6 +838,12 @@ export class StudentDetailComponent implements OnInit {
   stats: StudentStats | null = null;
   loading = true;
   studentId: number = 0;
+
+  selectedSubject: string | null = null;
+  dateFrom: string = '';
+  dateTo: string = '';
+  viewMonth: string = new Date().toISOString().slice(0, 7);
+  myRank: LeaderboardMyRank | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -671,12 +867,22 @@ export class StudentDetailComponent implements OnInit {
       next: (data) => {
         this.stats = data;
         this.loading = false;
+        this.loadMyRank();
       },
       error: (err) => {
         console.error('Failed to load student stats', err);
         this.loading = false;
         this.stats = null;
       }
+    });
+  }
+
+  loadMyRank() {
+    const batchId = this.stats?.student?.batchId;
+    const query = batchId != null ? `&batchId=${batchId}` : '';
+    this.apiService.get<{ myRank?: LeaderboardMyRank }>(`/api/leaderboard?studentId=${this.studentId}${query}`).subscribe({
+      next: (data) => { this.myRank = data.myRank ?? null; },
+      error: (err) => { console.error('Failed to load leaderboard rank', err); this.myRank = null; }
     });
   }
 
@@ -697,5 +903,74 @@ export class StudentDetailComponent implements OnInit {
     if (percentage >= 80) return 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
     if (percentage >= 60) return 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)';
     return 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)';
+  }
+
+  get subjectOptions(): string[] {
+    const records = this.stats?.attendanceRecords || [];
+    const subjects = new Set<string>();
+    for (const r of records) {
+      if (r.subject) subjects.add(r.subject);
+    }
+    return Array.from(subjects).sort();
+  }
+
+  get dailyFilteredRecords(): AttendanceRecord[] {
+    const records = this.stats?.attendanceRecords || [];
+    return records.filter(r => {
+      if (!r.isoDate) return false;
+      if (this.selectedSubject !== null && r.subject !== this.selectedSubject) return false;
+      if (this.dateFrom && r.isoDate < this.dateFrom) return false;
+      if (this.dateTo && r.isoDate > this.dateTo) return false;
+      return true;
+    });
+  }
+
+  get dailyAttendancePercent(): number {
+    const records = this.dailyFilteredRecords;
+    if (records.length === 0) return 0;
+    const present = records.filter(r => r.present).length;
+    return Math.round((present / records.length) * 1000) / 10;
+  }
+
+  get viewMonthLabel(): string {
+    const [year, month] = this.viewMonth.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  get monthGridCells(): MonthGridCell[] {
+    const [year, month] = this.viewMonth.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const records = (this.stats?.attendanceRecords || []).filter(r => {
+      if (!r.isoDate) return false;
+      if (this.selectedSubject !== null && r.subject !== this.selectedSubject) return false;
+      return true;
+    });
+    const byDate = new Map<string, boolean>();
+    for (const r of records) {
+      if (r.isoDate) byDate.set(r.isoDate, r.present);
+    }
+    const cells: MonthGridCell[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isoDate = `${this.viewMonth}-${String(day).padStart(2, '0')}`;
+      const present = byDate.get(isoDate);
+      cells.push({
+        day,
+        isoDate,
+        status: present === undefined ? 'none' : (present ? 'present' : 'absent')
+      });
+    }
+    return cells;
+  }
+
+  prevMonth() {
+    const [year, month] = this.viewMonth.split('-').map(Number);
+    const d = new Date(year, month - 2, 1);
+    this.viewMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  nextMonth() {
+    const [year, month] = this.viewMonth.split('-').map(Number);
+    const d = new Date(year, month, 1);
+    this.viewMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
 }

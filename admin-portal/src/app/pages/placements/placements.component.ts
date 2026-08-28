@@ -30,6 +30,8 @@ interface InterviewSlot {
   location?: string;
   notes?: string;
   bookedByUserId?: number;
+  bookedByName?: string;
+  bookedByEmail?: string;
   status: 'AVAILABLE' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 }
 
@@ -50,19 +52,46 @@ interface SubscriptionPlan {
   period: string;
 }
 
+/** A student's placements question, raised from the mobile app's "Request Support". */
+interface SupportRequest {
+  id: number;
+  studentId: number;
+  studentName: string;
+  studentEmail?: string;
+  driveId?: number | null;
+  companyName: string;
+  message: string;
+  status: 'PENDING' | 'RESPONDED';
+  adminResponse?: string | null;
+  createdAt?: string;
+  decidedAt?: string | null;
+}
+
 @Component({
   selector: 'app-placements',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">Placement Drives</h1>
-      <button class="btn btn-primary" (click)="openAddModal()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h1 style="font-size:24px;font-weight:700;">Placements</h1>
+      <button class="btn btn-primary" *ngIf="activeTab === 'drives'" (click)="openAddModal()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Drive
       </button>
     </div>
 
+    <div class="popup-tabs" style="margin-bottom:20px;">
+      <button [class.active]="activeTab === 'drives'" (click)="activeTab = 'drives'">📋 Drives</button>
+      <button [class.active]="activeTab === 'applications'" (click)="activeTab = 'applications'">🎓 Applications</button>
+      <button [class.active]="activeTab === 'support'" (click)="activeTab = 'support'">
+        💬 Support Requests
+        <span class="badge" *ngIf="pendingSupportRequests.length" style="background:#FEF3C7;color:#92400E;margin-left:6px;">
+          {{ pendingSupportRequests.length }}
+        </span>
+      </button>
+    </div>
+
+    <ng-container *ngIf="activeTab === 'drives'">
     <div class="card">
       <table>
         <thead>
@@ -106,8 +135,9 @@ interface SubscriptionPlan {
         </tbody>
       </table>
     </div>
+    </ng-container>
 
-    <h2 style="font-size:18px;font-weight:700;margin:32px 0 16px;">Student Applications</h2>
+    <ng-container *ngIf="activeTab === 'applications'">
     <div class="card">
       <table>
         <thead>
@@ -141,6 +171,75 @@ interface SubscriptionPlan {
           </tr>
         </tbody>
       </table>
+    </div>
+    </ng-container>
+
+    <ng-container *ngIf="activeTab === 'support'">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <p style="color:#64748B;font-size:13px;margin:0;">
+          Questions students raised about a drive (or an off-list company) from the mobile app.
+        </p>
+        <label style="font-size:13px;color:#64748B;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" [(ngModel)]="showRespondedRequests" (change)="loadSupportRequests()">
+          Show responded
+        </label>
+      </div>
+
+      <table *ngIf="visibleSupportRequests.length">
+        <thead>
+          <tr><th>Student</th><th>Company</th><th>Question</th><th>Asked</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of visibleSupportRequests">
+            <td>
+              <div style="font-weight:600;">{{ r.studentName }}</div>
+              <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
+            </td>
+            <td>{{ r.companyName }}</td>
+            <td style="max-width:280px;font-size:13px;color:#475569;">
+              {{ r.message }}
+              <div *ngIf="r.adminResponse" style="color:#0F766E;font-size:12px;margin-top:4px;">
+                Response: {{ r.adminResponse }}
+              </div>
+            </td>
+            <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
+            <td>
+              <span class="badge" [class.badge-warning]="r.status === 'PENDING'" [class.badge-success]="r.status === 'RESPONDED'">
+                {{ r.status }}
+              </span>
+            </td>
+            <td>
+              <button *ngIf="r.status === 'PENDING'" class="btn btn-primary" style="padding:6px 12px;font-size:12px;"
+                      (click)="openRespondModal(r)">Respond</button>
+              <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="!visibleSupportRequests.length" style="color:#64748B;padding:32px;text-align:center;">
+        {{ showRespondedRequests ? 'No support requests yet.' : 'No pending support requests.' }}
+      </div>
+    </div>
+    </ng-container>
+
+    <!-- Respond Modal -->
+    <div class="modal-overlay" *ngIf="respondingRequest" (click)="closeRespondModal()">
+      <div class="modal-content" style="width:90%;max-width:480px;" (click)="$event.stopPropagation()">
+        <fieldset>
+          <legend>Respond — {{ respondingRequest.companyName }}</legend>
+          <p style="font-size:13px;color:#475569;margin-bottom:12px;">{{ respondingRequest.message }}</p>
+          <textarea [(ngModel)]="responseText" name="responseText" rows="4" placeholder="Type your response..."
+                    style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
+        </fieldset>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+          <button type="button" class="btn btn-secondary" (click)="closeRespondModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingResponse || !responseText.trim()" (click)="submitResponse()">
+            {{ savingResponse ? 'Sending...' : 'Send Response' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Drive Modal: Fieldset + Legend with Tabbed content to avoid vertical scroll -->
@@ -263,7 +362,7 @@ interface SubscriptionPlan {
           </button>
 
           <table>
-            <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By (User ID)</th><th></th></tr></thead>
+            <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By</th><th></th></tr></thead>
             <tbody>
               <tr *ngFor="let s of slots">
                 <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
@@ -271,7 +370,7 @@ interface SubscriptionPlan {
                 <td>
                   <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
                 </td>
-                <td>{{ s.bookedByUserId || '-' }}</td>
+                <td>{{ s.bookedByName || s.bookedByEmail || s.bookedByUserId || '-' }}</td>
                 <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button></td>
@@ -413,12 +512,72 @@ export class PlacementsComponent implements OnInit {
   savingCriteria = false;
   criteriaMessage = '';
 
+  activeTab: 'drives' | 'applications' | 'support' = 'drives';
+  supportRequests: SupportRequest[] = [];
+  showRespondedRequests = false;
+  respondingRequest: SupportRequest | null = null;
+  responseText = '';
+  savingResponse = false;
+
+  get pendingSupportRequests(): SupportRequest[] {
+    return this.supportRequests.filter(r => r.status === 'PENDING');
+  }
+
+  get visibleSupportRequests(): SupportRequest[] {
+    return this.showRespondedRequests ? this.supportRequests : this.pendingSupportRequests;
+  }
+
   constructor(private apiService: ApiService) {}
 
   ngOnInit() {
     this.loadDrives();
     this.loadPlans();
     this.loadApplications();
+    this.loadSupportRequests();
+  }
+
+  loadSupportRequests() {
+    const status = this.showRespondedRequests ? 'ALL' : 'PENDING';
+    this.apiService.get<SupportRequest[]>(`/api/support-requests?status=${status}`).subscribe({
+      next: (data) => { this.supportRequests = data; },
+      error: (err) => {
+        console.error('Failed to load support requests', err);
+        this.supportRequests = [];
+      }
+    });
+  }
+
+  openRespondModal(request: SupportRequest) {
+    this.respondingRequest = request;
+    this.responseText = '';
+  }
+
+  closeRespondModal() {
+    this.respondingRequest = null;
+    this.responseText = '';
+    this.savingResponse = false;
+  }
+
+  submitResponse() {
+    if (!this.respondingRequest || !this.responseText.trim()) return;
+    this.savingResponse = true;
+    this.apiService.put(`/api/support-requests/${this.respondingRequest.id}/respond`, { response: this.responseText.trim() }).subscribe({
+      next: () => {
+        this.savingResponse = false;
+        this.closeRespondModal();
+        this.loadSupportRequests();
+      },
+      error: (err) => {
+        this.savingResponse = false;
+        this.errors.show(err, 'Could not send response');
+      }
+    });
+  }
+
+  formatDate(value?: string): string {
+    if (!value) return '-';
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
   }
 
   loadApplications() {

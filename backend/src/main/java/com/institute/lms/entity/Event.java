@@ -44,4 +44,8 @@ public class Event extends BaseEntity {
 
     @Column(name = "plan_id")
     private Long planId;
+
+    /** Optional subject label for DAILY_ATTENDANCE events, used to split the calendar-grid UI by subject. */
+    @Column(name = "subject")
+    private String subject;
 }

@@ -120,6 +120,7 @@ public class AssessmentPaperService {
         question.setQuestionType(form.questionType == null
                 ? AssessmentQuestion.QuestionType.SINGLE_CHOICE : form.questionType);
         question.setMarks(form.marks == null || form.marks < 1 ? 1 : form.marks);
+        question.setAnswerText(form.answerText);
         if (form.displayOrder != null) question.setDisplayOrder(form.displayOrder);
 
         question.clearOptions();
@@ -173,6 +174,7 @@ public class AssessmentPaperService {
         item.put("explanation", q.getExplanation());
         item.put("marks", q.getMarks());
         item.put("displayOrder", q.getDisplayOrder());
+        item.put("answerText", q.getAnswerText());
         item.put("options", q.getOptions().stream().map(o -> {
             Map<String, Object> opt = new LinkedHashMap<>();
             opt.put("id", o.getId());
@@ -184,10 +186,19 @@ public class AssessmentPaperService {
         return item;
     }
 
+    /**
+     * COMPANY_KIT has its own branch rather than falling into the EXAM check: a
+     * {@link com.institute.lms.entity.CompanyQuestionKit} id is not an {@code Exam}
+     * id, so checking {@code examSubmissionRepository} here could match (or miss)
+     * an unrelated exam submission purely by primary-key coincidence.
+     */
     public boolean hasSubmitted(AssessmentType type, Long assessmentId, Long userId) {
-        return type == AssessmentType.ASSIGNMENT
-                ? assignmentSubmissionRepository.findByUserIdAndAssignmentId(userId, assessmentId).isPresent()
-                : examSubmissionRepository.findByUserIdAndExamId(userId, assessmentId).isPresent();
+        if (type == AssessmentType.ASSIGNMENT) {
+            return assignmentSubmissionRepository.findByUserIdAndAssignmentId(userId, assessmentId).isPresent();
+        } else if (type == AssessmentType.EXAM) {
+            return examSubmissionRepository.findByUserIdAndExamId(userId, assessmentId).isPresent();
+        }
+        return !responseRepository.findByAssessmentTypeAndAssessmentIdAndUserId(type, assessmentId, userId).isEmpty();
     }
 
     // ------------------------------------------------------------------ grading
@@ -207,11 +218,13 @@ public class AssessmentPaperService {
         if (paper.isEmpty()) throw new IllegalStateException("This assessment has no question paper yet");
 
         Map<Long, List<Long>> selectionsByQuestion = new HashMap<>();
+        Map<Long, String> answerTextByQuestion = new HashMap<>();
         if (answers != null) {
             for (AnswerForm answer : answers) {
                 if (answer.questionId == null) continue;
                 selectionsByQuestion.put(answer.questionId,
                         answer.selectedOptionIds == null ? Collections.emptyList() : answer.selectedOptionIds);
+                answerTextByQuestion.put(answer.questionId, answer.answerText);
             }
         }
 
@@ -227,25 +240,47 @@ public class AssessmentPaperService {
             int questionMarks = question.getMarks() == null ? 1 : question.getMarks();
             totalMarks += questionMarks;
 
-            Set<Long> correctIds = question.getOptions().stream()
-                    .filter(o -> Boolean.TRUE.equals(o.getIsCorrect()))
-                    .map(AssessmentQuestionOption::getId)
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            AssessmentQuestion.QuestionType questionType = question.getQuestionType();
+            String typedAnswer = answerTextByQuestion.get(question.getId());
+            List<Long> selected;
+            Boolean correct;
+            int awarded;
 
-            List<Long> selectedRaw = selectionsByQuestion.getOrDefault(question.getId(), Collections.emptyList());
-            Set<Long> validOptionIds = question.getOptions().stream()
-                    .map(AssessmentQuestionOption::getId).collect(Collectors.toSet());
-            List<Long> selected = selectedRaw.stream()
-                    .filter(Objects::nonNull)
-                    .filter(validOptionIds::contains)
-                    .distinct()
-                    .collect(Collectors.toList());
+            if (questionType == AssessmentQuestion.QuestionType.FILL_IN_BLANK) {
+                selected = Collections.emptyList();
+                String expected = question.getAnswerText();
+                boolean match = expected != null && !expected.isBlank()
+                        && typedAnswer != null && expected.trim().equalsIgnoreCase(typedAnswer.trim());
+                correct = match;
+                awarded = match ? questionMarks : 0;
+            } else if (questionType == AssessmentQuestion.QuestionType.CODING) {
+                // No sandbox/test-case runner - a coding answer is never auto-graded.
+                selected = Collections.emptyList();
+                correct = null;
+                awarded = 0;
+            } else {
+                Set<Long> correctIds = question.getOptions().stream()
+                        .filter(o -> Boolean.TRUE.equals(o.getIsCorrect()))
+                        .map(AssessmentQuestionOption::getId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
 
-            // Exact-set match: every correct option picked, nothing extra.
-            boolean correct = !correctIds.isEmpty() && correctIds.equals(new HashSet<>(selected));
-            int awarded = correct ? questionMarks : 0;
+                List<Long> selectedRaw = selectionsByQuestion.getOrDefault(question.getId(), Collections.emptyList());
+                Set<Long> validOptionIds = question.getOptions().stream()
+                        .map(AssessmentQuestionOption::getId).collect(Collectors.toSet());
+                selected = selectedRaw.stream()
+                        .filter(Objects::nonNull)
+                        .filter(validOptionIds::contains)
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                // Exact-set match: every correct option picked, nothing extra.
+                boolean match = !correctIds.isEmpty() && correctIds.equals(new HashSet<>(selected));
+                correct = match;
+                awarded = match ? questionMarks : 0;
+            }
+
             scored += awarded;
-            if (correct) correctCount++;
+            if (Boolean.TRUE.equals(correct)) correctCount++;
 
             AssessmentResponse response = new AssessmentResponse();
             response.setAssessmentType(type);
@@ -253,12 +288,14 @@ public class AssessmentPaperService {
             response.setUserId(userId);
             response.setQuestionId(question.getId());
             response.setSelectedOptionIds(new ArrayList<>(selected));
+            response.setAnswerText(typedAnswer);
             response.setIsCorrect(correct);
             response.setMarksAwarded(awarded);
             responseRepository.save(response);
 
             Map<String, Object> review = withKey(question);
             review.put("selectedOptionIds", selected);
+            review.put("answerText", typedAnswer);
             review.put("isCorrect", correct);
             review.put("marksAwarded", awarded);
             perQuestion.add(review);
@@ -292,6 +329,13 @@ public class AssessmentPaperService {
     private Long persistSubmission(AssessmentType type, Long assessmentId, User user, int scored,
                                    int totalMarks, int correctCount, int questionCount,
                                    Integer timeTakenSeconds) {
+        if (type == AssessmentType.COMPANY_KIT) {
+            // Company kits are metadata-only tiles, not real Assignment/Exam rows - there is
+            // no submission table to write into, and the id could otherwise collide with an
+            // unrelated Assignment/Exam id purely by primary-key coincidence.
+            return null;
+        }
+
         String summary = "Auto-graded: " + correctCount + "/" + questionCount + " correct, "
                 + scored + "/" + totalMarks + " marks"
                 + (timeTakenSeconds != null
@@ -343,7 +387,12 @@ public class AssessmentPaperService {
             item.put("selectedOptionIds",
                     response == null || response.getSelectedOptionIds() == null
                             ? Collections.emptyList() : response.getSelectedOptionIds());
-            item.put("isCorrect", response != null && Boolean.TRUE.equals(response.getIsCorrect()));
+            // withKey() seeded "answerText" with the reference answer - preserve it under its
+            // own key before overwriting with what the student actually typed, or a wrong
+            // FILL_IN_BLANK answer would have no correct answer left to show in the review.
+            item.put("correctAnswerText", question.getAnswerText());
+            item.put("answerText", response != null ? response.getAnswerText() : null);
+            item.put("isCorrect", response == null ? Boolean.FALSE : response.getIsCorrect());
             item.put("marksAwarded",
                     response == null || response.getMarksAwarded() == null ? 0 : response.getMarksAwarded());
             items.add(item);
@@ -411,10 +460,13 @@ public class AssessmentPaperService {
                 answer.put("correctOptions", question.getOptions().stream()
                         .filter(o -> Boolean.TRUE.equals(o.getIsCorrect()))
                         .map(AssessmentQuestionOption::getOptionText).collect(Collectors.toList()));
-                answer.put("isCorrect", response != null && Boolean.TRUE.equals(response.getIsCorrect()));
+                answer.put("answerText", response != null ? response.getAnswerText() : null);
+                answer.put("correctAnswerText", question.getAnswerText());
+                answer.put("isCorrect", response == null ? Boolean.FALSE : response.getIsCorrect());
                 answer.put("marksAwarded",
                         response == null || response.getMarksAwarded() == null ? 0 : response.getMarksAwarded());
-                answer.put("attempted", !selected.isEmpty());
+                answer.put("attempted", !selected.isEmpty()
+                        || (response != null && response.getAnswerText() != null && !response.getAnswerText().isBlank()));
                 answers.add(answer);
             }
 
@@ -472,6 +524,8 @@ public class AssessmentPaperService {
         public Integer marks;
         public Integer displayOrder;
         public List<OptionForm> options;
+        /** Reference answer for FILL_IN_BLANK; optional non-graded notes for CODING. */
+        public String answerText;
     }
 
     public static class OptionForm {
@@ -483,5 +537,7 @@ public class AssessmentPaperService {
     public static class AnswerForm {
         public Long questionId;
         public List<Long> selectedOptionIds;
+        /** Typed answer for FILL_IN_BLANK/CODING questions. */
+        public String answerText;
     }
 }

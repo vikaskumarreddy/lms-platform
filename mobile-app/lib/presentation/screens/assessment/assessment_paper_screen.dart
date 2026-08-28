@@ -59,6 +59,10 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   /// questionId -> the option ids ticked so far.
   final Map<int, List<int>> _answers = {};
 
+  /// questionId -> typed answer, for FILL_IN_BLANK/CODING questions.
+  final Map<int, String> _textAnswers = {};
+  final Map<int, TextEditingController> _textControllers = {};
+
   /// Questions the student explicitly flagged to come back to.
   final Set<int> _flagged = {};
 
@@ -83,6 +87,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   void dispose() {
     _ticker?.cancel();
     _pages.dispose();
+    for (final controller in _textControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -211,7 +218,12 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     HapticFeedback.selectionClick();
   }
 
-  int get _answeredCount => _questions.where((q) => (_answers[q.id] ?? const []).isNotEmpty).length;
+  int get _answeredCount => _questions.where(_isAnswered).length;
+
+  bool _isAnswered(_Question q) {
+    if (q.isTextAnswer) return (_textAnswers[q.id] ?? '').trim().isNotEmpty;
+    return (_answers[q.id] ?? const []).isNotEmpty;
+  }
 
   void _goTo(int index) {
     if (index < 0 || index >= _questions.length) return;
@@ -279,6 +291,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       widget.assessmentId,
       _userId!,
       _answers,
+      textAnswers: _textAnswers,
       timeTakenSeconds: _elapsedSeconds,
     );
 
@@ -534,7 +547,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               runSpacing: 10,
               children: List.generate(_questions.length, (i) {
                 final q = _questions[i];
-                final answered = (_answers[q.id] ?? const []).isNotEmpty;
+                final answered = _isAnswered(q);
                 final flagged = _flagged.contains(q.id);
                 final color = flagged ? _kAccent : (answered ? _kCorrect : const Color(0xFFE2E8F0));
                 return GestureDetector(
@@ -589,8 +602,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                   children: [
                     _pill('Q${index + 1}', _kInk),
                     const SizedBox(width: 8),
-                    _pill(q.isMultiple ? 'Multiple answers' : 'Single choice',
-                        q.isMultiple ? const Color(0xFF7C3AED) : const Color(0xFF2563EB)),
+                    _pill(q.typeLabel, q.typeColor),
                     const SizedBox(width: 8),
                     _pill('${q.marks} mark${q.marks == 1 ? '' : 's'}', _kMuted),
                     const Spacer(),
@@ -615,49 +627,96 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                     child: Text('Select all that apply.',
                         style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
                   ),
+                if (q.isFillInBlank)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('Type the exact answer.',
+                        style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                  ),
+                if (q.isCoding)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('Not auto-graded - a mentor may review this separately.',
+                        style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          ...List.generate(q.options.length, (i) {
-            final option = q.options[i];
-            final isSelected = selected.contains(option.id);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => _toggleOption(q, option.id),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
-                        width: isSelected ? 2 : 1),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _optionMarker(_letter(i), isSelected, q.isMultiple),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(option.text,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.4,
-                              color: _kInk,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            )),
-                      ),
-                    ],
+          if (q.isTextAnswer)
+            _textAnswerField(q)
+          else
+            ...List.generate(q.options.length, (i) {
+              final option = q.options[i];
+              final isSelected = selected.contains(option.id);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _toggleOption(q, option.id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                          width: isSelected ? 2 : 1),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _optionMarker(_letter(i), isSelected, q.isMultiple),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(option.text,
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.4,
+                                color: _kInk,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              )),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
         ],
+      ),
+    );
+  }
+
+  Widget _textAnswerField(_Question q) {
+    final controller = _textControllers.putIfAbsent(
+        q.id, () => TextEditingController(text: _textAnswers[q.id] ?? ''));
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: TextField(
+        controller: controller,
+        maxLines: q.isCoding ? 10 : 1,
+        style: TextStyle(
+            fontSize: 14, fontFamily: q.isCoding ? 'monospace' : null, color: _kInk),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(14),
+          hintText: q.isCoding ? 'Write your code / approach here...' : 'Type your answer...',
+        ),
+        onChanged: (value) {
+          setState(() {
+            if (value.trim().isEmpty) {
+              _textAnswers.remove(q.id);
+            } else {
+              _textAnswers[q.id] = value;
+            }
+          });
+        },
       ),
     );
   }
@@ -834,6 +893,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   }
 
   Widget _reviewCard(_Question q, int index) {
+    if (q.isTextAnswer) return _textReviewCard(q, index);
     final selected = q.selectedOptionIds;
     final unanswered = selected.isEmpty;
     final tone = q.isCorrect ? _kCorrect : (unanswered ? _kMuted : _kWrong);
@@ -938,6 +998,117 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     );
   }
 
+  Widget _textReviewCard(_Question q, int index) {
+    final answered = (q.answerText ?? '').trim().isNotEmpty;
+    final tone = q.isCoding ? _kMuted : (q.isCorrect ? _kCorrect : (answered ? _kWrong : _kMuted));
+    final statusLabel = q.isCoding
+        ? 'Not auto-graded'
+        : (q.isCorrect ? 'Correct' : (answered ? 'Incorrect' : 'Not answered'));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _pill('Q${index + 1}', _kInk),
+              const SizedBox(width: 8),
+              _pill(statusLabel, tone),
+              const Spacer(),
+              if (!q.isCoding)
+                Text('${q.marksAwarded}/${q.marks}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: tone)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(q.text,
+              style: const TextStyle(
+                  fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: _kInk)),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Your answer',
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w800, color: _kMuted, letterSpacing: 0.6)),
+                const SizedBox(height: 4),
+                Text(
+                  answered ? q.answerText! : '— not answered —',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    color: answered ? _kInk : _kMuted,
+                    fontFamily: q.isCoding ? 'monospace' : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (q.isFillInBlank && !q.isCorrect) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _kCorrect.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: _kCorrect.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Correct answer',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800, color: _kCorrect, letterSpacing: 0.6)),
+                  const SizedBox(height: 4),
+                  Text(q.correctAnswerText ?? '',
+                      style: const TextStyle(fontSize: 14, height: 1.4, color: _kInk)),
+                ],
+              ),
+            ),
+          ],
+          if ((q.explanation ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(11),
+                border: const Border(left: BorderSide(color: _kInk, width: 3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Why',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _kInk, letterSpacing: 0.6)),
+                  const SizedBox(height: 4),
+                  Text(q.explanation!,
+                      style: const TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF334155))),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _tag(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -963,6 +1134,8 @@ class _Question {
   final List<int> selectedOptionIds;
   final bool isCorrect;
   final int marksAwarded;
+  final String? answerText;
+  final String? correctAnswerText;
 
   const _Question({
     required this.id,
@@ -974,9 +1147,28 @@ class _Question {
     this.selectedOptionIds = const [],
     this.isCorrect = false,
     this.marksAwarded = 0,
+    this.answerText,
+    this.correctAnswerText,
   });
 
   bool get isMultiple => questionType == 'MULTIPLE_ANSWER';
+  bool get isFillInBlank => questionType == 'FILL_IN_BLANK';
+  bool get isCoding => questionType == 'CODING';
+  bool get isTextAnswer => isFillInBlank || isCoding;
+
+  String get typeLabel {
+    if (isFillInBlank) return 'Fill in the blank';
+    if (isCoding) return 'Coding';
+    if (isMultiple) return 'Multiple answers';
+    return 'Single choice';
+  }
+
+  Color get typeColor {
+    if (isFillInBlank) return const Color(0xFF047857);
+    if (isCoding) return const Color(0xFF4338CA);
+    if (isMultiple) return const Color(0xFF7C3AED);
+    return const Color(0xFF2563EB);
+  }
 
   factory _Question.fromJson(Map<String, dynamic> json) {
     final rawOptions = (json['options'] as List?) ?? const [];
@@ -996,6 +1188,8 @@ class _Question {
           .toList(),
       isCorrect: json['isCorrect'] == true,
       marksAwarded: (json['marksAwarded'] as num?)?.toInt() ?? 0,
+      answerText: json['answerText'],
+      correctAnswerText: json['correctAnswerText'],
     );
   }
 }
