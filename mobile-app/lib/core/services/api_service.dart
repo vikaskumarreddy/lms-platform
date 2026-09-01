@@ -749,6 +749,27 @@ class ApiService {
     }
   }
 
+  /// Read-only Q&A guide for a "Company Questions" tile. Company kits are an
+  /// interview-prep guide (not a graded paper), so every question is returned
+  /// together with its reference answer, correct options and explanation. The
+  /// server rejects this for anything other than a company kit.
+  Future<Map<String, dynamic>?> getCompanyKitGuide(int assessmentId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/assessments/company-kit/$assessmentId/guide'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching company kit guide: $e');
+      return null;
+    }
+  }
+
   Future<List<QuestionModel>> getQuestions() async {
     try {
       final headers = await _getHeaders();

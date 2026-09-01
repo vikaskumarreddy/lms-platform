@@ -143,6 +143,32 @@ public class AssessmentPaperController {
     }
 
     /**
+     * Read-only Q&A guide used by the "Company Questions" tiles. Unlike real
+     * papers - where the key must stay hidden until an attempt is committed -
+     * a company kit is a public interview-prep guide, so the full question set
+     * is returned WITH the reference answers, correct options and explanations
+     * up front and no answer/submit flow is involved.
+     *
+     * <p>This deliberately only serves {@link AssessmentType#COMPANY_KIT}: the
+     * key for assignments/exams is guarded on purpose, and this endpoint must
+     * never be a back-door to a live exam's answers.</p>
+     */
+    @GetMapping("/guide")
+    public ResponseEntity<?> guide(@PathVariable String type,
+                                   @PathVariable Long assessmentId) {
+        AssessmentType assessmentType = AssessmentType.from(type);
+        if (assessmentType != AssessmentType.COMPANY_KIT) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Guides are only available for company question kits."));
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("questions", paperService.answerKey(assessmentType, assessmentId));
+        body.put("questionCount", paperService.questionCount(assessmentType, assessmentId));
+        body.put("totalMarks", paperService.paperMarks(assessmentType, assessmentId));
+        return ResponseEntity.ok(body);
+    }
+
+    /**
      * Submits and auto-grades an attempt in one call. Body:
      * {"userId": 4, "timeTakenSeconds": 540, "answers": [{"questionId": 1, "selectedOptionIds": [2]}]}
      */

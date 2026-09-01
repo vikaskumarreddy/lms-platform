@@ -3,16 +3,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
-import '../assessment/assessment_paper_screen.dart';
 import '../browser/in_app_browser_screen.dart';
+import 'company_questions_view_screen.dart';
 
 const Color _kInk = Color(0xFF0F172A);
 const Color _kAccent = Color(0xFFEAB308);
 const Color _kMuted = Color(0xFF64748B);
 
-/// Company-specific interview-prep tiles: each is either a full in-app question
-/// paper (reuses [AssessmentPaperScreen] via `type='company-kit'`) or a pasted
-/// PDF opened in the existing embedded browser.
+/// Company-specific interview-prep tiles: CONTENT tiles open the read-only Q&A
+/// guide ([CompanyQuestionsViewScreen]) where the student reads each question
+/// with its answer; PDF tiles open in the existing embedded browser.
 class CompanyQuestionsScreen extends StatefulWidget {
   const CompanyQuestionsScreen({super.key});
 
@@ -98,10 +98,10 @@ class _CompanyQuestionsScreenState extends State<CompanyQuestionsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AssessmentPaperScreen(
-          type: 'company-kit',
+        builder: (_) => CompanyQuestionsViewScreen(
           assessmentId: (kit['id'] as num).toInt(),
-          title: companyName,
+          companyName: companyName,
+          companyDescription: kit['description'] as String?,
         ),
       ),
     );

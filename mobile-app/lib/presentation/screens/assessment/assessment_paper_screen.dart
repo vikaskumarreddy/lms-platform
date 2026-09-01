@@ -30,6 +30,12 @@ class AssessmentPaperScreen extends StatefulWidget {
   final int? durationMinutes;
   final int? totalMarks;
 
+  /// True for Company Questions practice sets: these are a Q&A practice list,
+  /// not a graded exam/assignment, so the wording throughout drops exam-style
+  /// language ("paper", "marks", "submitted to your mentor") in favour of plain
+  /// "questions and answers" copy.
+  final bool practiceMode;
+
   const AssessmentPaperScreen({
     super.key,
     required this.type,
@@ -37,6 +43,7 @@ class AssessmentPaperScreen extends StatefulWidget {
     required this.title,
     this.durationMinutes,
     this.totalMarks,
+    this.practiceMode = false,
   });
 
   @override
@@ -106,7 +113,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       if (userId == null) {
         setState(() {
           _loading = false;
-          _error = 'Please log in again to open this paper.';
+          _error = widget.practiceMode
+              ? 'Please log in again to view these questions.'
+              : 'Please log in again to open this paper.';
         });
         return;
       }
@@ -116,7 +125,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       if (paper == null) {
         setState(() {
           _loading = false;
-          _error = 'This paper could not be loaded. Please try again.';
+          _error = widget.practiceMode
+              ? 'These questions could not be loaded. Please try again.'
+              : 'This paper could not be loaded. Please try again.';
         });
         return;
       }
@@ -140,7 +151,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       if (questions.isEmpty) {
         setState(() {
           _loading = false;
-          _error = 'No questions have been added to this paper yet.';
+          _error = widget.practiceMode
+              ? 'No questions have been added for this company yet.'
+              : 'No questions have been added to this paper yet.';
         });
         return;
       }
@@ -239,13 +252,13 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Submit paper?'),
+        title: Text(widget.practiceMode ? 'Submit answers?' : 'Submit paper?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _summaryRow('Answered', '$_answeredCount of ${_questions.length}'),
-            if (unanswered > 0)
+            if (unanswered > 0 && !widget.practiceMode)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
@@ -302,7 +315,10 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       // would fire again on the next tick.
       if (!_timeUp) _startTimer();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not submit. Check your connection and try again.'),
+        SnackBar(
+            content: Text(widget.practiceMode
+                ? 'Could not submit your answers. Check your connection and try again.'
+                : 'Could not submit. Check your connection and try again.'),
             backgroundColor: _kWrong),
       );
       return;
@@ -316,7 +332,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     });
     if (auto) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Time is up - your paper was submitted automatically.'),
+        const SnackBar(content: Text('Time is up - your answers were submitted automatically.'),
             backgroundColor: _kAccent),
       );
     }
@@ -329,7 +345,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Leave the paper?'),
+        title: Text(widget.practiceMode ? 'Leave these questions?' : 'Leave the paper?'),
         content: const Text('Your answers have not been submitted and will be lost.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Stay')),
@@ -420,8 +436,10 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  '${_questions.length} question${_questions.length == 1 ? '' : 's'}'
-                  '${_paperMarks > 0 ? '  -  $_paperMarks marks' : ''}',
+                  widget.practiceMode
+                      ? '${_questions.length} question${_questions.length == 1 ? '' : 's'} and answers'
+                      : '${_questions.length} question${_questions.length == 1 ? '' : 's'}'
+                          '${_paperMarks > 0 ? '  -  $_paperMarks marks' : ''}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -603,8 +621,10 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                     _pill('Q${index + 1}', _kInk),
                     const SizedBox(width: 8),
                     _pill(q.typeLabel, q.typeColor),
-                    const SizedBox(width: 8),
-                    _pill('${q.marks} mark${q.marks == 1 ? '' : 's'}', _kMuted),
+                    if (!widget.practiceMode) ...[
+                      const SizedBox(width: 8),
+                      _pill('${q.marks} mark${q.marks == 1 ? '' : 's'}', _kMuted),
+                    ],
                     const Spacer(),
                     InkWell(
                       onTap: () => setState(() =>
@@ -634,10 +654,13 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                         style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
                   ),
                 if (q.isCoding)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text('Not auto-graded - a mentor may review this separately.',
-                        style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                        widget.practiceMode
+                            ? 'Write your solution below - compare it with the sample answer once you submit.'
+                            : 'Not auto-graded - a mentor may review this separately.',
+                        style: const TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
                   ),
               ],
             ),
@@ -692,21 +715,34 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   Widget _textAnswerField(_Question q) {
     final controller = _textControllers.putIfAbsent(
         q.id, () => TextEditingController(text: _textAnswers[q.id] ?? ''));
+    // Coding answers get a dark, monospaced "editor" look so code reads clearly
+    // on a phone screen, distinct from the plain white box used for text answers.
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: q.isCoding ? const Color(0xFF0F172A) : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: q.isCoding ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
       ),
       child: TextField(
         controller: controller,
-        maxLines: q.isCoding ? 10 : 1,
+        maxLines: q.isCoding ? 14 : 1,
+        minLines: q.isCoding ? 8 : 1,
+        keyboardType: q.isCoding ? TextInputType.multiline : TextInputType.text,
         style: TextStyle(
-            fontSize: 14, fontFamily: q.isCoding ? 'monospace' : null, color: _kInk),
+          fontSize: 13.5,
+          fontFamily: q.isCoding ? 'monospace' : null,
+          height: q.isCoding ? 1.5 : 1.3,
+          color: q.isCoding ? const Color(0xFFE2E8F0) : _kInk,
+        ),
+        cursorColor: q.isCoding ? _kAccent : _kInk,
         decoration: InputDecoration(
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(14),
-          hintText: q.isCoding ? 'Write your code / approach here...' : 'Type your answer...',
+          hintText: q.isCoding ? '// Write your code here...' : 'Type your answer...',
+          hintStyle: TextStyle(
+            fontFamily: q.isCoding ? 'monospace' : null,
+            color: q.isCoding ? const Color(0xFF64748B) : _kMuted,
+          ),
         ),
         onChanged: (value) {
           setState(() {
@@ -787,7 +823,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
                         : const Icon(Icons.check_circle_outline, size: 20),
-                    label: Text(_submitting ? 'Submitting...' : 'Submit paper'),
+                    label: Text(_submitting
+                        ? 'Submitting...'
+                        : (widget.practiceMode ? 'Submit answers' : 'Submit paper')),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: _kAccent,
                         foregroundColor: Colors.black,
@@ -882,10 +920,12 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           const SizedBox(height: 14),
           Container(height: 1, color: tone.withOpacity(0.2)),
           const SizedBox(height: 14),
-          const Text(
-            'Your result has been recorded and shared with your mentor.',
+          Text(
+            widget.practiceMode
+                ? 'Nice work! Scroll down to check each question against its answer.'
+                : 'Your result has been recorded and shared with your mentor.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: _kMuted),
+            style: const TextStyle(fontSize: 12, color: _kMuted),
           ),
         ],
       ),
@@ -918,8 +958,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                 tone,
               ),
               const Spacer(),
-              Text('${q.marksAwarded}/${q.marks}',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: tone)),
+              if (!widget.practiceMode)
+                Text('${q.marksAwarded}/${q.marks}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: tone)),
             ],
           ),
           const SizedBox(height: 12),
@@ -1022,7 +1063,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               const SizedBox(width: 8),
               _pill(statusLabel, tone),
               const Spacer(),
-              if (!q.isCoding)
+              if (!q.isCoding && !widget.practiceMode)
                 Text('${q.marksAwarded}/${q.marks}',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: tone)),
             ],
@@ -1032,33 +1073,35 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               style: const TextStyle(
                   fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: _kInk)),
           const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Your answer',
+          if (q.isCoding)
+            _codeBlock(label: 'Your answer', code: answered ? q.answerText! : '— not answered —')
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Your answer',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800, color: _kMuted, letterSpacing: 0.6)),
+                  const SizedBox(height: 4),
+                  Text(
+                    answered ? q.answerText! : '— not answered —',
                     style: TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w800, color: _kMuted, letterSpacing: 0.6)),
-                const SizedBox(height: 4),
-                Text(
-                  answered ? q.answerText! : '— not answered —',
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.4,
-                    color: answered ? _kInk : _kMuted,
-                    fontFamily: q.isCoding ? 'monospace' : null,
+                      fontSize: 14,
+                      height: 1.4,
+                      color: answered ? _kInk : _kMuted,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           if (q.isFillInBlank && !q.isCorrect) ...[
             const SizedBox(height: 8),
             Container(
@@ -1104,6 +1147,41 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Dark, monospaced, horizontally-scrollable code block used to render a
+  /// student's typed coding answer clearly on a phone screen.
+  Widget _codeBlock({required String label, required String code}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: const Color(0xFF1E293B)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Text(
+              code,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                fontFamily: 'monospace',
+                color: Color(0xFFE2E8F0),
+              ),
+            ),
+          ),
         ],
       ),
     );
