@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/routes.dart';
 import '../../../../core/providers/data_providers.dart';
+import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/widgets/common_header.dart';
 import '../../../../core/utils/avatar_utils.dart';
 
@@ -156,7 +157,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ListTile(leading: const Icon(Icons.emoji_events_outlined), title: const Text('My Certificates'), subtitle: const Text('View achievements'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.certificates)),
               ListTile(leading: const Icon(Icons.description_outlined), title: const Text('Resume Builder'), subtitle: const Text('Create your resume'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.resumeBuilder)),
               ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: const Text('App preferences'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.settings)),
-              ListTile(leading: const Icon(Icons.logout), title: const Text('Logout'), subtitle: const Text('Sign out'), trailing: const Icon(Icons.chevron_right), onTap: () => context.go(AppRoutes.login)),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Logout'),
+                subtitle: const Text('Sign out'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  // Clear the persisted session (token + cached user) before
+                  // navigating, otherwise the next app launch auto-logs-in.
+                  await ref.read(mobileAuthProvider.notifier).logout();
+                  if (!mounted) return;
+                  context.go(AppRoutes.login);
+                },
+              ),
             ],
           );
         },

@@ -1,6 +1,19 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/constants/routes.dart';
 import '../../../core/widgets/common_header.dart';
 
+/// Real gateway checkout. The amount is NOT typed in by anyone: the backend
+/// derives it from the student's subscription plan price, and this screen just
+/// reads it back from /payments/status. Tapping Pay creates a gateway order and
+/// opens the vendor's hosted checkout page in an in-app webview; while it is
+/// open the app polls /payments/order-status and, once the backend captures the
+/// payment (via the gateway's browser redirect), the student is sent to the
+/// dashboard. No local amount entry, no mock UI.
 class PaymentScreen extends StatefulWidget {
   final int planId;
   const PaymentScreen({super.key, required this.planId});
@@ -10,211 +23,320 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  String _selectedMethod = 'card';
-  final TextEditingController _cardNumberController = TextEditingController();
-  final TextEditingController _cardHolderController = TextEditingController();
-  final TextEditingController _expiryController = TextEditingController();
-  final TextEditingController _cvvController = TextEditingController();
+  final ApiService _api = ApiService();
+  Map<String, dynamic>? _status;
+  bool _loading = true;
+  bool _paying = false;
+  bool _success = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final status = await _api.getPaymentStatus();
+    if (!mounted) return;
+    setState(() {
+      _status = status;
+      _loading = false;
+      _success = status != null && status['paymentStatus'] == 'COMPLETED';
+    });
+  }
+
+  /// Rupee amount for display — /status returns amountDue in rupees.
+  double get _amount {
+    final v = _status?['amountDue'];
+    if (v is num) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '') ?? 0;
+  }
+
+  String get _gateway =>
+      (_status?['gateway'] ?? 'RAZORPAY').toString().toUpperCase();
+
+  String _gatewayLabel() => _gateway == 'PAYU'
+      ? 'PayU'
+      : _gateway == 'CASHFREE'
+          ? 'Cashfree'
+          : 'Razorpay';
+
+  Future<void> _startPayment() async {
+    setState(() => _paying = true);
+    Timer? pollTimer;
+    try {
+      final order = await _api.createPaymentOrder();
+      if (!mounted) return;
+      if (order == null || order['orderId'] == null) {
+        throw Exception(order?['error'] ?? 'Could not start payment');
+      }
+      final orderId = order['orderId'].toString();
+      final html = _buildCheckoutHtml(order, orderId);
+
+      // Open the vendor checkout, then poll for capture while it is open.
+      bool captured = false;
+      await showModalBottomSheet(
+        context: context,
+        isDismissible: false,
+        enableDrag: false,
+        useSafeArea: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        builder: (sheetContext) {
+          Future<void> poll() async {
+            if (captured || !sheetContext.mounted) return;
+            if (await _api.isOrderPaid(orderId)) {
+              captured = true;
+              pollTimer?.cancel();
+              if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+              if (mounted) {
+                setState(() => _success = true);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Payment successful! Welcome aboard'),
+                  backgroundColor: Colors.green,
+                ));
+                context.go(AppRoutes.home);
+              }
+            }
+          }
+
+          pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              title: const Text('Secure Checkout',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(sheetContext).pop(),
+              ),
+            ),
+            body: InAppWebView(
+              initialData: InAppWebViewInitialData(data: html,
+                  mimeType: 'text/html', encoding: 'utf-8'),
+              initialSettings: InAppWebViewSettings(javaScriptEnabled: true),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+    pollTimer?.cancel();
+    if (mounted) setState(() => _paying = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF0F172A);
-    final secondaryColor = const Color(0xFFEAB308);
-
     return Scaffold(
-      appBar: const CommonHeader(showBackButton: true, title: 'Payment'),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              color: primaryColor,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Premium Plan', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
-                    const SizedBox(height: 8),
-                    Text('₹1,999', style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text('per month', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text('Payment Method', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _PaymentMethodCard(
-                    icon: Icons.credit_card,
-                    title: 'Card',
-                    isSelected: _selectedMethod == 'card',
-                    onTap: () => setState(() => _selectedMethod = 'card'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PaymentMethodCard(
-                    icon: Icons.account_balance_wallet,
-                    title: 'Wallet',
-                    isSelected: _selectedMethod == 'wallet',
-                    onTap: () => setState(() => _selectedMethod = 'wallet'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PaymentMethodCard(
-                    icon: Icons.qr_code,
-                    title: 'UPI',
-                    isSelected: _selectedMethod == 'upi',
-                    onTap: () => setState(() => _selectedMethod = 'upi'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (_selectedMethod == 'card') ...[
-              Text('Card Details', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _cardNumberController,
-                decoration: InputDecoration(
-                  hintText: '1234 5678 9012 3456',
-                  prefixIcon: const Icon(Icons.credit_card, size: 20),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _cardHolderController,
-                decoration: InputDecoration(
-                  hintText: 'Card Holder Name',
-                  prefixIcon: const Icon(Icons.person, size: 20),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _expiryController,
-                      decoration: InputDecoration(
-                        hintText: 'MM/YY',
-                        prefixIcon: const Icon(Icons.calendar_today, size: 20),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _cvvController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'CVV',
-                        prefixIcon: const Icon(Icons.lock, size: 20),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (_selectedMethod == 'wallet') ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: const CommonHeader(title: 'Payment'),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _success
+              ? _successView()
+              : RefreshIndicator(
+                  onRefresh: _loadStatus,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
                     children: [
-                      Icon(Icons.account_balance_wallet, color: secondaryColor),
-                      const SizedBox(width: 12),
-                      const Expanded(child: Text('Pay using Wallet Balance')),
-                      Radio(value: 1, groupValue: 1, onChanged: (v) {}),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${_gatewayLabel()} Secure Checkout',
+                                style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontSize: 13)),
+                            const SizedBox(height: 8),
+                            Text('\u20B9${_amount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            const Text('Subscription enrollment fee',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Your enrollment is one payment away',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: Color(0xFF0F172A))),
+                            SizedBox(height: 6),
+                            Text(
+                              'Tapping Pay opens the gateway secure checkout. Cards, UPI, '
+                              'netbanking and wallets are supported. Once the payment is '
+                              'verified you will be taken to your dashboard automatically.',
+                              style: TextStyle(
+                                  color: Color(0xFF475569),
+                                  fontSize: 13,
+                                  height: 1.4),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _paying ? null : _startPayment,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _paying
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2.4))
+                              : const Text('Pay Securely',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Center(
+                        child: Text(
+                          'Payments are verified server-side before your '
+                          'enrollment is activated.',
+                          textAlign: TextAlign.center,
+                          style:
+                              TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-              Text('Available Balance: ₹5,000', style: TextStyle(color: Colors.grey.shade600)),
-            ],
-            if (_selectedMethod == 'upi') ...[
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Enter UPI ID',
-                  prefixIcon: const Icon(Icons.qr_code, size: 20),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Payment processing...')),
-                  );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor, padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: const Text('Pay ₹1,999', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.lock, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Text('Secure payment powered by Stripe', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-              ],
-            ),
-          ],
-        ),
+    );
+  }
+
+  Widget _successView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+                color: Color(0xFFDCFCE7), shape: BoxShape.circle),
+            child: const Icon(Icons.check_rounded,
+                color: Color(0xFF16A34A), size: 48),
+          ),
+          const SizedBox(height: 16),
+          const Text('Payment successful!',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A))),
+          const SizedBox(height: 6),
+          const Text('Your enrollment is confirmed.',
+              style: TextStyle(color: Color(0xFF475569))),
+        ],
       ),
     );
   }
-}
 
-class _PaymentMethodCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _PaymentMethodCard({required this.icon, required this.title, required this.isSelected, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEAB308).withOpacity(0.1) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? const Color(0xFFEAB308) : Colors.grey.shade200),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: isSelected ? const Color(0xFFEAB308) : Colors.grey.shade600),
-            const SizedBox(height: 8),
-            Text(title, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? const Color(0xFFEAB308) : Colors.grey.shade600)),
-          ],
-        ),
-      ),
-    );
+  /// Vendor-agnostic hosted-checkout HTML. For PayU it auto-submits the signed
+  /// request to PayU's endpoint; for Razorpay it loads Standard Checkout; for
+  /// Cashfree it opens the hosted payment page. The gateway's own redirect back
+  /// to /api/payments/callback/... completes the capture server-side.
+  String _buildCheckoutHtml(Map<String, dynamic> order, String orderId) {
+    String esc(Object? s) => (s?.toString() ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+
+    if (_gateway == 'PAYU') {
+      final fields = <String>[];
+      order.forEach((k, v) {
+        if (v != null && v.toString().isNotEmpty) {
+          fields.add('<input type="hidden" name="${esc(k)}" value="${esc(v)}">');
+        }
+      });
+      return '<!DOCTYPE html><html><body onload="document.forms[0].submit()">'
+          '<form method="POST" action="${esc(order['actionUrl'])}">$fields</form>'
+          '<p style="font-family:sans-serif">Redirecting to PayU...</p></body></html>';
+    }
+
+    if (_gateway == 'CASHFREE') {
+      final sessionId = order['paymentSessionId']?.toString() ?? '';
+      final mode = order['mode']?.toString() ?? 'TEST';
+      return '<!DOCTYPE html><html><head>'
+          '<meta name="viewport" content="width=device-width, initial-scale=1">'
+          '<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>'
+          '</head><body style="margin:0">'
+          '<div id="drop_in_container" style="height:100vh"></div>'
+          '<script>'
+          'const cashfree = Cashfree({mode: "${esc(mode)}"});'
+          'cashfree.checkout({paymentSessionId: "${esc(sessionId)}", redirectTarget: "_self"});'
+          '</script></body></html>';
+    }
+
+    // RAZORPAY — Standard Checkout; the server-side callback verifies the
+    // signature and marks the payment captured.
+    final orderJson = json.encode(order);
+    return '<!DOCTYPE html><html><head>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<script src="https://checkout.razorpay.com/v1/checkout.js"></script>'
+        '</head><body style="margin:0">'
+        '<script>'
+        'var order = $orderJson;'
+        'var rzp = new Razorpay({'
+        '  key: order.keyId,'
+        '  order_id: order.orderId,'
+        '  amount: order.amount,'
+        '  currency: order.currency,'
+        '  name: "Course Enrollment",'
+        '  description: "Subscription fee",'
+        '  theme: {color: "#0F172A"},'
+        '  handler: function(resp) {'
+        '    var qs = "?razorpay_payment_id=" + encodeURIComponent(resp.razorpay_payment_id)'
+        '      + "&razorpay_order_id=" + encodeURIComponent(resp.razorpay_order_id)'
+        '      + "&razorpay_signature=" + encodeURIComponent(resp.razorpay_signature);'
+        '    window.location.href = "${esc(ApiService.baseUrl)}/payments/callback/razorpay/$orderId" + qs;'
+        '  }'
+        '});'
+        'rzp.open();'
+        '</script></body></html>';
   }
 }
+

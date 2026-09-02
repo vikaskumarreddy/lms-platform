@@ -169,10 +169,22 @@ public class TenantInterceptor implements HandlerInterceptor {
         if (parts.length > 1) {
             String subdomain = parts[0];
             Optional<Organization> org = organizationRepository.findBySlug(subdomain);
-            return org.map(o -> String.valueOf(o.getId())).orElse(null);
+            if (org.isPresent()) {
+                return String.valueOf(org.get().getId());
+            }
         }
 
-        return null;
+        // Unrecognized host (e.g. a tunnel hostname like *.ngrok-free.dev used by the
+        // mobile app, or a bare IP): fall back to the default organization instead of
+        // returning null. Returning null leaves the tenant context empty, and then
+        // Hibernate's @TenantId discriminator injects a match-nothing sentinel into
+        // every query — including the payment-info lookup in AuthService during
+        // LOGIN, before any JWT exists to resolve the tenant from. That made every
+        // mobile-app login report CASH / paymentRequired=false regardless of the
+        // student's real payment record. The JWT's organization_id claim re-scopes
+        // the tenant correctly on every authenticated request after login.
+        Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
+        return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
     }
 }
 

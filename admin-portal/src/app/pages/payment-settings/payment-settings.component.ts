@@ -111,10 +111,9 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
           </div>
 
           <div class="field">
-            <label for="fee">Fee per student (₹)</label>
-            <input id="fee" type="number" [(ngModel)]="form.amountRupees" name="amountRupees" min="0" step="1"
-                   placeholder="5000">
-            <small>Charged once, on the student's first login.</small>
+            <label for="fee">Fee per student</label>
+            <input id="fee" type="text" value="Set per subscription plan" disabled>
+            <small>The amount charged is each student's subscription plan price (Manage Plans) — not a fixed fee here.</small>
           </div>
 
           <div class="field">
@@ -190,8 +189,9 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
           </div>
 
           <div class="field">
-            <label for="payuFee">Fee per student (₹)</label>
-            <input id="payuFee" type="number" [(ngModel)]="otherForms.PAYU.amountRupees" name="payuFee" min="0" step="1">
+            <label for="payuFee">Fee per student</label>
+            <input id="payuFee" type="text" value="Set per subscription plan" disabled>
+            <small>Charged amount = the student's subscription plan price.</small>
           </div>
 
           <div class="field">
@@ -251,8 +251,9 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
           </div>
 
           <div class="field">
-            <label for="cfFee">Fee per student (₹)</label>
-            <input id="cfFee" type="number" [(ngModel)]="otherForms.CASHFREE.amountRupees" name="cfFee" min="0" step="1">
+            <label for="cfFee">Fee per student</label>
+            <input id="cfFee" type="text" value="Set per subscription plan" disabled>
+            <small>Charged amount = the student's subscription plan price.</small>
           </div>
 
           <div class="field">

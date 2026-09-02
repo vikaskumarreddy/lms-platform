@@ -18,10 +18,12 @@ class MobileAuthState {
 
   MobileAuthState({this.isLoggedIn = false, this.user, this.isLoading = false});
 
-  MobileAuthState copyWith({bool? isLoggedIn, AuthUser? user, bool? isLoading}) {
+  MobileAuthState copyWith({bool? isLoggedIn, AuthUser? user, bool? isLoading, bool clearUser = false}) {
     return MobileAuthState(
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
-      user: user ?? this.user,
+      // `clearUser` lets logout() actually null the cached user — a plain
+      // `user ?? this.user` fallback can never clear it.
+      user: clearUser ? null : (user ?? this.user),
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -77,7 +79,7 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
   Future<void> logout() async {
     await PushNotificationService().clearToken();
     await _auth.logout();
-    state = state.copyWith(isLoggedIn: false, user: null);
+    state = state.copyWith(isLoggedIn: false, clearUser: true);
     _ref.read(subscriptionProvider.notifier).reset();
   }
 

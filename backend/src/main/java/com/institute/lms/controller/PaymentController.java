@@ -57,6 +57,7 @@ public class PaymentController {
       "paymentRequired", info.isPaymentDue(),
       "paymentMethod", info.getPaymentMethod(),
       "paymentStatus", info.getPaymentStatus(),
+      "gateway", paymentService.getActiveGatewayName(orgId),
       "amountDue", info.getAmountDue() != null ? info.getAmountDue() / 100.0 : 0,
       "paidAt", info.getPaidAt()
     ));
@@ -153,6 +154,73 @@ public class PaymentController {
       log.error("Cashfree webhook processing failed", e);
       return ResponseEntity.status(400).build();
     }
+  }
+
+  /**
+   * Browser redirect target for Razorpay Standard Checkout ({@code callback_url}).
+   * The checkout page runs inside the app's webview with no JWT, so this must be
+   * public (see SecurityConfig); the Razorpay signature in the query string is the
+   * proof of authenticity. Razorpay POSTs the result here with its own field names.
+   */
+  @RequestMapping(value = "/callback/razorpay/{orderId}", method = {RequestMethod.GET, RequestMethod.POST})
+  public ResponseEntity<String> handleRazorpayCheckoutRedirect(
+      @PathVariable String orderId, @RequestParam Map<String, String> params) {
+    String paymentId = params.getOrDefault("razorpay_payment_id", "");
+    String signature = params.getOrDefault("razorpay_signature", "");
+    log.info("Razorpay checkout redirect: orderId={}, paymentId={}", orderId, paymentId);
+    try {
+      paymentService.handleRazorpayCheckoutRedirect(orderId, paymentId, signature);
+      return ResponseEntity.ok(checkoutHtml("Payment successful",
+          "Your enrollment payment has been received. You can close this page and return to the app."));
+    } catch (Exception e) {
+      log.error("Razorpay checkout redirect failed for order {}", orderId, e);
+      return ResponseEntity.ok(checkoutHtml("Payment not completed",
+          "We could not verify this payment. If any amount was deducted it will be auto-refunded by your bank. Please try again from the app."));
+    }
+  }
+
+  /**
+   * Browser redirect target for PayU's surl/furl. PayU POSTs its full response form
+   * here; the reverse-hash check in {@code PayUGatewayAdapter} authenticates it.
+   */
+  @RequestMapping(value = "/callback/payu/{orderId}", method = {RequestMethod.GET, RequestMethod.POST})
+  public ResponseEntity<String> handlePayuCheckoutRedirect(
+      @PathVariable String orderId, @RequestParam Map<String, String> params) {
+    log.info("PayU checkout redirect: orderId={}, status={}", orderId, params.get("status"));
+    Map<String, String> callbackParams = new HashMap<>(params);
+    callbackParams.put("orderId", orderId);
+    callbackParams.put("paymentId", params.getOrDefault("mihpayid", ""));
+    callbackParams.put("signature", params.getOrDefault("hash", ""));
+    try {
+      paymentService.handleGatewayPaymentSuccess(PaymentGateway.PAYU, orderId, callbackParams);
+      return ResponseEntity.ok(checkoutHtml("Payment successful",
+          "Your enrollment payment has been received. You can close this page and return to the app."));
+    } catch (Exception e) {
+      log.error("PayU checkout redirect failed for order {}", orderId, e);
+      return ResponseEntity.ok(checkoutHtml("Payment not completed",
+          "We could not verify this payment. If any amount was deducted it will be auto-refunded by your bank. Please try again from the app."));
+    }
+  }
+
+  /**
+   * Live order status for the mobile app to poll while the Cashfree hosted checkout
+   * is open. Returns {paid: bool}.
+   */
+  @GetMapping("/order-status/{orderId}")
+  public ResponseEntity<Map<String, Object>> getOrderStatus(@PathVariable String orderId) {
+    try {
+      return ResponseEntity.ok(paymentService.checkGatewayOrderStatus(orderId));
+    } catch (Exception e) {
+      return ResponseEntity.badRequest().body(Map.of("paid", false, "error", e.getMessage()));
+    }
+  }
+
+  /** Minimal confirmation page shown inside the checkout webview after a redirect. */
+  private String checkoutHtml(String title, String body) {
+    return "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>"
+        + "<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8fafc;}"
+        + "div{text-align:center;padding:24px}h1{font-size:20px;color:#0f172a}p{color:#475569}</style></head>"
+        + "<body><div><h1>" + title + "</h1><p>" + body + "</p></div></body></html>";
   }
 
   /**

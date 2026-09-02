@@ -7,6 +7,12 @@ class AuthUser {
   final String? role;
   final int? planId;
   final int? batchId;
+  /// True when the student was created with ONLINE payment and hasn't paid yet.
+  /// Drives the post-login redirect to the payment screen.
+  final bool paymentRequired;
+  final String? paymentMethod; // CASH | ONLINE
+  final String? paymentStatus; // PENDING | COMPLETED | FAILED
+  final int? amountDue; // paise
 
   AuthUser({
     this.id,
@@ -15,6 +21,10 @@ class AuthUser {
     this.role,
     this.planId,
     this.batchId,
+    this.paymentRequired = false,
+    this.paymentMethod,
+    this.paymentStatus,
+    this.amountDue,
   });
 
   /// Builds an [AuthUser] from the nested `user` object in the auth response.
@@ -30,6 +40,12 @@ class AuthUser {
       batchId: json['batchId'] is int
           ? json['batchId']
           : int.tryParse(json['batchId']?.toString() ?? ''),
+      paymentRequired: json['paymentRequired'] == true,
+      paymentMethod: json['paymentMethod'] as String?,
+      paymentStatus: json['paymentStatus'] as String?,
+      amountDue: json['amountDue'] is int
+          ? json['amountDue']
+          : int.tryParse(json['amountDue']?.toString() ?? ''),
     );
   }
 
@@ -41,6 +57,10 @@ class AuthUser {
       'role': role,
       'planId': planId,
       'batchId': batchId,
+      'paymentRequired': paymentRequired,
+      'paymentMethod': paymentMethod,
+      'paymentStatus': paymentStatus,
+      'amountDue': amountDue,
     };
   }
 }

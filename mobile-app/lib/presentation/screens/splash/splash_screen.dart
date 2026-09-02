@@ -30,7 +30,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       state = ref.read(mobileAuthProvider);
     }
     if (!mounted) return;
-    context.go(state.isLoggedIn ? AppRoutes.home : AppRoutes.login);
+    if (!state.isLoggedIn) {
+      context.go(AppRoutes.login);
+      return;
+    }
+    // Persisted sessions for ONLINE-payment students that are still unpaid are
+    // sent to the payment screen too, not just fresh logins.
+    final user = state.user;
+    final needsPayment = user != null &&
+        user.role == 'STUDENT' &&
+        user.paymentMethod == 'ONLINE' &&
+        user.paymentStatus != 'COMPLETED' &&
+        user.planId != null;
+    context.go(needsPayment ? AppRoutes.paymentFor(user.planId!) : AppRoutes.home);
   }
 
   @override

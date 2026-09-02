@@ -65,7 +65,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF0F172A);
+    const primaryColor = Color(0xFF0F172A);
 
     return Scaffold(
       appBar: const CommonHeader(title: 'Payment History'),

@@ -107,7 +107,19 @@ public class FcmService {
     private String extractProjectId(String serviceAccountJson) throws Exception {
         Map<?, ?> parsed = objectMapper.readValue(serviceAccountJson, Map.class);
         Object projectId = parsed.get("project_id");
-        if (projectId == null) throw new IllegalStateException("service account JSON missing project_id");
+        if (projectId == null) {
+            // Common admin mistake: pasting the Android app's google-services.json
+            // (which has a nested project_info.project_id and NO private key) instead
+            // of the service-account private key. Give a precise, actionable message.
+            if (parsed.containsKey("project_info") || parsed.containsKey("client")) {
+                throw new IllegalStateException(
+                    "The stored JSON is google-services.json (the Android app config), not the "
+                    + "service-account private key. Download the service-account key from Firebase "
+                    + "console → Project settings → Service accounts → 'Generate new private key' "
+                    + "and paste that instead.");
+            }
+            throw new IllegalStateException("service account JSON missing project_id");
+        }
         return projectId.toString();
     }
 

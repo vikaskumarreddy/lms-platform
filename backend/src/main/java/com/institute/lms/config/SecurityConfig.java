@@ -37,6 +37,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/courses/**").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()
+                        // Gateway browser redirects land here from the checkout webview with
+                        // no JWT — the gateway's own signature/hmac in the payload authenticates them.
+                        .requestMatchers("/api/payments/callback/**").permitAll()
                         .requestMatchers("/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()

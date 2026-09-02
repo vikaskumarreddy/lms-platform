@@ -150,11 +150,12 @@ public class DashboardController {
                 totalStudents = 0;
             }
 
-            // Courses created by this instructor
+            // Courses created by this instructor — only published ones count as "active".
             List<Course> allCourses = courseRepository.findAll();
             if (instructorId != null) {
                 activeCourses = allCourses.stream()
                         .filter(c -> c.getInstructorId() != null && c.getInstructorId().equals(instructorId))
+                        .filter(c -> Boolean.TRUE.equals(c.getIsPublished()))
                         .count();
             } else {
                 activeCourses = 0;

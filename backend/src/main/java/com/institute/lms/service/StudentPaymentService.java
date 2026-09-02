@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,6 +28,7 @@ public class StudentPaymentService {
   private final OrganizationRepository organizationRepository;
   private final OrgPaymentGatewayConfigRepository gatewayConfigRepo;
   private final PaymentGatewayResolver gatewayResolver;
+  private final SubscriptionPlanRepository subscriptionPlanRepo;
 
   /** Null on legacy rows means RAZORPAY, the gateway every org used before this field existed. */
   private PaymentGateway resolveActiveGateway(Long organizationId) {
@@ -47,33 +49,68 @@ public class StudentPaymentService {
     // acting for a specific organization, and a mis-stamped fee row is a billing bug.
     paymentInfo.setOrganizationId(organizationId);
 
-    // If ONLINE, fetch amount from org config
+    // Resolve the amount from the student's subscription plan (different plans have
+    // different prices), then record it on the payment row as paise.
     if ("ONLINE".equals(paymentMethod)) {
-      PaymentGateway activeGateway = resolveActiveGateway(organizationId);
-      if (activeGateway == PaymentGateway.RAZORPAY) {
-        Optional<OrgRazorpayConfig> config = orgConfigRepo.findByOrganizationId(organizationId);
-        if (config.isPresent() && config.get().getPaymentEnabled()) {
-          paymentInfo.setAmountDue(config.get().getAmountPerStudent());
-        } else {
-          throw new IllegalStateException("Online payments not configured for this organization");
-        }
-      } else {
-        Optional<OrgPaymentGatewayConfig> config = gatewayConfigRepo.findByOrganizationIdAndGateway(organizationId, activeGateway);
-        if (config.isPresent() && Boolean.TRUE.equals(config.get().getPaymentEnabled())) {
-          paymentInfo.setAmountDue(config.get().getAmountPerStudent());
-        } else {
-          throw new IllegalStateException("Online payments not configured for this organization");
-        }
-      }
+      paymentInfo.setAmountDue(resolveStudentAmountDue(studentId, organizationId));
     }
 
     studentPaymentInfoRepo.save(paymentInfo);
-    log.info("Created payment info for student {} with method {}", studentId, paymentMethod);
+    log.info("Created payment info for student {} with method {} and amount {} paise",
+        studentId, paymentMethod, paymentInfo.getAmountDue());
+  }
+
+  /** Amount in paise the student owes for enrollment: their {@link SubscriptionPlan}
+   * price (rupees -> paise). Different subscriptions carry different prices, so the
+   * legacy hard-coded "amount per student" in payment settings is never used — if the
+   * student has no priced plan attached the amount stays 0 and the admin must fix the
+   * plan before the student can pay. */
+  private Long resolveStudentAmountDue(Long studentId, Long organizationId) {
+    Optional<User> studentOpt = userRepository.findById(studentId);
+    if (studentOpt.isPresent() && studentOpt.get().getPlanId() != null) {
+      Optional<SubscriptionPlan> planOpt = subscriptionPlanRepo.findById(studentOpt.get().getPlanId());
+      if (planOpt.isPresent() && planOpt.get().getPrice() != null) {
+        return planOpt.get().getPrice().multiply(BigDecimal.valueOf(100)).longValue();
+      }
+      log.warn("Student {} has plan {} with no price set — amount due recorded as 0", studentId, studentOpt.get().getPlanId());
+    } else {
+      log.warn("Student {} has no subscription plan — amount due recorded as 0", studentId);
+    }
+    return 0L;
+  }
+
+  /**
+   * Re-derive the amount due from the student's current subscription plan. Called when
+   * an admin moves an unpaid ONLINE student to a different plan, so the next checkout
+   * charges the new plan's price rather than the old one. No-op for paid or cash rows.
+   */
+  @Transactional
+  public void refreshAmountDueFromPlan(Long studentId, Long organizationId) {
+    studentPaymentInfoRepo.findByStudentIdAndOrganizationId(studentId, organizationId)
+      .filter(info -> "ONLINE".equals(info.getPaymentMethod()) && !info.isPaid())
+      .ifPresent(info -> {
+        long newAmount = resolveStudentAmountDue(studentId, organizationId);
+        if (info.getAmountDue() == null || info.getAmountDue() != newAmount) {
+          info.setAmountDue(newAmount);
+          studentPaymentInfoRepo.save(info);
+          log.info("Amount due for student {} refreshed to {} paise after plan change", studentId, newAmount);
+        }
+      });
+  }
+
+  /** The active payment gateway name (RAZORPAY/PAYU/CASHFREE) for an organization,
+   * so the mobile client knows which vendor's checkout to launch. */
+  public String getActiveGatewayName(Long organizationId) {
+    return resolveActiveGateway(organizationId).name();
   }
 
   public Optional<StudentPaymentInfo> getPaymentInfo(Long studentId, Long organizationId) {
     return studentPaymentInfoRepo.findByStudentIdAndOrganizationId(studentId, organizationId);
   }
+
+  /** Public base URL of this backend, used to build gateway redirect targets. */
+  @org.springframework.beans.factory.annotation.Value("${app.public-base-url:}")
+  private String appBaseUrl;
 
   @Transactional
   public Map<String, Object> createPaymentOrder(Long studentId, Long organizationId) {
@@ -119,7 +156,10 @@ public class StudentPaymentService {
       "orderId", razorpayOrderId,
       "amount", paymentInfo.getAmountDue(),
       "currency", "INR",
-      "keyId", config.getRazorpayKeyId()
+      "keyId", config.getRazorpayKeyId(),
+      // Browser redirect target: the checkout page POSTs the payment result here
+      // (public endpoint — the Razorpay signature authenticates it).
+      "callbackUrl", appBaseUrl + "/api/payments/callback/razorpay/" + razorpayOrderId
     );
   }
 
@@ -302,6 +342,68 @@ public class StudentPaymentService {
     studentPaymentInfoRepo.save(paymentInfo);
 
     log.info("Payment completed for student {} from org {} via {}", order.getStudentId(), order.getOrganizationId(), gateway);
+  }
+
+  /**
+   * Verify and record a payment that came back through Razorpay Standard Checkout's
+   * browser redirect ({@code callback_url}). Same capture flow as the webhook, but the
+   * HMAC is keyed with the org's Key Secret rather than the webhook secret.
+   */
+  @Transactional
+  public void handleRazorpayCheckoutRedirect(String razorpayOrderId, String razorpayPaymentId, String signature) {
+    RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(razorpayOrderId)
+      .orElseThrow(() -> new IllegalArgumentException("Order not found: " + razorpayOrderId));
+
+    OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(order.getOrganizationId())
+      .orElseThrow(() -> new IllegalStateException("Razorpay config not found"));
+
+    if (!razorpayService.verifyCheckoutSignature(razorpayOrderId, razorpayPaymentId, signature, config.getRazorpayKeySecret())) {
+      log.warn("Checkout signature verification failed for payment {}", razorpayPaymentId);
+      throw new SecurityException("Invalid signature");
+    }
+
+    order.setRazorpayPaymentId(razorpayPaymentId);
+    order.setRazorpaySignature(signature);
+    order.setStatus("CAPTURED");
+    razorpayOrderRepo.save(order);
+
+    StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
+      .findByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId())
+      .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
+
+    paymentInfo.setPaymentStatus("COMPLETED");
+    paymentInfo.setPaidAt(LocalDateTime.now());
+    studentPaymentInfoRepo.save(paymentInfo);
+
+    log.info("Payment completed for student {} from org {} via Razorpay checkout redirect",
+        order.getStudentId(), order.getOrganizationId());
+  }
+
+  /**
+   * Poll a gateway order's live status and capture it if paid. Used by the mobile app
+   * after Cashfree's hosted checkout closes: the app has no server push, so it asks
+   * this endpoint until the order flips to PAID (or gives up).
+   * Returns {paid: bool, error?: string}.
+   */
+  @Transactional
+  public Map<String, Object> checkGatewayOrderStatus(String orderId) {
+    RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(orderId)
+      .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+
+    if ("CAPTURED".equals(order.getStatus())) {
+      return Map.of("paid", true);
+    }
+
+    PaymentGateway activeGateway = resolveActiveGateway(order.getOrganizationId());
+    try {
+      handleGatewayPaymentSuccess(activeGateway, orderId, Map.of("orderId", orderId));
+      return Map.of("paid", true);
+    } catch (Exception e) {
+      // Not paid yet (or verification failed) — normal while the student is still
+      // on the gateway's page, so surface it as a plain status rather than an error.
+      log.debug("Order {} not captured yet: {}", orderId, e.getMessage());
+      return Map.of("paid", false, "error", e.getMessage() != null ? e.getMessage() : "not paid");
+    }
   }
 
   // ------------------------------------------------------------------ admin views

@@ -127,7 +127,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _loading = false);
     if (!mounted) return;
     if (success) {
-      context.go(AppRoutes.home);
+      // Online-payment students who haven't paid yet are funneled straight to the
+      // payment screen; everyone else lands on the dashboard as usual.
+      final user = ref.read(mobileAuthProvider).user;
+      final needsPayment = user != null &&
+          user.role == 'STUDENT' &&
+          user.paymentMethod == 'ONLINE' &&
+          user.paymentStatus != 'COMPLETED' &&
+          user.planId != null;
+      context.go(needsPayment ? AppRoutes.paymentFor(user!.planId!) : AppRoutes.home);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login failed. Check your credentials.'), backgroundColor: Colors.red),

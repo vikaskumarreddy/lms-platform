@@ -1,6 +1,13 @@
 server:
   port: 8080
 
+# Public URL of this backend — used to build gateway browser-redirect targets
+# (Razorpay callback_url, PayU surl/furl). Keep in sync with the mobile app's
+# AppConfig.apiBaseUrl host.
+app:
+  public-base-url: https://platonic-automaker-gratitude.ngrok-free.dev
+
+
 spring:
   mvc:
     cors:

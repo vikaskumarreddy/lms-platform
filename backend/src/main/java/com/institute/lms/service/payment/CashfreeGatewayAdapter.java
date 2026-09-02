@@ -84,6 +84,7 @@ public class CashfreeGatewayAdapter implements PaymentGatewayService {
             result.put("paymentSessionId", responseBody != null ? responseBody.get("payment_session_id") : null);
             result.put("amount", amount);
             result.put("currency", currency != null ? currency : "INR");
+            result.put("mode", creds.getOrDefault("mode", "TEST"));
             return result;
         } catch (Exception e) {
             log.error("Cashfree order creation failed for org {}", organizationId, e);

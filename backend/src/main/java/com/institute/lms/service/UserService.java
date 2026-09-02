@@ -163,7 +163,17 @@ public class UserService {
             user.setNotifyMedium(parseNotifyMedium(request.getNotifyMedium()));
         }
 
-        return Optional.of(toResponse(userRepository.save(user)));
+        User saved = userRepository.save(user);
+
+        // If the plan moved, an unpaid ONLINE student's fee must follow the new
+        // plan's price — otherwise the next checkout charges the stale amount.
+        try {
+            studentPaymentService.refreshAmountDueFromPlan(saved.getId(), saved.getOrganizationId());
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to refresh amount due for student: " + e.getMessage());
+        }
+
+        return Optional.of(toResponse(saved));
     }
 
     /** Parses a notify-medium string, defaulting to PUSH for blank/unknown values rather than failing the request. */

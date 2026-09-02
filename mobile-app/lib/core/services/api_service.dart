@@ -1026,6 +1026,74 @@ class ApiService {
     }
   }
 
+  // MARK: - Online Payment APIs
+
+  /// The logged-in student's payment status: {paymentRequired, paymentMethod,
+  /// paymentStatus, gateway, amountDue (rupees), paidAt}.
+  Future<Map<String, dynamic>?> getPaymentStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return null;
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/payments/status/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching payment status: $e');
+      return null;
+    }
+  }
+
+  /// Creates a gateway order for the student's pending enrollment fee.
+  /// Returns the gateway-specific order payload (orderId, amount, currency,
+  /// keyId for Razorpay; actionUrl + form fields for PayU; paymentSessionId
+  /// for Cashfree).
+  Future<Map<String, dynamic>?> createPaymentOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return null;
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/payments/create-order/$userId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      final body = response.body.isNotEmpty ? json.decode(response.body) : {};
+      throw Exception(body['error'] ?? 'Could not create payment order (HTTP ${response.statusCode})');
+    } catch (e) {
+      print('Error creating payment order: $e');
+      rethrow;
+    }
+  }
+
+  /// Live status of a gateway order: {paid: bool}. Polled by the payment screen
+  /// while the vendor's checkout page is open in the webview.
+  Future<bool> isOrderPaid(String orderId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/payments/order-status/$orderId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body)['paid'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking order status: $e');
+      return false;
+    }
+  }
+
   // MARK: - Leaderboard
 
   Future<Map<String, dynamic>> getWeeklyLeaderboard({int? batchId}) async {

@@ -37,4 +37,7 @@ class AppRoutes {
   static const String mentorChat = '/chat/:mentorId';
   static const String notes = '/notes/:lessonId';
   static const String payment = '/payment/:planId';
+  /// The payment route with its plan-id parameter filled in — use this to
+  /// navigate ([payment] is a route *pattern*, not a navigable path).
+  static String paymentFor(int planId) => '/payment/$planId';
 }

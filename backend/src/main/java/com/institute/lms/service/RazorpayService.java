@@ -79,6 +79,15 @@ public class RazorpayService {
   }
 
   /**
+   * Verify the signature Razorpay attaches when Standard Checkout redirects back to
+   * {@code callback_url}. Unlike the webhook payload this HMAC is keyed with the
+   * account's Key Secret, not the webhook secret, so it needs its own entry point.
+   */
+  public boolean verifyCheckoutSignature(String orderId, String paymentId, String signature, String keySecret) {
+    return verifySignature(orderId, paymentId, signature, keySecret);
+  }
+
+  /**
    * Refund a payment using org's credentials.
    */
   public String refundPayment(String keyId, String keySecret, String paymentId, Long amount) {
