@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../constants/routes.dart';
+import 'auth_provider.dart';
 import '../../presentation/screens/splash/splash_screen.dart';
 import '../../presentation/screens/landing/landing_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
@@ -43,10 +44,65 @@ import '../../presentation/screens/main_shell_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
+/// Root navigator key, shared with [InAppNotificationOverlay] so it can find
+/// a live [OverlayState] (via `Navigator.of(context).overlay`) to insert the
+/// foreground push-notification card into from outside the widget tree --
+/// `WidgetsBinding.instance.rootElement` cannot resolve an Overlay ancestor
+/// (it IS the root, so there's nothing above it to search), which silently
+/// no-ops and is why foreground notifications stopped appearing.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
+    redirect: (context, state) {
+      final authState = ref.read(mobileAuthProvider);
+      final location = state.uri.toString();
+
+      // Public routes that don't require authentication
+      final publicRoutes = [
+        AppRoutes.splash,
+        AppRoutes.landing,
+        AppRoutes.login,
+        AppRoutes.register,
+        AppRoutes.forgotPassword,
+        AppRoutes.onboarding,
+      ];
+      final isPublicRoute = publicRoutes.contains(location);
+
+      // While loading, don't redirect anywhere — wait for the check to finish.
+      if (authState.isLoading) return null;
+
+      // Not logged in: send to login if trying to access a protected route.
+      if (!authState.isLoggedIn) {
+        return isPublicRoute ? null : AppRoutes.login;
+      }
+
+      // Logged in: if on a public auth route, send to home (or payment).
+      if (isPublicRoute && location != AppRoutes.splash) {
+        return null; // let them stay on landing/login if they navigated there
+      }
+
+      final user = authState.user;
+      // Use paymentRequired — the authoritative flag set by the backend
+      // (StudentPaymentInfo.isPaymentDue = ONLINE method AND not paid).
+      // Falls back to individual field checks for older accounts.
+      final needsPayment = user != null &&
+          user.role == 'STUDENT' &&
+          (user.paymentRequired ||
+              (user.paymentMethod == 'ONLINE' &&
+               user.paymentStatus != 'COMPLETED' &&
+               user.planId != null));
+
+      if (!needsPayment) return null;
+
+      // Already on the payment screen for the right plan — don't redirect.
+      if (location.startsWith('/payment')) return null;
+      // Sending the student anywhere else would let them bypass the payment.
+      return AppRoutes.paymentFor(user.planId!);
+    },
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
       GoRoute(path: AppRoutes.landing, builder: (context, state) => const LandingScreen()),
@@ -61,7 +117,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.courses, builder: (context, state) => const CoursesScreen()),
           GoRoute(path: AppRoutes.courseDetail, builder: (context, state) => CourseDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
           GoRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
-          GoRoute(path: AppRoutes.notifications, builder: (context, state) => const NotificationsScreen()),
+          GoRoute(path: AppRoutes.notifications, builder: (context, state) => NotificationsScreen()),
           GoRoute(path: AppRoutes.settings, builder: (context, state) => const SettingsScreen()),
           GoRoute(path: AppRoutes.placementDrives, builder: (context, state) => const PlacementDrivesScreen()),
           GoRoute(path: AppRoutes.calendar, builder: (context, state) => const CalendarScreen()),

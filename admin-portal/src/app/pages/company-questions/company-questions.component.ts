@@ -1,9 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { MediaService, MediaItem } from '../../services/media.service';
 
 interface CompanyKit {
   id: number;
@@ -12,6 +14,8 @@ interface CompanyKit {
   tags?: string;
   mode: 'CONTENT' | 'PDF';
   pdfUrl?: string;
+  pdfSource?: 'URL' | 'SELF';
+  pdfNoteId?: number | null;
   description?: string;
   isPublished: boolean;
   createdAt?: string;
@@ -25,7 +29,7 @@ interface CompanyKit {
 @Component({
   selector: 'app-company-questions',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:16px;flex-wrap:wrap;">
       <div>
@@ -78,6 +82,8 @@ interface CompanyKit {
 
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" *ngIf="kit.mode === 'CONTENT'" (click)="manageQuestions(kit)">Manage Questions</button>
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" *ngIf="kit.mode === 'PDF' && kit.pdfSource === 'SELF' && kit.pdfNoteId" (click)="viewSelfPdf(kit.pdfNoteId)">View</button>
+          <a class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" *ngIf="kit.mode === 'PDF' && kit.pdfSource !== 'SELF' && kit.pdfUrl" [href]="kit.pdfUrl" target="_blank" rel="noopener">View</a>
           <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="openEdit(kit)">Edit</button>
           <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="deleteKit(kit)">Delete</button>
         </div>
@@ -108,22 +114,55 @@ interface CompanyKit {
 
               <div class="full-width">
                 <label>Mode</label>
-                <div style="display:flex;gap:20px;padding-top:4px;">
+                <div style="display:flex;gap:20px;padding-top:4px;flex-wrap:wrap;">
                   <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
                     <input type="radio" name="mode" value="CONTENT" [(ngModel)]="form.mode" style="width:auto;margin:0;">
                     Content (question paper inside the app)
                   </label>
                   <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
                     <input type="radio" name="mode" value="PDF" [(ngModel)]="form.mode" style="width:auto;margin:0;">
-                    PDF (paste a URL)
+                    PDF
                   </label>
                 </div>
               </div>
 
               <div class="full-width" *ngIf="form.mode === 'PDF'">
+                <label>PDF Source</label>
+                <div style="display:flex;gap:20px;padding-top:4px;flex-wrap:wrap;">
+                  <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
+                    <input type="radio" name="pdfSource" value="URL" [(ngModel)]="form.pdfSource" style="width:auto;margin:0;">
+                    URL
+                  </label>
+                  <label style="display:flex;align-items:center;gap:7px;margin:0;cursor:pointer;font-weight:500;">
+                    <input type="radio" name="pdfSource" value="SELF" [(ngModel)]="form.pdfSource" style="width:auto;margin:0;">
+                    Self-hosted
+                  </label>
+                </div>
+              </div>
+
+              <div class="full-width" *ngIf="form.mode === 'PDF' && form.pdfSource === 'URL'">
                 <label>PDF URL *</label>
                 <input type="text" [(ngModel)]="form.pdfUrl" name="pdfUrl" placeholder="https://example.com/paper.pdf">
               </div>
+
+              <div class="full-width" *ngIf="form.mode === 'PDF' && form.pdfSource === 'SELF'">
+                <label>Uploaded PDF *</label>
+                <div style="display:flex;gap:8px;align-items:center;" *ngIf="mediaFiles.length">
+                  <select [(ngModel)]="form.pdfNoteId" name="pdfNoteId" style="flex:1;padding:10px 14px;border:1px solid var(--border-light);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:var(--surface)">
+                    <option [ngValue]="null">Select an uploaded PDF…</option>
+                    <option *ngFor="let n of mediaFiles" [ngValue]="n.id">{{ n.title }}</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:12px;white-space:nowrap;"
+                          [disabled]="!form.pdfNoteId" (click)="viewSelfPdf(form.pdfNoteId)">View</button>
+                </div>
+                <div *ngIf="!mediaFiles.length" style="font-size:12px;color:#B45309;margin-top:6px;">
+                  You have no files uploaded yet — <a routerLink="/media-hub">upload media</a> first.
+                </div>
+                <div *ngIf="mediaFiles.length" style="font-size:12px;color:#64748B;margin-top:6px;">
+                  Students see your uploaded PDF, stored compressed and served through the platform.
+                </div>
+              </div>
+
 
               <div class="full-width">
                 <label>Description</label>
@@ -153,22 +192,38 @@ interface CompanyKit {
         </div>
       </div>
     </div>
+
+    <!-- ===================== View PDF popup ===================== -->
+    <div class="modal-overlay" *ngIf="viewingPdf" (click)="closeMediaView()">
+      <div class="modal-content" style="width:90%;max-width:900px;max-height:90vh;overflow:auto;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="font-weight:700;color:#134E4A;margin:0;">{{ viewingPdf.title }}</h3>
+          <button class="btn btn-secondary" style="padding:2px 10px;font-size:16px;line-height:1;" (click)="closeMediaView()">✕</button>
+        </div>
+        <iframe [src]="viewingPdfSafeUrl" style="width:100%;height:75vh;border:1px solid #E2E8F0;border-radius:8px;" title="PDF viewer"></iframe>
+      </div>
+    </div>
   `
 })
 export class CompanyQuestionsComponent implements OnInit {
   private api = inject(ApiService);
   private errors = inject(ApiErrorService);
   private router = inject(Router);
+  private media = inject(MediaService);
+  private sanitizer = inject(DomSanitizer);
 
   kits: CompanyKit[] = [];
+  mediaFiles: MediaItem[] = [];
   loading = true;
   search = '';
+  viewingPdf: MediaItem | null = null;
+  viewingPdfSafeUrl: SafeResourceUrl | null = null;
 
   showModal = false;
   editingId: number | null = null;
   saving = false;
   modalError = '';
-  form: { companyName: string; logoUrl: string; tags: string; mode: 'CONTENT' | 'PDF'; pdfUrl: string; description: string; isPublished: boolean } = this.blankForm();
+  form: { companyName: string; logoUrl: string; tags: string; mode: 'CONTENT' | 'PDF'; pdfSource: 'URL' | 'SELF'; pdfNoteId: number | null; pdfUrl: string; description: string; isPublished: boolean } = this.blankForm();
 
   get filteredKits(): CompanyKit[] {
     const q = this.search.trim().toLowerCase();
@@ -179,11 +234,29 @@ export class CompanyQuestionsComponent implements OnInit {
 
   ngOnInit() {
     this.load();
+    this.loadMediaFiles();
   }
 
   private blankForm() {
-    return { companyName: '', logoUrl: '', tags: '', mode: 'CONTENT' as 'CONTENT' | 'PDF', pdfUrl: '', description: '', isPublished: true };
+    return { companyName: '', logoUrl: '', tags: '', mode: 'CONTENT' as 'CONTENT' | 'PDF', pdfSource: 'URL' as 'URL' | 'SELF', pdfNoteId: null as number | null, pdfUrl: '', description: '', isPublished: true };
   }
+
+  /** Uploaded PDF files power the "Self-hosted" dropdown. */
+  loadMediaFiles() {
+    this.media.list('file').subscribe({
+      next: (data) => { this.mediaFiles = data || []; },
+      error: () => { this.mediaFiles = []; }
+    });
+  }
+
+  viewSelfPdf(id: number | null) {
+    if (!id) return;
+    const item = this.mediaFiles.find(f => f.id === id) || null;
+    this.viewingPdf = item;
+    if (item) this.viewingPdfSafeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.media.serveUrl(item.id));
+  }
+
+  closeMediaView() { this.viewingPdf = null; this.viewingPdfSafeUrl = null; }
 
   load() {
     this.loading = true;
@@ -211,6 +284,8 @@ export class CompanyQuestionsComponent implements OnInit {
       logoUrl: kit.logoUrl || '',
       tags: kit.tags || '',
       mode: kit.mode,
+      pdfSource: kit.pdfSource === 'SELF' ? 'SELF' : 'URL',
+      pdfNoteId: kit.pdfNoteId ?? null,
       pdfUrl: kit.pdfUrl || '',
       description: kit.description || '',
       isPublished: kit.isPublished
@@ -230,14 +305,17 @@ export class CompanyQuestionsComponent implements OnInit {
   save() {
     this.modalError = '';
     if (!this.form.companyName || !this.form.companyName.trim()) { this.modalError = 'Company name is required'; return; }
-    if (this.form.mode === 'PDF' && (!this.form.pdfUrl || !this.form.pdfUrl.trim())) { this.modalError = 'PDF URL is required'; return; }
+    if (this.form.mode === 'PDF' && this.form.pdfSource === 'URL' && (!this.form.pdfUrl || !this.form.pdfUrl.trim())) { this.modalError = 'PDF URL is required'; return; }
+    if (this.form.mode === 'PDF' && this.form.pdfSource === 'SELF' && !this.form.pdfNoteId) { this.modalError = 'Choose one of your PDF notes'; return; }
 
     const payload = {
       companyName: this.form.companyName.trim(),
       logoUrl: this.form.logoUrl?.trim() || null,
       tags: this.form.tags?.trim() || null,
       mode: this.form.mode,
-      pdfUrl: this.form.mode === 'PDF' ? this.form.pdfUrl.trim() : null,
+      pdfSource: this.form.mode === 'PDF' ? this.form.pdfSource : null,
+      pdfNoteId: this.form.mode === 'PDF' && this.form.pdfSource === 'SELF' ? this.form.pdfNoteId : null,
+      pdfUrl: this.form.mode === 'PDF' && this.form.pdfSource === 'URL' ? this.form.pdfUrl.trim() : null,
       description: this.form.description?.trim() || null,
       isPublished: this.form.isPublished
     };

@@ -75,15 +75,65 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       }
       return;
     }
-    // Open PDF in embedded in-app browser (same as calendar events / placement drives)
+    // Open PDF in embedded in-app browser (same as calendar events / placement drives).
+    // Self-hosted notes resolve to a relative path (/api/media/{id}/serve or the
+    // legacy /api/pdf-notes/{id}/file) — absolutize against the API base so the
+    // webview/Docs-viewer gets a full URL.
+    final url = _absoluteMediaUrl(pdfUrl);
     final title = _lesson?.title ?? 'PDF Notes';
-    context.push('/browser?url=${Uri.encodeComponent(pdfUrl)}&title=${Uri.encodeComponent(title)}');
+    context.push('/browser?url=${Uri.encodeComponent(url)}&title=${Uri.encodeComponent(title)}');
   }
 
   /// Builds an embeddable YouTube iframe URL from the video URL.
   String _youtubeEmbedUrl(String videoUrl) {
     final videoId = _extractYouTubeVideoId(videoUrl);
     return 'https://www.youtube.com/embed/$videoId?rel=0&modestbranding=1&playsinline=1';
+  }
+
+  /// Self-hosted notes/videos resolve to a relative backend path
+  /// (/api/media/{id}/serve or the legacy /api/pdf-notes/{id}/file).
+  /// ApiService.baseUrl already ends in "/api", so naively concatenating
+  /// produced ".../api/api/media/..." (404/403 from the server) — strip the
+  /// duplicated "/api" prefix from the relative path before joining.
+  ///
+  /// Also appends ngrok-skip-browser-warning=true when the API is tunnelled
+  /// through ngrok's free tier: without it, the *first* request from a given
+  /// client gets ngrok's own HTML interstitial page back instead of the real
+  /// response — fatal for a <video src>/<iframe src> fetch, which has no way
+  /// to click through a warning page.
+  String _absoluteMediaUrl(String url) {
+    if (!url.startsWith('/')) return url;
+    var path = url;
+    if (path.startsWith('/api/')) path = path.substring(4); // drop leading "/api"
+    final full = '${ApiService.baseUrl}$path';
+    if (full.contains('ngrok-free.dev') || full.contains('ngrok.io') || full.contains('ngrok.app')) {
+      final sep = full.contains('?') ? '&' : '?';
+      return '$full${sep}ngrok-skip-browser-warning=true';
+    }
+    return full;
+  }
+
+  /// A minimal HTML5 <video> page for self-hosted files (uploaded through
+  /// Media & Files). Loaded via loadData() so no separate hosting/CORS setup
+  /// is needed — the video byte URL is fetched directly by the <video> tag.
+  /// The <video> tag's own onerror reports back through a JS handler because
+  /// InAppWebView's onReceivedError only fires for main-frame navigation
+  /// failures — it never fires for a sub-resource (the video src) failing
+  /// inside a successfully-loaded data: page, which is why a missing/expired
+  /// file previously just sat at a silent, un-erroring 0:00.
+  String _selfHostedVideoHtml(String videoUrl) {
+    return '''
+<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  html, body { margin:0; padding:0; background:#000; height:100%; }
+  video { width:100%; height:100%; object-fit:contain; background:#000; }
+</style></head>
+<body>
+  <video controls autoplay playsinline src="$videoUrl"
+    onerror="window.flutter_inappwebview.callHandler('videoError', this.error ? this.error.code : -1)"></video>
+</body></html>
+''';
   }
 
   /// Extracts the YouTube video ID from various URL formats.
@@ -163,23 +213,55 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                             ],
                           ),
                         )
-                      : InAppWebView(
-                          key: ValueKey(_videoRetryKey),
-                          initialUrlRequest: URLRequest(
-                            url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
-                          ),
-                          initialSettings: InAppWebViewSettings(
-                            javaScriptEnabled: true,
-                            allowsInlineMediaPlayback: true,
-                            mediaPlaybackRequiresUserGesture: false,
-                            transparentBackground: true,
-                          ),
-                          onReceivedError: (controller, request, error) {
-                            if (request.isForMainFrame ?? true) {
-                              setState(() => _videoLoadFailed = true);
-                            }
-                          },
-                        ),
+                      : lesson.videoSource == 'SELF'
+                          // Self-hosted upload (Media & Files): play the raw
+                          // video file natively via an HTML5 <video> tag instead
+                          // of forcing it through YouTube-embed logic, which
+                          // silently fell back to an unrelated dummy video.
+                          ? InAppWebView(
+                              key: ValueKey(_videoRetryKey),
+                              initialData: InAppWebViewInitialData(
+                                data: _selfHostedVideoHtml(_absoluteMediaUrl(lesson.videoUrl)),
+                                mimeType: 'text/html',
+                                encoding: 'utf-8',
+                              ),
+                              initialSettings: InAppWebViewSettings(
+                                javaScriptEnabled: true,
+                                allowsInlineMediaPlayback: true,
+                                mediaPlaybackRequiresUserGesture: false,
+                                transparentBackground: true,
+                              ),
+                              onWebViewCreated: (controller) {
+                                controller.addJavaScriptHandler(
+                                  handlerName: 'videoError',
+                                  callback: (args) {
+                                    if (mounted) setState(() => _videoLoadFailed = true);
+                                  },
+                                );
+                              },
+                              onReceivedError: (controller, request, error) {
+                                if (request.isForMainFrame ?? true) {
+                                  setState(() => _videoLoadFailed = true);
+                                }
+                              },
+                            )
+                          : InAppWebView(
+                              key: ValueKey(_videoRetryKey),
+                              initialUrlRequest: URLRequest(
+                                url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
+                              ),
+                              initialSettings: InAppWebViewSettings(
+                                javaScriptEnabled: true,
+                                allowsInlineMediaPlayback: true,
+                                mediaPlaybackRequiresUserGesture: false,
+                                transparentBackground: true,
+                              ),
+                              onReceivedError: (controller, request, error) {
+                                if (request.isForMainFrame ?? true) {
+                                  setState(() => _videoLoadFailed = true);
+                                }
+                              },
+                            ),
             ),
           ),
           const SizedBox(height: 16),

@@ -113,12 +113,14 @@ public class TenantInterceptor implements HandlerInterceptor {
      * 4. Request hostname/domain for domain-based tenancy (e.g., tenant1.localhost, acme.example.com)
      */
     private String resolveTenantId(HttpServletRequest request) {
-        // 1. Try JWT Bearer token
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        // 1. Try JWT Bearer token — header first, then a `token` query param.
+        // The query-param fallback exists for <video src>/<img src>/<iframe src>
+        // requests (e.g. /api/media/{id}/serve), which are plain browser GETs
+        // that cannot attach an Authorization header at all.
+        String jwt = extractBearerToken(request);
+        if (jwt != null) {
             try {
-                Claims claims = jwtService.extractAllClaims(token);
+                Claims claims = jwtService.extractAllClaims(jwt);
                 Object orgClaim = claims.get("organization_id");
                 if (orgClaim != null) {
                     return orgClaim.toString();
@@ -134,8 +136,12 @@ public class TenantInterceptor implements HandlerInterceptor {
             return headerTenantId;
         }
 
-        // 3. Fall back to X-Tenant-Slug header (client-supplied subdomain)
+        // 3. Fall back to X-Tenant-Slug header, or a `tenant` query param for the
+        // same no-custom-headers browser requests described above.
         String tenantSlug = request.getHeader("X-Tenant-Slug");
+        if (tenantSlug == null || tenantSlug.isEmpty()) {
+            tenantSlug = request.getParameter("tenant");
+        }
         if (tenantSlug != null && !tenantSlug.isEmpty()) {
             Optional<Organization> org = organizationRepository.findBySlug(tenantSlug);
             if (org.isPresent()) {
@@ -145,6 +151,16 @@ public class TenantInterceptor implements HandlerInterceptor {
 
         // 4. Fall back to domain-based resolution
         return resolveTenantFromDomain(request);
+    }
+
+    /** The JWT from the Authorization header, or the `token` query param as a fallback. */
+    private String extractBearerToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        String queryToken = request.getParameter("token");
+        return (queryToken != null && !queryToken.isEmpty()) ? queryToken : null;
     }
 
     /**

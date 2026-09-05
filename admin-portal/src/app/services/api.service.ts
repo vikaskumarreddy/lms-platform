@@ -36,4 +36,13 @@ export class ApiService {
   postForm<T>(endpoint: string, formData: FormData): Observable<T> {
     return this.http.post<T>(`${this.baseUrl}${endpoint}`, formData);
   }
+
+  putForm<T>(endpoint: string, formData: FormData): Observable<T> {
+    return this.http.put<T>(`${this.baseUrl}${endpoint}`, formData);
+  }
+
+  /** Raw bytes (PDFs etc.) — still goes through the JWT interceptor. */
+  getArrayBuffer(endpoint: string): Observable<ArrayBuffer> {
+    return this.http.get(`${this.baseUrl}${endpoint}`, { responseType: 'arraybuffer' });
+  }
 }

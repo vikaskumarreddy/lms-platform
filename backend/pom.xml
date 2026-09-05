@@ -36,6 +36,14 @@
              service-account JSON, for calling the FCM HTTP v1 API directly via
              spring-boot-starter-web's RestTemplate (no full Firebase Admin SDK needed). -->
         <dependency><groupId>com.google.auth</groupId><artifactId>google-auth-library-oauth2-http</artifactId><version>1.23.0</version></dependency>
+        <!-- Renders faculty-authored PDF notes. PDFBox writes content streams with
+             Flate compression and we additionally gzip the stored file, so the
+             notes take a fraction of the disk space of an uncompressed PDF. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.2</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

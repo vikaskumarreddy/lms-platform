@@ -9,11 +9,15 @@ import com.institute.lms.dto.course.LessonRequest;
 import com.institute.lms.entity.Course;
 import com.institute.lms.entity.Lesson;
 import com.institute.lms.entity.Module;
+import com.institute.lms.entity.MediaItem;
+import com.institute.lms.entity.PdfNote;
 import com.institute.lms.entity.Progress;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.CourseRepository;
 import com.institute.lms.repository.LessonRepository;
+import com.institute.lms.repository.MediaItemRepository;
 import com.institute.lms.repository.ModuleRepository;
+import com.institute.lms.repository.PdfNoteRepository;
 import com.institute.lms.repository.ProgressRepository;
 import com.institute.lms.repository.UserRepository;
 import org.springframework.security.core.Authentication;
@@ -35,15 +39,20 @@ public class CourseServiceImpl implements CourseService {
     private final ModuleRepository moduleRepository;
     private final LessonRepository lessonRepository;
     private final ProgressRepository progressRepository;
+    private final PdfNoteRepository pdfNoteRepository;
+    private final MediaItemRepository mediaItemRepository;
 
     public CourseServiceImpl(CourseRepository courseRepository, UserRepository userRepository,
                             ModuleRepository moduleRepository, LessonRepository lessonRepository,
-                            ProgressRepository progressRepository) {
+                            ProgressRepository progressRepository, PdfNoteRepository pdfNoteRepository,
+                            MediaItemRepository mediaItemRepository) {
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
         this.progressRepository = progressRepository;
+        this.pdfNoteRepository = pdfNoteRepository;
+        this.mediaItemRepository = mediaItemRepository;
     }
 
     @Override
@@ -414,13 +423,44 @@ public class CourseServiceImpl implements CourseService {
         lesson.setTitle(request.getTitle());
         lesson.setHeading(request.getHeading());
         lesson.setContent(request.getContent());
-        lesson.setVideoUrl(request.getVideoUrl());
         lesson.setThumbnailUrl(request.getThumbnailUrl());
-        lesson.setPdfNotesUrl(request.getPdfNotesUrl());
         lesson.setOrderIndex(request.getOrderIndex());
         lesson.setDurationMinutes(request.getDurationMinutes());
         lesson.setIsLocked(request.getIsLocked() != null ? request.getIsLocked() : false);
         lesson.setIsMandatory(request.getIsMandatory() != null ? request.getIsMandatory() : true);
+
+        // Self-hosted video selection: keep the MediaItem id + source, and resolve
+        // videoUrl to the item's relative serve endpoint (the mobile app/admin portal
+        // absolutizes it against the API base). External-URL lessons (e.g. YouTube)
+        // keep the pasted URL as-is.
+        if ("SELF".equalsIgnoreCase(request.getVideoSource()) && request.getVideoId() != null) {
+            lesson.setVideoSource("SELF");
+            lesson.setVideoId(request.getVideoId());
+            Optional<MediaItem> video = mediaItemRepository.findById(request.getVideoId());
+            lesson.setVideoUrl(video.isPresent()
+                    ? "/api/media/" + video.get().getId() + "/serve"
+                    : null);
+        } else {
+            lesson.setVideoSource("URL");
+            lesson.setVideoId(null);
+            lesson.setVideoUrl(request.getVideoUrl());
+        }
+
+        // Self-hosted PDF selection: the dropdown now lists uploaded MediaItems
+        // (the "Create PDF" generator was replaced by direct file uploads), so
+        // pdfNoteId resolves against MediaItemRepository, not the old PdfNote table.
+        if ("SELF".equalsIgnoreCase(request.getPdfSource()) && request.getPdfNoteId() != null) {
+            lesson.setPdfSource("SELF");
+            lesson.setPdfNoteId(request.getPdfNoteId());
+            Optional<MediaItem> file = mediaItemRepository.findById(request.getPdfNoteId());
+            lesson.setPdfNotesUrl(file.isPresent()
+                    ? "/api/media/" + file.get().getId() + "/serve"
+                    : null);
+        } else {
+            lesson.setPdfSource("URL");
+            lesson.setPdfNoteId(null);
+            lesson.setPdfNotesUrl(request.getPdfNotesUrl());
+        }
     }
 
     @Override
@@ -441,6 +481,7 @@ public class CourseServiceImpl implements CourseService {
                 lesson.getHeading(),
                 lesson.getContent(),
                 lesson.getVideoUrl(),
+                lesson.getVideoSource(),
                 lesson.getDurationMinutes(),
                 lesson.getOrderIndex(),
                 isLocked,

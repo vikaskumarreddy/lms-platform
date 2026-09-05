@@ -191,8 +191,14 @@ public class AuthService {
                 userInfoBuilder.paymentStatus(info.getPaymentStatus());
                 userInfoBuilder.amountDue(info.getAmountDue());
             } else {
+                // No StudentPaymentInfo row exists for this student at all -- payment
+                // method/amount only ever live on that row (created by
+                // StudentPaymentService.createPaymentForNewStudent at enrollment time),
+                // never on the User entity itself. Its absence means the student was
+                // enrolled without an enrollment fee, so there's nothing to collect.
                 userInfoBuilder.paymentRequired(false);
                 userInfoBuilder.paymentMethod("CASH");
+                userInfoBuilder.paymentStatus("COMPLETED");
             }
         }
 
@@ -203,5 +209,16 @@ public class AuthService {
                 .expiresIn(jwtExpiration)
                 .user(userInfoBuilder.build())
                 .build();
+    }
+
+    /**
+     * Logout the current user. Since JWTs are stateless, this is primarily
+     * a hook for future token blacklisting. The client is responsible for
+     * clearing its stored tokens.
+     */
+    public void logout() {
+        // Stateless JWT: no server-side invalidation needed.
+        // This method exists as a hook for future token blacklisting.
+        // The client must clear its own stored tokens.
     }
 }

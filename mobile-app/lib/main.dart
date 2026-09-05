@@ -39,10 +39,14 @@ class LmsApp extends ConsumerWidget {
     // Push notifications only start doing anything once Firebase is actually
     // configured (admin has filled in System Config) -- this call is safe
     // and inert otherwise. Runs once per router instance.
+    debugPrint('FCM: _firebaseReady = $_firebaseReady');
     if (_firebaseReady) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('FCM: calling PushNotificationService().initialize()');
         PushNotificationService().initialize(router);
       });
+    } else {
+      debugPrint('FCM: Firebase not ready, skipping push initialization');
     }
 
     return MaterialApp.router(

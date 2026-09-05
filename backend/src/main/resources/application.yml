@@ -9,6 +9,12 @@ app:
 
 
 spring:
+  servlet:
+    multipart:
+      # Media & Files (Videos/Files) uploads — raw file before server-side
+      # compression. Keep in sync with client_max_body_size in nginx.conf.
+      max-file-size: 500MB
+      max-request-size: 500MB
   mvc:
     cors:
       mappings:

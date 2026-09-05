@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/constants/routes.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/providers/auth_provider.dart';
 
 /// Real gateway checkout. The amount is NOT typed in by anyone: the backend
 /// derives it from the student's subscription plan price, and this screen just
@@ -14,25 +16,32 @@ import '../../../core/widgets/common_header.dart';
 /// open the app polls /payments/order-status and, once the backend captures the
 /// payment (via the gateway's browser redirect), the student is sent to the
 /// dashboard. No local amount entry, no mock UI.
-class PaymentScreen extends StatefulWidget {
+class PaymentScreen extends ConsumerStatefulWidget {
   final int planId;
   const PaymentScreen({super.key, required this.planId});
 
   @override
-  State<PaymentScreen> createState() => _PaymentScreenState();
+  ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> {
+class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final ApiService _api = ApiService();
   Map<String, dynamic>? _status;
   bool _loading = true;
   bool _paying = false;
   bool _success = false;
+  Timer? _successRedirectTimer;
 
   @override
   void initState() {
     super.initState();
     _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _successRedirectTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadStatus() async {
@@ -248,28 +257,73 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _successView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-                color: Color(0xFFDCFCE7), shape: BoxShape.circle),
-            child: const Icon(Icons.check_rounded,
-                color: Color(0xFF16A34A), size: 48),
+    // Auto-redirect to dashboard after 3 seconds so the user isn't stuck on
+    // this screen even if they don't tap the button.
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        _successRedirectTimer?.cancel();
+        int secondsLeft = 3;
+        _successRedirectTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+          if (!mounted) { t.cancel(); return; }
+          secondsLeft--;
+          setLocalState(() {});
+          if (secondsLeft <= 0) {
+            t.cancel();
+            ref.read(mobileAuthProvider.notifier).markPaymentCompleted();
+            context.go(AppRoutes.home);
+          }
+        });
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                    color: Color(0xFFDCFCE7), shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded,
+                    color: Color(0xFF16A34A), size: 48),
+              ),
+              const SizedBox(height: 16),
+              const Text('Payment successful!',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A))),
+              const SizedBox(height: 6),
+              const Text('Your enrollment is confirmed.',
+                  style: TextStyle(color: Color(0xFF475569))),
+              const SizedBox(height: 12),
+              Text(
+                secondsLeft > 0
+                    ? 'Redirecting in $secondsLeft second${secondsLeft == 1 ? '' : 's'}...'
+                    : 'Redirecting...',
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: 220,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    _successRedirectTimer?.cancel();
+                    ref.read(mobileAuthProvider.notifier).markPaymentCompleted();
+                    context.go(AppRoutes.home);
+                  },
+                  child: const Text('Continue to Dashboard',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          const Text('Payment successful!',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A))),
-          const SizedBox(height: 6),
-          const Text('Your enrollment is confirmed.',
-              style: TextStyle(color: Color(0xFF475569))),
-        ],
-      ),
+        );
+      },
     );
   }
 

@@ -63,4 +63,30 @@ class AuthUser {
       'amountDue': amountDue,
     };
   }
+
+  AuthUser copyWith({
+    int? id,
+    String? email,
+    String? fullName,
+    String? role,
+    int? planId,
+    int? batchId,
+    bool? paymentRequired,
+    String? paymentMethod,
+    String? paymentStatus,
+    int? amountDue,
+  }) {
+    return AuthUser(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
+      role: role ?? this.role,
+      planId: planId ?? this.planId,
+      batchId: batchId ?? this.batchId,
+      paymentRequired: paymentRequired ?? this.paymentRequired,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      amountDue: amountDue ?? this.amountDue,
+    );
+  }
 }

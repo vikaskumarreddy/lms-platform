@@ -140,13 +140,30 @@ class MobileAuthService {
     return AuthResponse(token: token, user: user);
   }
 
-    /// Clears all stored auth data, effectively logging the user out.
+  /// Clears all stored auth data, effectively logging the user out.
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
-    await prefs.remove(_userIdKey);
-    await prefs.remove(_batchIdKey);
+
+    // Best-effort: notify the backend about logout (token still available here).
+    // Even if this fails, the local clear below guarantees the user is logged out.
+    try {
+      final token = prefs.getString(_tokenKey);
+      if (token != null && token.isNotEmpty) {
+        await http.post(
+          Uri.parse('$_baseUrl/auth/logout'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      }
+    } catch (_) {
+      // Ignore — local clear is what actually matters
+    }
+
+    // Clear ALL data from SharedPreferences — nuclear option that guarantees
+    // no stale auth tokens survive an app restart.
+    await prefs.clear();
   }
 }
 

@@ -34,14 +34,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       context.go(AppRoutes.login);
       return;
     }
-    // Persisted sessions for ONLINE-payment students that are still unpaid are
-    // sent to the payment screen too, not just fresh logins.
+    // Persisted sessions for students that still owe a payment are sent to the
+    // payment screen too, not just fresh logins. Uses paymentRequired (the
+    // authoritative backend flag) with a fallback to individual field checks.
     final user = state.user;
+    print('SPLASH_DEBUG: user=${user?.fullName}, role=${user?.role}, paymentRequired=${user?.paymentRequired}, paymentMethod=${user?.paymentMethod}, paymentStatus=${user?.paymentStatus}, planId=${user?.planId}');
     final needsPayment = user != null &&
         user.role == 'STUDENT' &&
-        user.paymentMethod == 'ONLINE' &&
-        user.paymentStatus != 'COMPLETED' &&
-        user.planId != null;
+        (user.paymentRequired ||
+            (user.paymentMethod == 'ONLINE' &&
+             user.paymentStatus != 'COMPLETED' &&
+             user.planId != null));
+    print('SPLASH_DEBUG: needsPayment=$needsPayment');
     context.go(needsPayment ? AppRoutes.paymentFor(user.planId!) : AppRoutes.home);
   }
 

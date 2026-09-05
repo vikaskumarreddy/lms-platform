@@ -83,6 +83,27 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     _ref.read(subscriptionProvider.notifier).reset();
   }
 
+  /// Flips the cached user's payment flag to COMPLETED so the router redirect
+  /// (which guards every authenticated route) stops forcing the student back
+  /// to the payment screen after a successful payment.
+  void markPaymentCompleted() {
+    final user = state.user;
+    if (user == null) return;
+    final updated = AuthUser(
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      planId: user.planId,
+      batchId: user.batchId,
+      paymentRequired: false,
+      paymentMethod: user.paymentMethod,
+      paymentStatus: 'COMPLETED',
+      amountDue: user.amountDue,
+    );
+    state = state.copyWith(user: updated);
+  }
+
   /// Registers this device's current FCM token (if any) with the backend
   /// right after login/register, so the very first session on a device
   /// starts receiving push notifications without waiting for a token

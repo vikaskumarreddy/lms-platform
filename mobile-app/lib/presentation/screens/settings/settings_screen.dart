@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/constants/routes.dart';
 import '../../../core/providers/router_provider.dart';
 import '../../../core/providers/notification_preferences_provider.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -40,7 +42,19 @@ class SettingsScreen extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout', style: TextStyle(color: Colors.red)),
-              onTap: () => ref.read(mobileAuthProvider.notifier).logout(),
+              onTap: () async {
+                // Show loading indicator
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                );
+                await ref.read(mobileAuthProvider.notifier).logout();
+                if (context.mounted) {
+                  Navigator.of(context).pop(); // dismiss loading
+                  context.go(AppRoutes.login);
+                }
+              },
             ),
           ])),
           const SizedBox(height: 20),

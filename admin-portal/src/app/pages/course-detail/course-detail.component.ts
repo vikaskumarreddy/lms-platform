@@ -1,11 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { RichTextToHtmlService } from '../../services/rich-text-to-html.service';
+import { MediaService, MediaItem } from '../../services/media.service';
 
 interface Lesson {
   id: number;
@@ -13,8 +14,12 @@ interface Lesson {
   heading?: string;
   content?: string;
   videoUrl?: string;
+  videoSource?: 'URL' | 'SELF';
+  videoId?: number | null;
   thumbnailUrl?: string;
   pdfNotesUrl?: string;
+  pdfSource?: 'URL' | 'SELF';
+  pdfNoteId?: number | null;
   orderIndex?: number;
   durationMinutes?: number;
   isLocked?: boolean;
@@ -63,7 +68,14 @@ export class CourseDetailComponent implements OnInit {
   course: Course | null = null;
   faculty: Faculty[] = [];
   plans: SubscriptionPlan[] = [];
+  pdfNotes: { id: number; title: string }[] = [];
+  mediaFiles: MediaItem[] = [];
+  mediaVideos: MediaItem[] = [];
   loading = true;
+  viewMedia: MediaItem | null = null;
+  viewMediaSafeUrl: SafeResourceUrl | null = null;
+  viewMediaIsPdf = false;
+  private media = inject(MediaService);
 
   // Module modal state
   showModuleModal = false;
@@ -108,6 +120,18 @@ export class CourseDetailComponent implements OnInit {
     this.loadCourse();
     this.loadFaculty();
     this.loadPlans();
+    this.loadMedia();
+  }
+
+  /** Load uploaded media (videos + files) for the self-hosted dropdowns. */
+  private loadMedia() {
+    this.media.list().subscribe({
+      next: (items) => {
+        this.mediaVideos = items.filter(i => i.type === 'video');
+        this.mediaFiles = items.filter(i => i.type === 'file');
+      },
+      error: () => { this.mediaVideos = []; this.mediaFiles = []; }
+    });
   }
 
   loadCourse() {
@@ -200,7 +224,8 @@ export class CourseDetailComponent implements OnInit {
     this.activeModuleForLesson = m;
     this.editingLesson = null;
     this.lessonForm = {
-      title: '', heading: '', content: '', videoUrl: '', thumbnailUrl: '', pdfNotesUrl: '',
+      title: '', heading: '', content: '', videoUrl: '', videoSource: 'URL', videoId: null, thumbnailUrl: '', pdfNotesUrl: '',
+      pdfSource: 'URL', pdfNoteId: null,
       orderIndex: m.lessons.length, durationMinutes: 10, isLocked: false, isMandatory: true
     };
     this.resetConversionState();
@@ -212,7 +237,10 @@ export class CourseDetailComponent implements OnInit {
     this.editingLesson = l;
     this.lessonForm = {
       title: l.title, heading: l.heading || '', content: l.content || '', videoUrl: l.videoUrl || '',
-      thumbnailUrl: l.thumbnailUrl || '', pdfNotesUrl: l.pdfNotesUrl || '', orderIndex: l.orderIndex ?? 0,
+      videoSource: l.videoSource === 'SELF' ? 'SELF' : 'URL', videoId: l.videoId ?? null,
+      thumbnailUrl: l.thumbnailUrl || '', pdfNotesUrl: l.pdfNotesUrl || '',
+      pdfSource: l.pdfSource === 'SELF' ? 'SELF' : 'URL', pdfNoteId: l.pdfNoteId ?? null,
+      orderIndex: l.orderIndex ?? 0,
       durationMinutes: l.durationMinutes ?? 10, isLocked: !!l.isLocked, isMandatory: l.isMandatory !== false
     };
     this.resetConversionState();
@@ -243,6 +271,39 @@ export class CourseDetailComponent implements OnInit {
       next: () => this.loadCourse(),
       error: (err) => this.errors.show(err, 'Failed to delete lesson')
     });
+  }
+
+  // ── Media view popup (self-hosted videos & PDFs) ──────────────
+  viewSelfVideo(id: number | null) {
+    if (!id) return;
+    const item = this.mediaVideos.find(v => v.id === id) || null;
+    this.viewMedia = item;
+    this.viewMediaIsPdf = false;
+    this.viewMediaSafeUrl = null;
+  }
+
+  viewSelfPdf(id: number | null) {
+    if (!id) return;
+    const item = this.mediaFiles.find(f => f.id === id) || null;
+    this.viewMedia = item;
+    this.viewMediaIsPdf = true;
+    if (item) this.viewMediaSafeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.media.serveUrl(item.id));
+  }
+
+  closeMediaView() { this.viewMedia = null; this.viewMediaSafeUrl = null; }
+
+  mediaServeUrl(id: number): string { return this.media.serveUrl(id); }
+
+  /** "▶ Video" on a saved lesson row — self-hosted opens the in-page popup, external URL opens in a new tab. */
+  viewLessonVideo(l: Lesson) {
+    if (l.videoSource === 'SELF' && l.videoId) { this.viewSelfVideo(l.videoId); return; }
+    if (l.videoUrl) window.open(l.videoUrl, '_blank', 'noopener');
+  }
+
+  /** "📄 PDF" on a saved lesson row — self-hosted opens the in-page popup, external URL opens in a new tab. */
+  viewLessonPdf(l: Lesson) {
+    if (l.pdfSource === 'SELF' && l.pdfNoteId) { this.viewSelfPdf(l.pdfNoteId); return; }
+    if (l.pdfNotesUrl) window.open(l.pdfNotesUrl, '_blank', 'noopener');
   }
 
   // ── HTML mobile preview ──────────────────────────────────────

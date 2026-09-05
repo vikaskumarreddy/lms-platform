@@ -34,6 +34,14 @@ services:
       SPRING_DATASOURCE_PASSWORD: lms123
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+    volumes:
+      # Media/PDF/Doc controllers write to ./uploads/* (relative to the
+      # container's /app working dir). Without a persistent volume that
+      # directory lives only in the container's writable layer, so every
+      # rebuild/redeploy silently wipes every uploaded file while the DB
+      # rows (in the separately-volumed Postgres) survive — the exact
+      # "DB row exists, file missing on disk" 400 seen in production.
+      - backend_uploads:/app/uploads
     depends_on:
       - postgres
       - redis
@@ -90,3 +98,4 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  backend_uploads:

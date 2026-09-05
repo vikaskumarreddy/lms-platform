@@ -25,11 +25,27 @@ public class Lesson extends BaseEntity {
     @Column(name = "video_url")
     private String videoUrl;
 
+    /** Video source: {@code URL} (external link, e.g. YouTube) or {@code SELF} (an uploaded MediaItem). */
+    @Column(name = "video_source", length = 10)
+    private String videoSource = "URL";
+
+    /** Id of the self-hosted MediaItem (video) used when videoSource is SELF. */
+    @Column(name = "video_id")
+    private Long videoId;
+
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
     @Column(name = "pdf_notes_url")
     private String pdfNotesUrl;
+
+    /** PDF source: {@code URL} (external link) or {@code SELF} (a PdfNote). */
+    @Column(name = "pdf_source", nullable = false, length = 10)
+    private String pdfSource = "URL";
+
+    /** Id of the self-hosted PdfNote used when pdfSource is SELF. */
+    @Column(name = "pdf_note_id")
+    private Long pdfNoteId;
 
     @Column(name = "order_index")
     private Integer orderIndex;

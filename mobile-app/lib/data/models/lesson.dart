@@ -7,6 +7,10 @@ class Lesson {
   final bool isLocked;
   final bool isMandatory;
   final String videoUrl;
+  /// "URL" (external, e.g. YouTube) or "SELF" (uploaded via Media & Files) —
+  /// tells the player whether to embed a YouTube iframe or play videoUrl
+  /// natively as a direct video file.
+  final String videoSource;
   final String thumbnailUrl;
   final String pdfNotesUrl;
   final String notes;
@@ -20,6 +24,7 @@ class Lesson {
     this.isLocked = false,
     this.isMandatory = true,
     required this.videoUrl,
+    this.videoSource = 'URL',
     this.thumbnailUrl = '',
     this.pdfNotesUrl = '',
     required this.notes,
@@ -39,6 +44,7 @@ class Lesson {
       isLocked: json['isLocked'] == true || json['locked'] == true,
       isMandatory: json['isMandatory'] != false,
       videoUrl: json['videoUrl']?.toString() ?? '',
+      videoSource: json['videoSource']?.toString() ?? 'URL',
       thumbnailUrl: json['thumbnailUrl']?.toString() ?? '',
       pdfNotesUrl: json['pdfNotesUrl']?.toString() ?? '',
       notes: json['content']?.toString() ?? json['notes']?.toString() ?? '',

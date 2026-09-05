@@ -33,9 +33,21 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
+                // Spring Security's default X-Frame-Options: DENY blocks the admin
+                // portal's own <iframe> PDF viewer (Media & Files / Company Questions /
+                // course lessons), since that's a same-origin embed, not clickjacking.
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/courses/**").permitAll()
+                        // PDF note file bytes are opened by the mobile in-app browser
+                        // (webviews can't attach the JWT), so only the file is public.
+                        .requestMatchers("/api/pdf-notes/*/file").permitAll()
+                        // Media (video/PDF/image) bytes are loaded via <video src>/<img src>/
+                        // <iframe src>, which are plain browser GETs that cannot attach an
+                        // Authorization header — only the byte-serving endpoint is public,
+                        // the list/upload/delete endpoints below still require a valid JWT.
+                        .requestMatchers("/api/media/*/serve").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()
                         // Gateway browser redirects land here from the checkout webview with
                         // no JWT — the gateway's own signature/hmac in the payload authenticates them.
@@ -60,7 +72,13 @@ public class SecurityConfig {
                 "http://placements.com",
                 "https://placements.com",
                 "http://*.placements.com",
-                "https://*.placements.com"
+                "https://*.placements.com",
+                // Mozilla's hosted PDF.js viewer (used to render self-hosted PDFs
+                // inside the mobile app's in-app WebView — see
+                // InAppBrowserScreen._effectiveUrl) fetches the PDF bytes with a
+                // same-device fetch() call from this origin. Without it here,
+                // that fetch is blocked by CORS and the viewer shows nothing.
+                "https://mozilla.github.io"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));

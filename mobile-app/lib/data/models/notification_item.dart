@@ -6,6 +6,13 @@ class NotificationItem {
   final bool isRead;
   final String? actionUrl;
   final String? createdAt;
+  // Rich data fields for detailed notifications
+  final String? date;
+  final String? time;
+  final String? name;
+  final String? venue;
+  final String? criteria;
+  final String? description;
 
   NotificationItem({
     required this.id,
@@ -15,17 +22,44 @@ class NotificationItem {
     required this.isRead,
     this.actionUrl,
     this.createdAt,
+    this.date,
+    this.time,
+    this.name,
+    this.venue,
+    this.criteria,
+    this.description,
   });
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
     return NotificationItem(
-      id: json['id'] ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '') ?? 0,
       title: json['title'] ?? '',
       message: json['message'] ?? '',
       type: json['type'] ?? 'info',
-      isRead: json['read'] ?? false,
+      isRead: json['isRead'] ?? json['read'] ?? false,
       actionUrl: json['actionUrl'],
       createdAt: json['createdAt'],
+      date: json['date'],
+      time: json['time'],
+      name: json['name'],
+      venue: json['venue'],
+      criteria: json['criteria'],
+      description: json['description'],
     );
+  }
+
+  /// Returns the institution name for display in notification headers
+  static const String institutionName = 'Axisora Forge Academy';
+
+  /// Returns a map of extra fields for display in the notification card
+  Map<String, String?> get detailFields {
+    final fields = <String, String?>{};
+    if (name != null && name!.isNotEmpty) fields['Name'] = name;
+    if (date != null && date!.isNotEmpty) fields['Date'] = date;
+    if (time != null && time!.isNotEmpty) fields['Time'] = time;
+    if (venue != null && venue!.isNotEmpty) fields['Venue'] = venue;
+    if (criteria != null && criteria!.isNotEmpty) fields['Criteria'] = criteria;
+    if (description != null && description!.isNotEmpty) fields['Description'] = description;
+    return fields;
   }
 }

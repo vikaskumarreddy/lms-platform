@@ -24,6 +24,7 @@ import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-ad
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
 import { AssessmentPaperComponent } from './pages/assessment-paper/assessment-paper.component';
 import { CompanyQuestionsComponent } from './pages/company-questions/company-questions.component';
+import { MediaHubComponent } from './pages/media-hub/media-hub.component';
 import { PaymentSettingsComponent } from './pages/payment-settings/payment-settings.component';
 import { OrganizationsComponent } from './pages/organizations/organizations.component';
 import { OrgSubscriptionsComponent } from './pages/org-subscriptions/org-subscriptions.component';
@@ -65,6 +66,7 @@ export const routes: Routes = [
       { path: 'certificates-admin', component: CertificatesAdminComponent },
       { path: 'qa-admin', component: QaAdminComponent },
       { path: 'company-questions', component: CompanyQuestionsComponent },
+      { path: 'media-hub', component: MediaHubComponent },
       { path: 'leaderboard-admin', component: LeaderboardAdminComponent },
       { path: 'notifications-admin', component: NotificationsAdminComponent },
       { path: 'subscriptions-admin', component: SubscriptionsAdminComponent },

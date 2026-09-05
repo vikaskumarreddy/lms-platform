@@ -42,6 +42,21 @@ public class NotificationController {
     @GetMapping
     public List<Notification> getAllNotifications() {
         List<Notification> all = notificationRepository.findAll();
+        User current = userContext.currentUser();
+
+        // Students only see notifications targeted at them directly, broadcasts, or their batch/plan
+        if (current != null && current.getRole() == User.UserRole.STUDENT) {
+            Long studentId = current.getId();
+            Long batchId = current.getBatchId();
+            Long planId = current.getPlanId();
+            return all.stream()
+                    .filter(n -> "ALL".equals(n.getTargetType())
+                            || (n.getUserId() != null && n.getUserId().equals(studentId))
+                            || (batchId != null && "BATCH".equals(n.getTargetType()) && batchId.equals(n.getTargetId()))
+                            || (planId != null && "SUBSCRIPTION".equals(n.getTargetType()) && planId.equals(n.getTargetId())))
+                    .collect(Collectors.toList());
+        }
+
         // Faculty only see notifications broadcast to everyone, or targeted at their own batch/students.
         if (userContext.isFaculty()) {
             Long batchId = userContext.facultyBatchId();
@@ -55,6 +70,8 @@ public class NotificationController {
                             || (n.getUserId() != null && batchStudentIds.contains(n.getUserId())))
                     .collect(Collectors.toList());
         }
+
+        // Admins see all notifications
         return all;
     }
 
@@ -191,5 +208,23 @@ public class NotificationController {
     public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
         notificationRepository.deleteById(id);
         return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/clear")
+    public ResponseEntity<Void> clearAllNotifications() {
+        User current = userContext.currentUser();
+        if (current == null) return ResponseEntity.status(401).build();
+        List<Notification> userNotifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(current.getId());
+        notificationRepository.deleteAll(userNotifications);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/unread-count")
+    public ResponseEntity<Map<String, Object>> getUnreadCount() {
+        User current = userContext.currentUser();
+        if (current == null) return ResponseEntity.status(401).build();
+        long count = notificationRepository.findByUserIdOrderByCreatedAtDesc(current.getId())
+                .stream().filter(n -> !n.getIsRead()).count();
+        return ResponseEntity.ok(Map.of("count", count));
     }
 }

@@ -10,6 +10,9 @@ public class LessonProgressDTO {
     private String heading;
     private String content;
     private String videoUrl;
+    /** "URL" (external, e.g. YouTube) or "SELF" (uploaded MediaItem) — tells the
+     *  mobile app whether to embed a YouTube iframe or play videoUrl natively. */
+    private String videoSource;
     private Integer durationMinutes;
     private Integer orderIndex;
     private Boolean isLocked;
@@ -23,11 +26,19 @@ public class LessonProgressDTO {
     public LessonProgressDTO(Long id, String title, String heading, String content, String videoUrl,
                              Integer durationMinutes, Integer orderIndex, Boolean isLocked,
                              Boolean isMandatory, String thumbnailUrl, String pdfNotesUrl, Boolean completed) {
+        this(id, title, heading, content, videoUrl, "URL", durationMinutes, orderIndex, isLocked,
+                isMandatory, thumbnailUrl, pdfNotesUrl, completed);
+    }
+
+    public LessonProgressDTO(Long id, String title, String heading, String content, String videoUrl,
+                             String videoSource, Integer durationMinutes, Integer orderIndex, Boolean isLocked,
+                             Boolean isMandatory, String thumbnailUrl, String pdfNotesUrl, Boolean completed) {
         this.id = id;
         this.title = title;
         this.heading = heading;
         this.content = content;
         this.videoUrl = videoUrl;
+        this.videoSource = videoSource;
         this.durationMinutes = durationMinutes;
         this.orderIndex = orderIndex;
         this.isLocked = isLocked;
@@ -48,6 +59,8 @@ public class LessonProgressDTO {
     public void setContent(String content) { this.content = content; }
     public String getVideoUrl() { return videoUrl; }
     public void setVideoUrl(String videoUrl) { this.videoUrl = videoUrl; }
+    public String getVideoSource() { return videoSource; }
+    public void setVideoSource(String videoSource) { this.videoSource = videoSource; }
     public Integer getDurationMinutes() { return durationMinutes; }
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
     public Integer getOrderIndex() { return orderIndex; }

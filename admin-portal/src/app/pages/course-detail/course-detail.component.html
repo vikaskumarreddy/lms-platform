@@ -57,6 +57,8 @@
           </div>
           <span *ngIf="l.isLocked" class="badge badge-warning" style="font-size:10px;">🔒</span>
           <span *ngIf="l.isMandatory" class="badge badge-info" style="font-size:10px;">Mandatory</span>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" *ngIf="l.videoUrl" (click)="viewLessonVideo(l)">▶ Video</button>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" *ngIf="l.pdfNotesUrl" (click)="viewLessonPdf(l)">📄 PDF</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openPreview(l.content || '')">👁 Preview</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openEditLesson(m, l)">Edit</button>
           <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" (click)="deleteLesson(l)">Delete</button>
@@ -191,8 +193,33 @@ Then press Convert to HTML."></textarea>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
         <div>
-          <label class="form-label">Video URL</label>
-          <input type="text" [(ngModel)]="lessonForm.videoUrl" name="lVideo" class="form-input" placeholder="https://youtube.com/watch?v=...">
+          <label class="form-label">Video Source</label>
+          <div style="display:flex;gap:18px;padding-top:6px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;">
+              <input type="radio" name="lVideoSource" value="URL" [(ngModel)]="lessonForm.videoSource" style="width:auto;margin:0;">
+              URL
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;">
+              <input type="radio" name="lVideoSource" value="SELF" [(ngModel)]="lessonForm.videoSource" style="width:auto;margin:0;">
+              Self-hosted
+            </label>
+          </div>
+          <div *ngIf="lessonForm.videoSource === 'URL'" style="margin-top:8px;">
+            <input type="text" [(ngModel)]="lessonForm.videoUrl" name="lVideo" class="form-input" placeholder="https://youtube.com/watch?v=...">
+          </div>
+          <div *ngIf="lessonForm.videoSource === 'SELF'" style="margin-top:8px;">
+            <div *ngIf="mediaVideos.length" style="display:flex;gap:8px;align-items:center;">
+              <select [(ngModel)]="lessonForm.videoId" name="lVideoId" class="form-input">
+                <option [ngValue]="null">Select an uploaded video…</option>
+                <option *ngFor="let v of mediaVideos" [ngValue]="v.id">{{ v.title }}</option>
+              </select>
+              <button type="button" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;white-space:nowrap;"
+                      [disabled]="!lessonForm.videoId" (click)="viewSelfVideo(lessonForm.videoId)">View</button>
+            </div>
+            <div *ngIf="!mediaVideos.length" style="font-size:12px;color:#B45309;margin-top:6px;">
+              No videos uploaded yet — <a routerLink="/media-hub">upload media</a> first.
+            </div>
+          </div>
         </div>
         <div>
           <label class="form-label">Thumbnail URL</label>
@@ -202,14 +229,40 @@ Then press Convert to HTML."></textarea>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
         <div>
-          <label class="form-label">PDF Notes URL</label>
-          <input type="text" [(ngModel)]="lessonForm.pdfNotesUrl" name="lPdf" class="form-input">
+          <label class="form-label">PDF Notes Source</label>
+          <div style="display:flex;gap:18px;padding-top:6px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;">
+              <input type="radio" name="lPdfSource" value="URL" [(ngModel)]="lessonForm.pdfSource" style="width:auto;margin:0;">
+              URL
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;">
+              <input type="radio" name="lPdfSource" value="SELF" [(ngModel)]="lessonForm.pdfSource" style="width:auto;margin:0;">
+              Self-hosted
+            </label>
+          </div>
+          <div *ngIf="lessonForm.pdfSource === 'URL'" style="margin-top:8px;">
+            <input type="text" [(ngModel)]="lessonForm.pdfNotesUrl" name="lPdf" class="form-input" placeholder="https://example.com/notes.pdf">
+          </div>
+          <div *ngIf="lessonForm.pdfSource === 'SELF'" style="margin-top:8px;">
+            <div *ngIf="mediaFiles.length" style="display:flex;gap:8px;align-items:center;">
+              <select [(ngModel)]="lessonForm.pdfNoteId" name="lPdfNote" class="form-input">
+                <option [ngValue]="null">Select an uploaded PDF…</option>
+                <option *ngFor="let n of mediaFiles" [ngValue]="n.id">{{ n.title }}</option>
+              </select>
+              <button type="button" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;white-space:nowrap;"
+                      [disabled]="!lessonForm.pdfNoteId" (click)="viewSelfPdf(lessonForm.pdfNoteId)">View</button>
+            </div>
+            <div *ngIf="!mediaFiles.length" style="font-size:12px;color:#B45309;margin-top:6px;">
+              No files uploaded yet — <a routerLink="/media-hub">upload media</a> first.
+            </div>
+          </div>
         </div>
         <div>
           <label class="form-label">Duration (min)</label>
           <input type="number" [(ngModel)]="lessonForm.durationMinutes" name="lDuration" class="form-input">
         </div>
       </div>
+
 
       <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px;">
         <div>
@@ -247,4 +300,21 @@ Then press Convert to HTML."></textarea>
       </div>
     </div>
   </div>
+
+<!-- Self-hosted media view popup (video / PDF) -->
+<div class="modal-overlay" *ngIf="viewMedia" (click)="closeMediaView()">
+  <div class="card" style="max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:20px;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="font-weight:700;color:#134E4A;margin:0;">{{ viewMedia.title }}</h3>
+      <button class="btn btn-secondary" style="padding:2px 10px;font-size:16px;line-height:1;" (click)="closeMediaView()">✕</button>
+    </div>
+    <div *ngIf="!viewMediaIsPdf" style="background:#000;border-radius:8px;overflow:hidden;">
+      <video [src]="mediaServeUrl(viewMedia.id)" controls autoplay style="width:100%;max-height:70vh;display:block;"></video>
+    </div>
+    <div *ngIf="viewMediaIsPdf">
+      <iframe [src]="viewMediaSafeUrl" style="width:100%;height:75vh;border:1px solid #E2E8F0;border-radius:8px;" title="PDF viewer"></iframe>
+    </div>
+  </div>
+</div>
+
 </div>

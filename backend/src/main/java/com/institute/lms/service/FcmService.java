@@ -80,6 +80,23 @@ public class FcmService {
             if (data != null && !data.isEmpty()) {
                 message.put("data", data);
             }
+
+            // Explicit Android delivery config. Without this, some OEM/Android
+            // versions silently collapse background/terminated-state notifications
+            // to a bare status-bar icon with no visible title/body -- pinning the
+            // channel id (must match the one created client-side in
+            // PushNotificationService), icon, color, and high priority fixes that.
+            Map<String, Object> androidNotification = new LinkedHashMap<>();
+            androidNotification.put("channel_id", "lms_default_channel");
+            androidNotification.put("icon", "ic_notification");
+            androidNotification.put("color", "#EAB308");
+            androidNotification.put("default_sound", true);
+            androidNotification.put("notification_priority", "PRIORITY_HIGH");
+            Map<String, Object> androidConfig = new LinkedHashMap<>();
+            androidConfig.put("priority", "high");
+            androidConfig.put("notification", androidNotification);
+            message.put("android", androidConfig);
+
             Map<String, Object> requestBody = Map.of("message", message);
 
             HttpHeaders headers = new HttpHeaders();

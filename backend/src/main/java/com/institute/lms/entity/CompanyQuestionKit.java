@@ -40,6 +40,14 @@ public class CompanyQuestionKit extends BaseEntity {
     @Column(name = "pdf_url")
     private String pdfUrl;
 
+    /** PDF source for PDF tiles: {@code URL} (external link) or {@code SELF} (a PdfNote). */
+    @Column(name = "pdf_source", nullable = false, length = 10)
+    private String pdfSource = "URL";
+
+    /** Id of the self-hosted PdfNote used when pdfSource is SELF. */
+    @Column(name = "pdf_note_id")
+    private Long pdfNoteId;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

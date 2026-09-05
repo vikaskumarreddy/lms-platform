@@ -5,8 +5,12 @@ public class LessonRequest {
     private String heading;
     private String content;
     private String videoUrl;
+    private String videoSource;
+    private Long videoId;
     private String thumbnailUrl;
     private String pdfNotesUrl;
+    private String pdfSource;
+    private Long pdfNoteId;
     private Integer orderIndex;
     private Integer durationMinutes;
     private Boolean isLocked;
@@ -20,10 +24,18 @@ public class LessonRequest {
     public void setContent(String content) { this.content = content; }
     public String getVideoUrl() { return videoUrl; }
     public void setVideoUrl(String videoUrl) { this.videoUrl = videoUrl; }
+    public String getVideoSource() { return videoSource; }
+    public void setVideoSource(String videoSource) { this.videoSource = videoSource; }
+    public Long getVideoId() { return videoId; }
+    public void setVideoId(Long videoId) { this.videoId = videoId; }
     public String getThumbnailUrl() { return thumbnailUrl; }
     public void setThumbnailUrl(String thumbnailUrl) { this.thumbnailUrl = thumbnailUrl; }
     public String getPdfNotesUrl() { return pdfNotesUrl; }
     public void setPdfNotesUrl(String pdfNotesUrl) { this.pdfNotesUrl = pdfNotesUrl; }
+    public String getPdfSource() { return pdfSource; }
+    public void setPdfSource(String pdfSource) { this.pdfSource = pdfSource; }
+    public Long getPdfNoteId() { return pdfNoteId; }
+    public void setPdfNoteId(Long pdfNoteId) { this.pdfNoteId = pdfNoteId; }
     public Integer getOrderIndex() { return orderIndex; }
     public void setOrderIndex(Integer orderIndex) { this.orderIndex = orderIndex; }
     public Integer getDurationMinutes() { return durationMinutes; }
