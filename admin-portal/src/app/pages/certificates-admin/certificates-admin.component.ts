@@ -1,8 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Student {
   id: number;
@@ -116,6 +117,7 @@ export class CertificatesAdminComponent implements OnInit {
   formData: any = { userId: null, instituteName: '', courseName: '', duration: '' };
 
   private errors = inject(ApiErrorService);
+  private confirm = inject(ConfirmService);
 
   constructor(private apiService: ApiService) {}
 
@@ -176,8 +178,8 @@ export class CertificatesAdminComponent implements OnInit {
     });
   }
 
-  deleteCertificate(c: Certificate) {
-    if (!confirm(`Revoke certificate for "${c.studentName}"?`)) return;
+  async deleteCertificate(c: Certificate) {
+    if (!(await this.confirm.confirm(`Revoke certificate for "${c.studentName}"?`))) return;
     this.apiService.delete(`/api/certificates/${c.id}`).subscribe({
       next: () => { this.certificates = this.certificates.filter(x => x.id !== c.id); },
       error: (err) => { this.errors.show(err, 'Could not revoke that certificate'); }

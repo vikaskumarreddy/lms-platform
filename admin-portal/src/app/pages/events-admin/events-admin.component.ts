@@ -1,8 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface SubscriptionPlan {
   id: number;
@@ -143,6 +144,7 @@ interface Batch {
 })
 export class EventsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   showModal = false;
   editingId: number | null = null;
@@ -233,8 +235,8 @@ export class EventsAdminComponent implements OnInit {
     this.showModal = true;
   }
 
-  delete(e: any) {
-    if (confirm(`Delete "${e.title}"?`)) this.events = this.events.filter(x => x.id !== e.id);
+  async delete(e: any) {
+    if (await this.confirm.confirm(`Delete "${e.title}"?`)) this.events = this.events.filter(x => x.id !== e.id);
   }
 
   resetForm() {

@@ -4,12 +4,13 @@ import { AuthService } from '../services/auth.service';
 import { ApiService } from '../services/api.service';
 import { CurrentOrgService } from '../services/current-org.service';
 import { ToastHostComponent } from '../components/toast-host.component';
+import { ConfirmDialogComponent } from '../components/confirm-dialog.component';
 import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_SECTIONS } from './admin-layout-menu';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent],
   template: `
     <div class="sidebar">
       <div class="logo">
@@ -51,6 +52,7 @@ import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_S
       <router-outlet></router-outlet>
     </div>
     <app-toast-host></app-toast-host>
+    <app-confirm-dialog></app-confirm-dialog>
   `,
   styles: [`
     .nav-group {

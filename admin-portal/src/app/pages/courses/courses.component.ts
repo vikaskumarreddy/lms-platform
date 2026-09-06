@@ -1,9 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Course {
   id: number;
@@ -156,6 +157,7 @@ export class CoursesComponent implements OnInit {
   courseForm: any = { title: '', description: '', thumbnailUrl: '', instructorId: null, planId: null };
 
   private errors = inject(ApiErrorService);
+  private confirm = inject(ConfirmService);
 
   constructor(private apiService: ApiService, private router: Router) {}
 
@@ -251,8 +253,8 @@ export class CoursesComponent implements OnInit {
     }
   }
 
-  deleteCourse(course: Course) {
-    if (!confirm(`Are you sure you want to delete "${course.title}"?`)) return;
+  async deleteCourse(course: Course) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete "${course.title}"?`))) return;
     this.apiService.delete(`/api/courses/${course.id}`).subscribe({
       next: () => { this.loadCourses(); },
       error: (err) => { this.errors.show(err, 'Could not delete that course'); }

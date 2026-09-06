@@ -59,7 +59,6 @@
           <span *ngIf="l.isMandatory" class="badge badge-info" style="font-size:10px;">Mandatory</span>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" *ngIf="l.videoUrl" (click)="viewLessonVideo(l)">▶ Video</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" *ngIf="l.pdfNotesUrl" (click)="viewLessonPdf(l)">📄 PDF</button>
-          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openPreview(l.content || '')">👁 Preview</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" (click)="openEditLesson(m, l)">Edit</button>
           <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" (click)="deleteLesson(l)">Delete</button>
         </div>
@@ -136,59 +135,9 @@
         </div>
       </div>
 
-      <div style="margin-bottom:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <label class="form-label" style="margin-bottom:0;">Lesson Notes</label>
-          <button type="button" class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="openPreview(lessonForm.content)">👁 Preview on Mobile</button>
-        </div>
-
-        <!-- Says plainly that HTML is not required, since the label used to imply it was. -->
-        <p style="font-size:12px;color:#64748B;margin:0 0 6px;line-height:1.5;">
-          Paste straight from Word or Google Docs — headings, bold and bullets are kept
-          automatically. Or type your notes plainly and press <strong>Convert to HTML</strong>.
-        </p>
-
-        <textarea [(ngModel)]="lessonForm.content" name="lContent" rows="9" class="form-input"
-                  style="font-family:monospace;font-size:12px;line-height:1.5;"
-                  (paste)="onNotesPaste($event)"
-                  placeholder="Paste your Word notes here, or type like this:
-
-Introduction to Arrays
-
-An array stores several values under one name.
-
-Key points:
-- Indexing starts at 0
-- The size is fixed once created
-
-Then press Convert to HTML."></textarea>
-
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-          <button type="button" class="btn btn-primary" style="padding:6px 14px;font-size:12px;"
-                  (click)="convertNotesToHtml()">
-            ✨ Convert to HTML
-          </button>
-          @if (canUndoConversion) {
-            <button type="button" class="btn btn-secondary" style="padding:6px 14px;font-size:12px;"
-                    (click)="undoConversion()">
-              ↶ Undo convert
-            </button>
-          }
-          <span style="font-size:11px;color:#94A3B8;">
-            Formatting is written into the notes, so they look the same in the student app.
-          </span>
-        </div>
-
-        @if (conversionMessage) {
-          <div style="margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;line-height:1.5;"
-               [style.background]="conversionOk ? '#DCFCE7' : '#FEF3C7'"
-               [style.color]="conversionOk ? '#166534' : '#78350F'">
-            {{ conversionOk ? '✓' : 'ℹ' }} {{ conversionMessage }}
-            @for (warning of conversionWarnings; track warning) {
-              <div style="margin-top:4px;">⚠ {{ warning }}</div>
-            }
-          </div>
-        }
+      <div style="margin-bottom:6px;padding:10px 14px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;font-size:12px;color:#0F766E;line-height:1.5;">
+        📄 Lesson notes are the PDF you attach below — students see it rendered directly in the lesson
+        screen (no separate notes editor), so the original document formatting is preserved exactly.
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
@@ -287,20 +236,6 @@ Then press Convert to HTML."></textarea>
   </div>
 </div>
 
-<!-- HTML Mobile Preview Modal -->
-<div class="modal-overlay" *ngIf="showPreview" (click)="closePreview()">
-  <div style="background:transparent;" (click)="$event.stopPropagation()">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-      <button class="btn btn-secondary" (click)="closePreview()">✕ Close Preview</button>
-    </div>
-    <div class="phone-mockup">
-      <div class="phone-notch"></div>
-      <div class="phone-screen">
-        <div [innerHTML]="previewHtml"></div>
-      </div>
-    </div>
-  </div>
-
 <!-- Self-hosted media view popup (video / PDF) -->
 <div class="modal-overlay" *ngIf="viewMedia" (click)="closeMediaView()">
   <div class="card" style="max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:20px;" (click)="$event.stopPropagation()">
@@ -315,6 +250,4 @@ Then press Convert to HTML."></textarea>
       <iframe [src]="viewMediaSafeUrl" style="width:100%;height:75vh;border:1px solid #E2E8F0;border-radius:8px;" title="PDF viewer"></iframe>
     </div>
   </div>
-</div>
-
 </div>

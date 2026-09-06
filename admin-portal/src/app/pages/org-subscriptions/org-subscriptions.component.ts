@@ -1,8 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 /**
  * Platform plan catalog editor — Platform, Platform Plus, Managed Academy, Enterprise
@@ -299,6 +300,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 })
 export class OrgSubscriptionsComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
 
   plans: any[] = [];
@@ -376,8 +378,8 @@ export class OrgSubscriptionsComponent implements OnInit {
     });
   }
 
-  remove(plan: any) {
-    if (!confirm(`Delete "${plan.name}"? Retiring it instead keeps history intact.`)) {
+  async remove(plan: any) {
+    if (!(await this.confirm.confirm(`Delete "${plan.name}"? Retiring it instead keeps history intact.`))) {
       return;
     }
     this.api.delete(`/api/org-subscriptions/${plan.id}`).subscribe({

@@ -1,8 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Organization {
   id?: number;
@@ -118,6 +119,7 @@ interface OrgSubscriptionOpt {
 })
 export class OrganizationsComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
 
   organizations: Organization[] = [];
@@ -322,8 +324,8 @@ export class OrganizationsComponent implements OnInit {
     });
   }
 
-  confirmDelete(org: Organization) {
-    if (!confirm(`Are you sure you want to delete "${org.name}"?`)) return;
+  async confirmDelete(org: Organization) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete "${org.name}"?`))) return;
     
     if (!org.id) return;
     this.api.delete(`/api/organizations/${org.id}`).subscribe({
@@ -463,8 +465,8 @@ export class OrganizationsComponent implements OnInit {
     });
   }
 
-  deleteAdmin(admin: OrgAdmin) {
-    if (!confirm(`Are you sure you want to delete admin "${admin.email}"?`)) return;
+  async deleteAdmin(admin: OrgAdmin) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete admin "${admin.email}"?`))) return;
     if (!this.selectedOrgId || !admin.id) return;
     this.api.delete(`/api/organizations/${this.selectedOrgId}/admin/${admin.id}`).subscribe({
       next: () => {
@@ -475,9 +477,9 @@ export class OrganizationsComponent implements OnInit {
   }
 
   /** Renews an expired/inactive organization via POST /api/organizations/{id}/renew. */
-  renewOrg(org: Organization) {
+  async renewOrg(org: Organization) {
     if (!org.id) return;
-    if (!confirm(`Renew "${org.name}"? This reactivates the organization and extends its plan expiry.`)) return;
+    if (!(await this.confirm.confirm(`Renew "${org.name}"? This reactivates the organization and extends its plan expiry.`))) return;
     this.api.post(`/api/organizations/${org.id}/renew`, {}).subscribe({
       next: () => {
         this.loadOrganizations();

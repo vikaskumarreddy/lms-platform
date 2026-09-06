@@ -1,7 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Bookmark {
   id: number;
@@ -58,6 +59,7 @@ interface Bookmark {
 })
 export class BookmarksAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   bookmarks: Bookmark[] = [];
 
@@ -76,8 +78,8 @@ export class BookmarksAdminComponent implements OnInit {
     });
   }
 
-  deleteBookmark(bookmark: Bookmark): void {
-    if (!confirm(`Delete bookmark for "${bookmark.lessonTitle}"?`)) return;
+  async deleteBookmark(bookmark: Bookmark): Promise<void> {
+    if (!(await this.confirm.confirm(`Delete bookmark for "${bookmark.lessonTitle}"?`))) return;
     this.api.delete(`/api/bookmarks/user/${bookmark.userId}/lesson/${bookmark.lessonId}`).subscribe({
       next: () => {
         this.bookmarks = this.bookmarks.filter(b => b.id !== bookmark.id);

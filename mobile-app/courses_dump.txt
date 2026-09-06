@@ -1,0 +1,298 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/providers/subscription_provider.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/widgets/common_header.dart';
+import '../../../core/utils/image_url.dart';
+import '../../../data/models/course_model.dart';
+
+class CoursesScreen extends ConsumerWidget {
+  const CoursesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subscription = ref.watch(subscriptionProvider);
+    final activePlanIds = subscription.activePlanIds;
+    final coursesAsync = ref.watch(coursesProvider);
+
+    return Scaffold(
+      appBar: const CommonHeader(title: 'My Courses'),
+      body: coursesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text('Failed to load courses', style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => ref.invalidate(coursesProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (courses) {
+          if (courses.isEmpty) return const Center(child: Text('No courses available'));
+          final lockedIds = <int>{
+            for (final c in courses)
+              if (!c.isAccessible(activePlanIds)) c.id,
+          };
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: _SubscriptionBanner(plan: subscription.plan),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.85,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final course = courses[index];
+                      return _AnimatedCard(
+                        index: index,
+                        child: _CourseCard(course: course, isLocked: lockedIds.contains(course.id)),
+                      );
+                    },
+                    childCount: courses.length,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SubscriptionBanner extends StatelessWidget {
+  final SubscriptionPlan plan;
+  const _SubscriptionBanner({required this.plan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAB308).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAB308).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.workspace_premium, color: Color(0xFFEAB308), size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text('${plan.label} Plan', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
+          TextButton(onPressed: () => context.go('/subscription'), child: const Text('Upgrade')),
+        ],
+      ),
+    );
+  }
+}
+class _CourseCard extends StatelessWidget {
+  final CourseModel course;
+  final bool isLocked;
+  const _CourseCard({required this.course, required this.isLocked});
+
+  void _open(BuildContext context) {
+    if (isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Upgrade your subscription to access this course')),
+      );
+      return;
+    }
+    context.push('/courses/${course.id}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _getColor(course.id);
+    final hasImage = course.thumbnailUrl.isNotEmpty;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () => _open(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 88,
+              child: hasImage
+                  ? Image.network(
+                      resolveMediaUrl(course.thumbnailUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _Placeholder(color: color, emoji: '??'),
+                    )
+                  : _Placeholder(color: color, emoji: '??'),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    course.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLocked ? Colors.grey.shade500 : null),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isLocked
+                        ? 'Locked • Upgrade to access'
+                        : course.totalLessons == 0
+                            ? 'No lessons yet'
+                            : '${course.lessonsDisplay} lessons • ${course.progressPercent}%',
+                    style: TextStyle(fontSize: 11, color: isLocked ? const Color(0xFFEAB308) : Colors.grey.shade500),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: isLocked ? 0.0 : (course.progress ?? 0),
+                      minHeight: 4,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _open(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(40),
+                  shape: const RoundedRectangleBorder(),
+                ),
+                child: Text(isLocked ? 'Locked' : 'View Course'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getColor(int id) {
+    const colors = [
+      Color(0xFF0F172A),
+      Color(0xFFEAB308),
+      Colors.green,
+      Color(0xFF3B82F6),
+      Color(0xFF8B5CF6),
+      Color(0xFFF97316),
+    ];
+    return colors[id % colors.length];
+  }
+}
+
+class _Placeholder extends StatelessWidget {
+  final Color color;
+  final String emoji;
+  const _Placeholder({required this.color, required this.emoji});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.3), color.withOpacity(0.6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 44))),
+    );
+  }
+}
+
+/// Staggered entrance (fade + slide + scale) with a press-down scale effect.
+/// Wraps every grid card so the screen feels alive on load and on tap.
+class _AnimatedCard extends StatefulWidget {
+  final int index;
+  final Widget child;
+  const _AnimatedCard({required this.index, required this.child});
+
+  @override
+  State<_AnimatedCard> createState() => _AnimatedCardState();
+}
+
+class _AnimatedCardState extends State<_AnimatedCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+  late final CurvedAnimation _curve =
+      CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic);
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: 60 * (widget.index % 10)), () {
+      if (mounted) _entrance.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: FadeTransition(
+          opacity: _curve,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.12),
+              end: Offset.zero,
+            ).animate(_curve),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.92, end: 1.0).animate(_curve),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on CourseModel {
+  bool isAccessible(Set<int>? activePlanIds) {
+    if (planId == null) return true;
+    if (activePlanIds == null) return false;
+    return activePlanIds.contains(planId);
+  }
+}
+

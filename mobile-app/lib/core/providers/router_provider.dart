@@ -42,7 +42,7 @@ import '../../presentation/screens/browser/in_app_browser_screen.dart';
 import '../../presentation/screens/assessment/assessment_paper_screen.dart';
 import '../../presentation/screens/main_shell_screen.dart';
 
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 
 /// Root navigator key, shared with [InAppNotificationOverlay] so it can find
 /// a live [OverlayState] (via `Navigator.of(context).overlay`) to insert the

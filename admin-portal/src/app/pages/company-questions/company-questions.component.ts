@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -6,6 +6,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { MediaService, MediaItem } from '../../services/media.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface CompanyKit {
   id: number;
@@ -207,6 +208,7 @@ interface CompanyKit {
 })
 export class CompanyQuestionsComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   private router = inject(Router);
   private media = inject(MediaService);
@@ -331,8 +333,8 @@ export class CompanyQuestionsComponent implements OnInit {
     });
   }
 
-  deleteKit(kit: CompanyKit) {
-    if (!confirm(`Delete "${kit.companyName}"? This also removes its questions if any.`)) return;
+  async deleteKit(kit: CompanyKit) {
+    if (!(await this.confirm.confirm(`Delete "${kit.companyName}"? This also removes its questions if any.`))) return;
     this.api.delete(`/api/company-kits/${kit.id}`).subscribe({
       next: () => this.load(),
       error: (err) => this.errors.show(err, 'Failed to delete the company tile')

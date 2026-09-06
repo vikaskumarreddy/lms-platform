@@ -1,4 +1,6 @@
-import 'dart:io';
+﻿import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -25,6 +27,9 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
   // ── PDF (native, no WebView) ──────────────────────────────────
   String? _pdfLocalPath;
   String? _pdfError;
+  PDFViewController? _pdfViewController;
+  int _pdfCurrentPage = 0;
+  int _pdfTotalPages = 0;
 
   @override
   void initState() {
@@ -161,10 +166,55 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
               tooltip: 'Retry',
               onPressed: _pdfLocalPath == null && _pdfError == null ? null : _downloadPdf,
             ),
+          if (_isPdf && _pdfLocalPath != null && _pdfError == null)
+            IconButton(
+              icon: const Icon(Icons.fullscreen),
+              tooltip: 'Expand',
+              onPressed: _openFullscreenPdf,
+            ),
           const SizedBox(width: 4),
         ],
       ),
       body: _isPdf ? _buildPdfBody() : _buildWebViewBody(),
+      bottomNavigationBar: (_isPdf && _pdfTotalPages > 0)
+          ? Container(
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: _pdfCurrentPage > 0 ? () => _pdfViewController?.setPage(_pdfCurrentPage - 1) : null,
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                  ),
+                  Text(
+                    'Page ${_pdfCurrentPage + 1} of $_pdfTotalPages',
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    onPressed: _pdfCurrentPage < _pdfTotalPages - 1 ? () => _pdfViewController?.setPage(_pdfCurrentPage + 1) : null,
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+
+  /// Expands the PDF to a dedicated full-screen page (no app bar/webview
+  /// chrome competing for space), with its own page controls; "Minimize"
+  /// returns here exactly as it was.
+  void _openFullscreenPdf() {
+    if (_pdfLocalPath == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _FullscreenPdfView(
+          path: _pdfLocalPath!,
+          title: widget.title,
+          initialPage: _pdfCurrentPage,
+        ),
+      ),
     );
   }
 
@@ -204,11 +254,29 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
       swipeHorizontal: false,
       autoSpacing: true,
       pageFling: true,
+      pageSnap: false,
+      fitPolicy: FitPolicy.WIDTH,
+      // Claim drag/zoom gestures so the native renderer, not the surrounding
+      // Scaffold/body, handles in-page scrolling and pinch-to-zoom.
+      gestureRecognizers: {
+        Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
       onError: (error) {
         if (mounted) setState(() => _pdfError = 'Could not display this PDF.');
       },
       onRender: (pages) {
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) setState(() { _isLoading = false; _pdfTotalPages = pages ?? 0; });
+      },
+      onPageChanged: (page, total) {
+        if (mounted) {
+          setState(() {
+            _pdfCurrentPage = page ?? 0;
+            if (total != null) _pdfTotalPages = total;
+          });
+        }
+      },
+      onViewCreated: (controller) {
+        _pdfViewController = controller;
       },
     );
   }
@@ -279,3 +347,94 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
     );
   }
 }
+
+/// Full-screen native PDF viewer used by the "expand" button on the in-app
+/// browser's PDF view — hides the browser chrome entirely so the document
+/// fills the screen, with its own page navigation and a "minimize" button
+/// to return to the browser screen exactly as it was.
+class _FullscreenPdfView extends StatefulWidget {
+  final String path;
+  final String title;
+  final int initialPage;
+
+  const _FullscreenPdfView({required this.path, required this.title, this.initialPage = 0});
+
+  @override
+  State<_FullscreenPdfView> createState() => _FullscreenPdfViewState();
+}
+
+class _FullscreenPdfViewState extends State<_FullscreenPdfView> {
+  PDFViewController? _controller;
+  int _currentPage = 0;
+  int _totalPages = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final canPrev = _currentPage > 0;
+    final canNext = _currentPage < _totalPages - 1;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0F172A),
+        foregroundColor: Colors.white,
+        title: Text(widget.title, overflow: TextOverflow.ellipsis),
+        leading: IconButton(
+          icon: const Icon(Icons.fullscreen_exit),
+          tooltip: 'Minimize',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: PDFView(
+        filePath: widget.path,
+        enableSwipe: true,
+        swipeHorizontal: false,
+        autoSpacing: true,
+        pageFling: true,
+        pageSnap: false,
+        fitPolicy: FitPolicy.WIDTH,
+        defaultPage: widget.initialPage,
+        gestureRecognizers: {
+          Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onRender: (pages) {
+          if (mounted) setState(() => _totalPages = pages ?? 0);
+        },
+        onPageChanged: (page, total) {
+          if (mounted) {
+            setState(() {
+              _currentPage = page ?? 0;
+              if (total != null) _totalPages = total;
+            });
+          }
+        },
+        onViewCreated: (controller) {
+          _controller = controller;
+        },
+      ),
+      bottomNavigationBar: _totalPages > 0
+          ? Container(
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: canPrev ? () => _controller?.setPage(_currentPage - 1) : null,
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                  ),
+                  Text(
+                    'Page ${_currentPage + 1} of $_totalPages',
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    onPressed: canNext ? () => _controller?.setPage(_currentPage + 1) : null,
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+}
+

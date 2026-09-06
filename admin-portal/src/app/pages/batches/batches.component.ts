@@ -1,8 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Batch {
   id: number;
@@ -296,6 +297,7 @@ interface SubscriptionPlan {
 })
 export class BatchesComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
 
   batches: Batch[] = [];
@@ -469,8 +471,8 @@ export class BatchesComponent implements OnInit {
     }
   }
 
-  deleteBatch(batch: Batch) {
-    if (!confirm(`Are you sure you want to delete batch "${batch.name}"? Students will remain but will be unassigned from this batch.`)) return;
+  async deleteBatch(batch: Batch) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete batch "${batch.name}"? Students will remain but will be unassigned from this batch.`))) return;
     this.api.delete(`/api/batches/${batch.id}`).subscribe({
       next: () => { this.loadBatches(); },
       error: (err) => { this.errors.show(err, 'Failed to delete batch'); }
@@ -525,9 +527,9 @@ export class BatchesComponent implements OnInit {
     });
   }
 
-  removeStudentFromBatch(student: Student) {
+  async removeStudentFromBatch(student: Student) {
     if (!this.selectedBatch) return;
-    if (!confirm(`Remove "${student.name}" from batch "${this.selectedBatch.name}"?`)) return;
+    if (!(await this.confirm.confirm(`Remove "${student.name}" from batch "${this.selectedBatch.name}"?`))) return;
 
     this.api.put(`/api/students/${student.id}`, {
       name: student.name,

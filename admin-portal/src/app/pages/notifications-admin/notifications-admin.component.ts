@@ -1,8 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface SubscriptionPlan {
   id: number;
@@ -127,6 +128,7 @@ interface NotificationRecord {
 })
 export class NotificationsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
 
   showForm = false;
@@ -260,8 +262,8 @@ export class NotificationsAdminComponent implements OnInit {
     });
   }
 
-  delete(n: NotificationRecord) {
-    if (confirm('Delete this notification?')) {
+  async delete(n: NotificationRecord) {
+    if (await this.confirm.confirm('Delete this notification?')) {
       this.api.delete<void>(`/api/notifications/${n.id}`).subscribe({
         next: () => this.loadNotifications(),
         error: err => this.errors.show(err, 'Could not delete that notification')

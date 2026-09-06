@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MediaService, MediaItem, MediaType, compressionLabel } from '../../services/media.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
 const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -78,6 +79,7 @@ const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 
 })
 export class MediaHubComponent implements OnInit {
   private sanitizer = inject(DomSanitizer);
+  private confirm = inject(ConfirmService);
   protected media = inject(MediaService);
   activeTab = signal<MediaType>('video');
   videos = signal<MediaItem[]>([]);
@@ -136,8 +138,8 @@ export class MediaHubComponent implements OnInit {
 
   copyLink(item: MediaItem) { const url = window.location.origin + this.media.serveUrl(item.id); navigator.clipboard?.writeText(url).catch(() => {}); }
 
-  deleteItem(item: MediaItem) {
-    if (!confirm('Delete "' + item.title + '"? References to it will break.')) return;
+  async deleteItem(item: MediaItem) {
+    if (!(await this.confirm.confirm('Delete "' + item.title + '"? References to it will break.'))) return;
     this.media.delete(item.id).subscribe({ next: () => { if (item.type === 'video') this.videos.update(list => list.filter(i => i.id !== item.id)); else this.files.update(list => list.filter(i => i.id !== item.id)); }, error: () => this.error.set('Could not delete the item') });
   }
 }

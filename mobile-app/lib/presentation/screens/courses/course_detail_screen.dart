@@ -34,7 +34,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonHeader(title: 'Course Sections'),
+      appBar: const CommonHeader(showBackButton: true, title: 'Course Sections'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

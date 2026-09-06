@@ -1,8 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Plan {
   id: number;
@@ -283,6 +284,7 @@ interface PlanFormData {
 })
 export class SubscriptionsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   plans: Plan[] = [];
   subscriptions: Subscription[] = [];
@@ -336,12 +338,12 @@ export class SubscriptionsAdminComponent implements OnInit {
     });
   }
 
-  decideRequest(request: PlanRequest, approve: boolean) {
+  async decideRequest(request: PlanRequest, approve: boolean) {
     const verb = approve ? 'Approve' : 'Reject';
     const confirmText = approve
       ? `Move ${request.studentName} to the ${request.requestedPlanName} plan?`
       : `Reject ${request.studentName}'s request for ${request.requestedPlanName}?`;
-    if (!confirm(confirmText)) return;
+    if (!(await this.confirm.confirm(confirmText))) return;
 
     // A rejection without a reason is unhelpful to the student, so ask for one —
     // but do not force it, since the admin may have explained in person.
@@ -420,9 +422,9 @@ export class SubscriptionsAdminComponent implements OnInit {
     });
   }
 
-  removeStudentSubscription(sub: StudentSubscription) {
+  async removeStudentSubscription(sub: StudentSubscription) {
     if (!this.assignForm.studentId) return;
-    if (!confirm(`Remove "${sub.planName}" subscription?`)) return;
+    if (!(await this.confirm.confirm(`Remove "${sub.planName}" subscription?`))) return;
     this.api.delete(`/api/students/${this.assignForm.studentId}/subscriptions/${sub.id}`).subscribe({
       next: () => {
         this.onStudentSelected(this.assignForm.studentId);
@@ -470,8 +472,8 @@ export class SubscriptionsAdminComponent implements OnInit {
     this.showForm = true;
   }
 
-  delete(p: Plan) {
-    if (confirm(`Delete plan "${p.name}"?`)) {
+  async delete(p: Plan) {
+    if (await this.confirm.confirm(`Delete plan "${p.name}"?`)) {
       this.api.delete<void>(`/api/subscription-plans/${p.id}`).subscribe({
         next: () => this.loadPlans(),
         error: (err) => { this.errorMsg = err.error?.message || 'Failed to delete plan'; }

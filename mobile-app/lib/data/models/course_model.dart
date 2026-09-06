@@ -4,6 +4,7 @@ class CourseModel {
   final int id;
   final String title;
   final String description;
+  final String thumbnailUrl;
   final int? planId;
   final double? progress;
   final int totalLessons;
@@ -13,6 +14,7 @@ class CourseModel {
     required this.id,
     required this.title,
     required this.description,
+    this.thumbnailUrl = '',
     this.planId,
     this.progress,
     this.totalLessons = 0,
@@ -24,6 +26,7 @@ class CourseModel {
       id: _safeInt(json['id']),
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
+      thumbnailUrl: json['thumbnailUrl']?.toString() ?? json['thumbnail_url']?.toString() ?? '',
       planId: _safeIntNullable(json['planId']),
       progress: _safeDouble(json['progress']),
       totalLessons: _safeInt(json['totalLessons']),

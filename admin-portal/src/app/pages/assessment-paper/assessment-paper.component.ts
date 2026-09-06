@@ -1,9 +1,10 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface PaperOption {
   id?: number;
@@ -292,6 +293,7 @@ interface PaperQuestion {
 })
 export class AssessmentPaperComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -529,8 +531,8 @@ export class AssessmentPaperComponent implements OnInit {
     });
   }
 
-  deleteQuestion(q: PaperQuestion) {
-    if (!confirm('Delete this question? Any answers students already gave for it are removed too.')) return;
+  async deleteQuestion(q: PaperQuestion) {
+    if (!(await this.confirm.confirm('Delete this question? Any answers students already gave for it are removed too.'))) return;
     this.api.delete(`/api/assessments/${this.type}/${this.assessmentId}/questions/${q.id}`).subscribe({
       next: () => this.loadQuestions(),
       error: () => { this.pageError = 'Failed to delete the question.'; }

@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay } from '../../utils/date.util';
+import { ConfirmService } from '../../services/confirm.service';
 
 /** One student's enrolment fee. Cash rows have no gateway ids. */
 interface Txn {
@@ -155,6 +156,7 @@ interface Summary {
 })
 export class PaymentsComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
 
   transactions: Txn[] = [];
@@ -213,8 +215,8 @@ export class PaymentsComponent implements OnInit {
   }
 
   /** Records an offline settlement; this is what unlocks a gated ONLINE student. */
-  markPaid(t: Txn) {
-    if (!confirm(`Mark ${t.studentName}'s fee as received?`)) return;
+  async markPaid(t: Txn) {
+    if (!(await this.confirm.confirm(`Mark ${t.studentName}'s fee as received?`))) return;
     this.busyId = t.studentId;
     this.api.post(`/api/payments/mark-paid/${t.studentId}`, { notes: 'Marked received by admin' }).subscribe({
       next: () => { this.busyId = null; this.load(); },

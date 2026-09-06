@@ -61,6 +61,7 @@ public class PlacementDriveController {
         return placementDriveRepository.findById(id)
                 .map(existing -> {
                     existing.setCompanyName(drive.getCompanyName());
+                    existing.setCompanyLogoUrl(drive.getCompanyLogoUrl());
                     existing.setRole(drive.getRole());
                     existing.setPackageAmount(drive.getPackageAmount());
                     existing.setLocation(drive.getLocation());

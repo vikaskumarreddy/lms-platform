@@ -127,18 +127,27 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
                             if (item['driveId'] != null) (item['driveId'] as num).toInt(): item['status']?.toString() ?? 'OPEN',
                         };
                         final metrics = metricsAsync.asData?.value ?? <String, double>{};
-                        return ListView.builder(
+                        return GridView.builder(
                           padding: const EdgeInsets.all(16),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.72,
+                          ),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final drive = filtered[index];
                             final eligible = drive.isEligibleFor(metrics);
-                            return _DriveCard(
-                              drive: drive,
-                              status: statusByDrive[drive.id] ?? 'OPEN',
-                              isEligible: eligible,
-                              onApply: () => _applyAndOpenLink(ref, drive),
-                              onScheduleSlot: () => _showSlotPicker(ref, drive),
+                            return _AnimatedDriveCard(
+                              index: index,
+                              child: _DriveCard(
+                                drive: drive,
+                                status: statusByDrive[drive.id] ?? 'OPEN',
+                                isEligible: eligible,
+                                onApply: () => _applyAndOpenLink(ref, drive),
+                                onScheduleSlot: () => _showSlotPicker(ref, drive),
+                              ),
                             );
                           },
                         );
@@ -373,165 +382,177 @@ class _DriveCard extends StatelessWidget {
     final logoColor = _getLogoColor(drive.id);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 1,
+      margin: EdgeInsets.zero,
+      elevation: 1.5,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: logoColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(drive.logoInitial, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+      child: InkWell(
+        onTap: onApply,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Fixed-height logo header — company image when the admin set a
+            // companyLogoUrl, a colored initial badge otherwise.
+            SizedBox(
+              height: 78,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  drive.hasCompanyLogo
+                      ? Image.network(
+                          resolveMediaUrl(drive.companyLogoUrl!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _DriveLogoFallback(color: logoColor, initial: drive.logoInitial),
+                        )
+                      : _DriveLogoFallback(color: logoColor, initial: drive.logoInitial),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.92),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _statusLabel,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(drive.companyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 2),
-                Text(drive.role, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: secondaryColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    drive.companyName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    drive.role,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
                       const Icon(Icons.savings, size: 12, color: Color(0xFFB45309)),
                       const SizedBox(width: 4),
-                      Text(drive.packageDisplay, style: const TextStyle(fontSize: 11, color: Color(0xFFB45309), fontWeight: FontWeight.bold)),
-                    ]),
-                  ),
-                  if (drive.location != null && drive.location!.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                      Flexible(
+                        child: Text(
+                          drive.packageDisplay,
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFB45309), fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.location_on, size: 12, color: Colors.blue),
-                        const SizedBox(width: 2),
-                        Text(drive.location!, style: const TextStyle(fontSize: 11, color: Colors.blue)),
-                      ]),
-                    ),
-                  ],
-                ]),
-              ]),
-            ),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: secondaryColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  drive.category,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFB45309),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          drive.category,
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.event, size: 11, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          drive.formattedDeadline,
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!isEligible)
+                        const Icon(Icons.lock, size: 12, color: Colors.redAccent),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _statusLabel,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _statusColor),
-                ),
-              ),
-            ]),
-          ]),
-          if (drive.eligibility != null && drive.eligibility!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Row(children: [
-                  Icon(Icons.check_circle_outline, size: 14, color: Colors.grey),
-                  SizedBox(width: 6),
-                  Text('Eligibility', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                ]),
-                const SizedBox(height: 4),
-                Text(drive.eligibility!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
-              ]),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: drive.isInternal && status != 'SELECTED' && isEligible
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onScheduleSlot,
+                            icon: const Icon(Icons.event_available, size: 14),
+                            label: const Text('Slot', overflow: TextOverflow.ellipsis),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryColor,
+                              side: BorderSide(color: primaryColor),
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              minimumSize: Size.zero,
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: status == 'SELECTED' ? null : onApply,
+                            icon: const Icon(Icons.open_in_browser, size: 14),
+                            label: const Text('Apply', overflow: TextOverflow.ellipsis),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: secondaryColor,
+                              foregroundColor: primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              minimumSize: Size.zero,
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: status == 'SELECTED' ? null : (isEligible ? onApply : null),
+                      icon: Icon(
+                        status == 'APPLIED'
+                            ? Icons.check_circle
+                            : (!isEligible ? Icons.block : Icons.open_in_browser),
+                        size: 14,
+                      ),
+                      label: Text(
+                        status == 'APPLIED'
+                            ? 'Applied'
+                            : status == 'SELECTED'
+                                ? 'Selected'
+                                : (!isEligible ? 'Not eligible' : 'Apply'),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isEligible ? secondaryColor : Colors.grey.shade300,
+                        foregroundColor: isEligible ? primaryColor : Colors.grey.shade600,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledForegroundColor: Colors.grey.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        minimumSize: Size.zero,
+                        textStyle: const TextStyle(fontSize: 11),
+                      ),
+                    ),
             ),
           ],
-          if (drive.description != null && drive.description!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(drive.description!, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4)),
-          ],
-          const SizedBox(height: 12),
-          Row(children: [
-            Icon(Icons.event, size: 14, color: Colors.grey.shade500),
-            const SizedBox(width: 6),
-            Text('Deadline: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            Text(drive.formattedDeadline, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            if (drive.isInternal && status != 'SELECTED' && isEligible)
-              OutlinedButton.icon(
-                onPressed: onScheduleSlot,
-                icon: const Icon(Icons.event_available, size: 16),
-                label: const Text('Schedule my slot'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: primaryColor,
-                  side: BorderSide(color: primaryColor),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                ),
-              ),
-            const SizedBox(width: 8),
-            if (!isEligible && status != 'APPLIED' && status != 'SELECTED')
-              ElevatedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.block, size: 16),
-                label: const Text('Not eligible'),
-                style: ElevatedButton.styleFrom(
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.grey.shade600,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                ),
-              )
-            else
-              ElevatedButton.icon(
-                onPressed: status == 'SELECTED' ? null : onApply,
-                icon: Icon(status == 'APPLIED' ? Icons.check_circle : Icons.open_in_browser, size: 16),
-                label: Text(status == 'OPEN' || status == 'REJECTED' ? 'Apply' : (status == 'APPLIED' ? 'Applied' : 'Selected')),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: secondaryColor,
-                  foregroundColor: primaryColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                ),
-              ),
-          ]),
-        ]),
+        ),
       ),
     );
   }
-
   Color _getLogoColor(int id) {
     const colors = [
       Color(0xFF4285F4),
@@ -542,6 +563,100 @@ class _DriveCard extends StatelessWidget {
       Color(0xFFE82127),
     ];
     return colors[id % colors.length];
+  }
+}
+
+/// Staggered entrance (fade + slide + scale) with a press-down scale effect,
+/// matching the courses grid so all card screens feel consistent.
+class _AnimatedDriveCard extends StatefulWidget {
+  final int index;
+  final Widget child;
+  const _AnimatedDriveCard({required this.index, required this.child});
+
+  @override
+  State<_AnimatedDriveCard> createState() => _AnimatedDriveCardState();
+}
+
+class _AnimatedDriveCardState extends State<_AnimatedDriveCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+  late final CurvedAnimation _curve =
+      CurvedAnimation(parent: _entrance, curve: Curves.easeOutCubic);
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: 60 * (widget.index % 10)), () {
+      if (mounted) _entrance.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: FadeTransition(
+          opacity: _curve,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.12),
+              end: Offset.zero,
+            ).animate(_curve),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.92, end: 1.0).animate(_curve),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Gradient + company-initial fallback shown when a drive has no
+/// companyLogoUrl (or its image fails to load).
+class _DriveLogoFallback extends StatelessWidget {
+  final Color color;
+  final String initial;
+  const _DriveLogoFallback({required this.color, required this.initial});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.75), color],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 }
 

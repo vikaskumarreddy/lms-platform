@@ -1,8 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Faculty {
   id: number;
@@ -134,6 +135,7 @@ export class FacultyComponent implements OnInit {
   };
 
   private errors = inject(ApiErrorService);
+  private confirm = inject(ConfirmService);
 
   constructor(private apiService: ApiService) {}
 
@@ -218,8 +220,8 @@ export class FacultyComponent implements OnInit {
     }
   }
 
-  deleteFaculty(f: Faculty) {
-    if (!confirm(`Are you sure you want to delete "${f.name}"?`)) return;
+  async deleteFaculty(f: Faculty) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete "${f.name}"?`))) return;
     this.apiService.delete(`/api/faculty/${f.id}`).subscribe({
       next: () => {
         this.loadFaculty();

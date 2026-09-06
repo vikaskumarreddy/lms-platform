@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/subscription_provider.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/utils/image_url.dart';
 import '../../../data/models/course_model.dart';
 
 class CoursesScreen extends ConsumerWidget {
@@ -97,9 +98,20 @@ class _CourseCard extends StatelessWidget {
 
   const _CourseCard({required this.course, required this.isLocked});
 
+  void _open(BuildContext context) {
+    if (isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Upgrade your subscription to access this course')),
+      );
+      return;
+    }
+    context.push('/courses/${course.id}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = _getColor(course.id);
+    final hasImage = course.thumbnailUrl.isNotEmpty;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(

@@ -1,6 +1,7 @@
 class PlacementDriveModel {
   final int id;
   final String companyName;
+  final String? companyLogoUrl;
   final String role;
   final double? packageAmount;
   final String? location;
@@ -19,6 +20,7 @@ class PlacementDriveModel {
   PlacementDriveModel({
     required this.id,
     required this.companyName,
+    this.companyLogoUrl,
     required this.role,
     this.packageAmount,
     this.location,
@@ -37,10 +39,14 @@ class PlacementDriveModel {
 
   bool get isInternal => driveType == 'INTERNAL';
 
+  /// True when the admin has supplied a company logo image URL to show.
+  bool get hasCompanyLogo => (companyLogoUrl ?? '').trim().isNotEmpty;
+
   factory PlacementDriveModel.fromJson(Map<String, dynamic> json) {
     return PlacementDriveModel(
       id: json['id'] ?? 0,
       companyName: json['companyName'] ?? '',
+      companyLogoUrl: json['companyLogoUrl'],
       role: json['role'] ?? '',
       packageAmount: (json['packageAmount'] is int)
           ? (json['packageAmount'] as int).toDouble()

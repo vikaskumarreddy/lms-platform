@@ -1,12 +1,12 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { RichTextToHtmlService } from '../../services/rich-text-to-html.service';
 import { MediaService, MediaItem } from '../../services/media.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Lesson {
   id: number;
@@ -76,6 +76,7 @@ export class CourseDetailComponent implements OnInit {
   viewMediaSafeUrl: SafeResourceUrl | null = null;
   viewMediaIsPdf = false;
   private media = inject(MediaService);
+  private confirm = inject(ConfirmService);
 
   // Module modal state
   showModuleModal = false;
@@ -90,29 +91,12 @@ export class CourseDetailComponent implements OnInit {
   lessonForm: any = {};
   savingLesson = false;
 
-  // HTML preview modal
-  showPreview = false;
-  previewHtml: SafeHtml = '';
-
-  // ── Notes conversion (Word / plain text → HTML) ───────────────
-  /** Outcome of the last conversion, shown under the textarea. */
-  conversionMessage = '';
-  conversionWarnings: string[] = [];
-  conversionOk = false;
-  /**
-   * The content as it was before the last conversion, so a faculty member who
-   * dislikes the result can put it back. Without this, converting is a one-way
-   * door over someone's typed notes.
-   */
-  private contentBeforeConversion: string | null = null;
-
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private api: ApiService,
     private errors: ApiErrorService,
-    private sanitizer: DomSanitizer,
-    private richText: RichTextToHtmlService
+    private sanitizer: DomSanitizer
   ) {}
 
   ngOnInit() {
@@ -211,8 +195,8 @@ export class CourseDetailComponent implements OnInit {
     }
   }
 
-  deleteModule(m: CourseModule) {
-    if (!confirm(`Delete module "${m.title}" and all its lessons?`)) return;
+  async deleteModule(m: CourseModule) {
+    if (!(await this.confirm.confirm(`Delete module "${m.title}" and all its lessons?`))) return;
     this.api.delete(`/api/modules/${m.id}`).subscribe({
       next: () => this.loadCourse(),
       error: (err) => this.errors.show(err, 'Failed to delete module')
@@ -224,11 +208,10 @@ export class CourseDetailComponent implements OnInit {
     this.activeModuleForLesson = m;
     this.editingLesson = null;
     this.lessonForm = {
-      title: '', heading: '', content: '', videoUrl: '', videoSource: 'URL', videoId: null, thumbnailUrl: '', pdfNotesUrl: '',
+      title: '', heading: '', videoUrl: '', videoSource: 'URL', videoId: null, thumbnailUrl: '', pdfNotesUrl: '',
       pdfSource: 'URL', pdfNoteId: null,
       orderIndex: m.lessons.length, durationMinutes: 10, isLocked: false, isMandatory: true
     };
-    this.resetConversionState();
     this.showLessonModal = true;
   }
 
@@ -236,14 +219,13 @@ export class CourseDetailComponent implements OnInit {
     this.activeModuleForLesson = m;
     this.editingLesson = l;
     this.lessonForm = {
-      title: l.title, heading: l.heading || '', content: l.content || '', videoUrl: l.videoUrl || '',
+      title: l.title, heading: l.heading || '', videoUrl: l.videoUrl || '',
       videoSource: l.videoSource === 'SELF' ? 'SELF' : 'URL', videoId: l.videoId ?? null,
       thumbnailUrl: l.thumbnailUrl || '', pdfNotesUrl: l.pdfNotesUrl || '',
       pdfSource: l.pdfSource === 'SELF' ? 'SELF' : 'URL', pdfNoteId: l.pdfNoteId ?? null,
       orderIndex: l.orderIndex ?? 0,
       durationMinutes: l.durationMinutes ?? 10, isLocked: !!l.isLocked, isMandatory: l.isMandatory !== false
     };
-    this.resetConversionState();
     this.showLessonModal = true;
   }
 
@@ -265,8 +247,8 @@ export class CourseDetailComponent implements OnInit {
     }
   }
 
-  deleteLesson(l: Lesson) {
-    if (!confirm(`Delete lesson "${l.title}"?`)) return;
+  async deleteLesson(l: Lesson) {
+    if (!(await this.confirm.confirm(`Delete lesson "${l.title}"?`))) return;
     this.api.delete(`/api/lessons/${l.id}`).subscribe({
       next: () => this.loadCourse(),
       error: (err) => this.errors.show(err, 'Failed to delete lesson')
@@ -306,119 +288,4 @@ export class CourseDetailComponent implements OnInit {
     if (l.pdfNotesUrl) window.open(l.pdfNotesUrl, '_blank', 'noopener');
   }
 
-  // ── HTML mobile preview ──────────────────────────────────────
-  openPreview(content: string) {
-    this.previewHtml = this.sanitizer.bypassSecurityTrustHtml(content || '<p style="color:#94A3B8;">No notes content yet.</p>');
-    this.showPreview = true;
-  }
-
-  closePreview() { this.showPreview = false; }
-
-  // ── Notes conversion ─────────────────────────────────────────
-
-  /**
-   * Intercepts a paste into the notes box to keep the formatting.
-   *
-   * <p>A plain textarea normally receives text only — the browser discards the
-   * clipboard's rich flavour, so headings, bold and bullets from a Word document are
-   * lost before any button could act on them. Reading {@code text/html} here is the
-   * only point at which that formatting still exists, which is why conversion happens
-   * on paste rather than only on demand.
-   *
-   * <p>Falls through to the browser's own handling when the clipboard holds no HTML,
-   * so typing and pasting plain text behave exactly as before.
-   */
-  onNotesPaste(event: ClipboardEvent) {
-    const clipboard = event.clipboardData;
-    if (!clipboard) {
-      return;
-    }
-    const html = clipboard.getData('text/html');
-    if (!html || !html.trim()) {
-      return; // plain text — let the browser paste it, the button can convert later
-    }
-
-    event.preventDefault();
-    const result = this.richText.fromHtml(html);
-    if (!result.html.trim()) {
-      return;
-    }
-
-    const textarea = event.target as HTMLTextAreaElement;
-    const existing = this.lessonForm.content || '';
-    this.contentBeforeConversion = existing;
-
-    // Insert at the cursor rather than replacing, so pasting a second section appends
-    // to the first instead of destroying it.
-    const start = textarea.selectionStart ?? existing.length;
-    const end = textarea.selectionEnd ?? existing.length;
-    const separator = existing.slice(0, start).trim() ? '\n' : '';
-    this.lessonForm.content = existing.slice(0, start) + separator + result.html + existing.slice(end);
-
-    this.conversionOk = true;
-    this.conversionMessage = result.source === 'word'
-      ? `Pasted from Word and converted. ${result.summary}`
-      : `Pasted and converted. ${result.summary}`;
-    this.conversionWarnings = result.warnings;
-  }
-
-  /**
-   * Converts whatever is currently in the box.
-   *
-   * <p>For content that is already there — typed by hand, or pasted as plain text —
-   * structure is inferred from how people actually write notes: dashes are bullets,
-   * a line ending in a colon introduces a section, a short line with no full stop is a
-   * heading.
-   */
-  convertNotesToHtml() {
-    const current = (this.lessonForm.content || '').trim();
-    if (!current) {
-      this.conversionOk = false;
-      this.conversionMessage = 'Paste or type your notes first, then convert.';
-      this.conversionWarnings = [];
-      return;
-    }
-
-    this.contentBeforeConversion = this.lessonForm.content;
-    const result = this.richText.convert(current);
-
-    if (!result.html.trim()) {
-      this.conversionOk = false;
-      this.conversionMessage = 'Could not find any structure to convert.';
-      this.conversionWarnings = [];
-      return;
-    }
-
-    this.lessonForm.content = result.html;
-    this.conversionOk = true;
-    this.conversionMessage = result.source === 'text'
-      ? `${result.summary} Check the preview and adjust anything that looks wrong.`
-      : `Cleaned up the pasted markup. ${result.summary}`;
-    this.conversionWarnings = result.warnings;
-  }
-
-  get canUndoConversion(): boolean {
-    return this.contentBeforeConversion !== null
-      && this.contentBeforeConversion !== this.lessonForm.content;
-  }
-
-  /** Restores the content as it was before the last conversion. */
-  undoConversion() {
-    if (this.contentBeforeConversion === null) {
-      return;
-    }
-    this.lessonForm.content = this.contentBeforeConversion;
-    this.contentBeforeConversion = null;
-    this.conversionOk = false;
-    this.conversionMessage = 'Reverted to what you had before.';
-    this.conversionWarnings = [];
-  }
-
-  /** Clears the conversion feedback when the modal opens or closes. */
-  private resetConversionState() {
-    this.conversionMessage = '';
-    this.conversionWarnings = [];
-    this.conversionOk = false;
-    this.contentBeforeConversion = null;
-  }
 }

@@ -1,9 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Student {
   id: number;
@@ -321,6 +322,7 @@ export class StudentsComponent implements OnInit {
   };
 
     private errors = inject(ApiErrorService);
+  private confirm = inject(ConfirmService);
 
     constructor(private apiService: ApiService, private router: Router) {}
 
@@ -502,8 +504,8 @@ export class StudentsComponent implements OnInit {
     }
   }
 
-  deleteStudent(student: Student) {
-    if (!confirm(`Are you sure you want to delete "${student.name}"?`)) return;
+  async deleteStudent(student: Student) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete "${student.name}"?`))) return;
     this.apiService.delete(`/api/students/${student.id}`).subscribe({
       next: () => {
         this.loadStudents();

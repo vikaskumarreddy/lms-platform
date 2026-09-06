@@ -17,6 +17,10 @@ public class PlacementDrive extends BaseEntity {
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
+    /** Optional company logo image URL, shown as the drive card's header image. */
+    @Column(name = "company_logo_url", length = 1000)
+    private String companyLogoUrl;
+
     @Column(nullable = false)
     private String role;
 

@@ -1,9 +1,10 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface SubscriptionPlan {
   id: number;
@@ -188,6 +189,7 @@ interface CalendarEvent {
 })
 export class CalendarEventsComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private errors = inject(ApiErrorService);
   showForm = false;
   editingId: number | null = null;
@@ -324,8 +326,8 @@ export class CalendarEventsComponent implements OnInit {
     this.showForm = true;
   }
 
-  delete(e: CalendarEvent) {
-    if (confirm('Delete this event?')) {
+  async delete(e: CalendarEvent) {
+    if (await this.confirm.confirm('Delete this event?')) {
       this.api.delete(`/api/events/${e.id}`).subscribe({
         next: () => { this.events = this.events.filter(ev => ev.id !== e.id); },
         error: (err) => { this.errors.show(err, 'Failed to delete event'); }

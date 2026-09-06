@@ -1,12 +1,14 @@
-import { Component, OnInit, inject } from '@angular/core';
+﻿import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface Drive {
   id: number;
   companyName: string;
+  companyLogoUrl?: string;
   role: string;
   packageAmount: number;
   location: string;
@@ -99,7 +101,12 @@ interface SupportRequest {
         </thead>
         <tbody>
           <tr *ngFor="let d of drives">
-            <td>{{d.companyName}}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <img *ngIf="d.companyLogoUrl" [src]="d.companyLogoUrl" (error)="d.companyLogoUrl = ''" style="width:28px;height:28px;border-radius:6px;object-fit:cover;" alt="">
+                <span>{{d.companyName}}</span>
+              </div>
+            </td>
             <td>{{d.role}}</td>
             <td>
               <span class="badge" [class.badge-success]="d.driveType === 'INTERNAL'" [class.badge-info]="d.driveType !== 'INTERNAL'">
@@ -270,6 +277,10 @@ interface SupportRequest {
               <div>
                 <label>Company Name</label>
                 <input type="text" [(ngModel)]="driveForm.companyName" name="companyName" required placeholder="Enter company name">
+              </div>
+              <div>
+                <label>Company Logo URL (optional)</label>
+                <input type="text" [(ngModel)]="driveForm.companyLogoUrl" name="companyLogoUrl" placeholder="https://…/logo.png">
               </div>
               <div>
                 <label>Role</label>
@@ -478,6 +489,7 @@ interface SupportRequest {
 })
 export class PlacementsComponent implements OnInit {
   private errors = inject(ApiErrorService);
+  private confirm = inject(ConfirmService);
   drives: Drive[] = [];
   plans: SubscriptionPlan[] = [];
   applications: StudentApplication[] = [];
@@ -489,6 +501,7 @@ export class PlacementsComponent implements OnInit {
 
   driveForm: any = {
     companyName: '',
+    companyLogoUrl: '',
     role: '',
     driveType: 'EXTERNAL',
     packageAmount: null,
@@ -655,6 +668,7 @@ export class PlacementsComponent implements OnInit {
     this.driveTab = 'basic';
     this.driveForm = {
       companyName: drive.companyName,
+      companyLogoUrl: drive.companyLogoUrl || '',
       role: drive.role,
       driveType: drive.driveType || 'EXTERNAL',
       packageAmount: drive.packageAmount,
@@ -749,8 +763,8 @@ export class PlacementsComponent implements OnInit {
     });
   }
 
-  deleteSlot(slot: InterviewSlot) {
-    if (!confirm('Delete this interview slot?')) return;
+  async deleteSlot(slot: InterviewSlot) {
+    if (!(await this.confirm.confirm('Delete this interview slot?'))) return;
     this.apiService.delete(`/api/interview-slots/${slot.id}`).subscribe({
       next: () => this.loadSlots(this.slotsForDrive!.id),
       error: err => this.errors.show(err, 'Could not delete interview slot')
@@ -796,8 +810,8 @@ export class PlacementsComponent implements OnInit {
     }
   }
 
-  deleteDrive(drive: Drive) {
-    if (!confirm(`Are you sure you want to delete "${drive.companyName}" drive?`)) return;
+  async deleteDrive(drive: Drive) {
+    if (!(await this.confirm.confirm(`Are you sure you want to delete "${drive.companyName}" drive?`))) return;
     this.apiService.delete(`/api/placement-drives/${drive.id}`).subscribe({
       next: () => {
         this.loadDrives();

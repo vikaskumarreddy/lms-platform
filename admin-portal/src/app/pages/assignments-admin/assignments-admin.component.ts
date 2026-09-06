@@ -1,10 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+﻿import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { formatDateTimeDisplay, toDateTimeLocalValue, toIsoDateTime } from '../../utils/date.util';
+import { ConfirmService } from '../../services/confirm.service';
 
 interface SubscriptionPlan { id: number; name: string; price: number; period: string; }
 interface Batch { id: number; name: string; isActive: boolean; }
@@ -172,6 +173,7 @@ interface Batch { id: number; name: string; isActive: boolean; }
 })
 export class AssignmentsAdminComponent implements OnInit {
   private api = inject(ApiService);
+  private confirm = inject(ConfirmService);
   private router = inject(Router);
   private errors = inject(ApiErrorService);
   showModal = false; editingId: number | null = null;
@@ -312,8 +314,8 @@ export class AssignmentsAdminComponent implements OnInit {
     this.showModal = true;
   }
 
-  delete(a: any) {
-    if (confirm('Delete assignment?')) {
+  async delete(a: any) {
+    if (await this.confirm.confirm('Delete assignment?')) {
       this.api.delete(`/api/assignments/${a.id}`).subscribe({
         next: () => { this.assignments = this.assignments.filter(x => x.id !== a.id); },
         error: (err) => { console.error('Failed to delete:', err); this.errors.show(err, 'Could not delete assignment'); }
