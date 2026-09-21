@@ -67,10 +67,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     }
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF0F172A);
-    final secondaryColor = const Color(0xFFEAB308);
+    final cs = Theme.of(context).colorScheme;
+    final primaryColor = cs.primary;
+    final secondaryColor = cs.secondary;
 
     return Scaffold(
       appBar: const CommonHeader(title: 'Feedback'),
@@ -204,7 +205,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: List.generate(5, (i) {
-                              return Icon(Icons.star, size: 16, color: i < rating ? secondaryColor : Colors.grey.shade300);
+                              return Icon(Icons.star, size: 16, color: i < rating ? cs.secondary : Colors.grey.shade300);
                             }),
                           ),
                           if (comment.isNotEmpty) ...[

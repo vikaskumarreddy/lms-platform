@@ -20,6 +20,9 @@ public class Note extends BaseEntity {
     @Column(name = "lesson_id")
     private Long lessonId;
 
+    @Column(name = "topic_id")
+    private Long topicId;
+
     @Column(nullable = false)
     private String title = "Untitled Note";
 

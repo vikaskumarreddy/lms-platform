@@ -79,14 +79,16 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
       );
 
   Future<void> _preview() async {
-    final doc = await ResumePdfGenerator.generate(_data, _template);
+    final org = ref.read(orgThemeProvider);
+    final doc = await ResumePdfGenerator.generate(_data, _template, primaryColor: org.primary.value, accentColor: org.accent.value);
     final bytes = await doc.save();
     if (!mounted) return;
     await Navigator.push(context, MaterialPageRoute(builder: (_) => _ResumePreviewScreen(pdfBytes: bytes)));
   }
 
   Future<void> _download() async {
-    final doc = await ResumePdfGenerator.generate(_data, _template);
+    final org = ref.read(orgThemeProvider);
+    final doc = await ResumePdfGenerator.generate(_data, _template, primaryColor: org.primary.value, accentColor: org.accent.value);
     final bytes = await doc.save();
     await Printing.sharePdf(bytes: bytes, filename: 'Resume_${_nameController.text.trim().replaceAll(' ', '_')}.pdf');
   }
@@ -96,8 +98,7 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
     final profileAsync = ref.watch(userProfileProvider);
     _prefillFromProfile(profileAsync.asData?.value);
 
-    const primaryColor = Color(0xFF0F172A);
-    const secondaryColor = Color(0xFFEAB308);
+    final org = ref.watch(orgThemeProvider);
 
     return Scaffold(
       appBar: CommonHeader(
@@ -109,21 +110,21 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _templateSelector(secondaryColor, primaryColor),
+          _templateSelector(org.accent, org.primary),
           const SizedBox(height: 16),
-          _personalInfoCard(primaryColor),
+          _personalInfoCard(org.primary),
           const SizedBox(height: 16),
-          _summaryCard(primaryColor),
+          _summaryCard(org.primary),
           const SizedBox(height: 16),
-          _skillsCard(primaryColor, secondaryColor),
+          _skillsCard(org.primary, org.accent),
           const SizedBox(height: 16),
-          _experienceCard(primaryColor, secondaryColor),
+          _experienceCard(org.primary, org.accent),
           const SizedBox(height: 16),
-          _achievementsCard(primaryColor, secondaryColor),
+          _achievementsCard(org.primary, org.accent),
           const SizedBox(height: 16),
-          _educationCard(primaryColor, secondaryColor),
+          _educationCard(org.primary, org.accent),
           const SizedBox(height: 16),
-          _certificationsCard(primaryColor, secondaryColor),
+          _certificationsCard(org.primary, org.accent),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -133,7 +134,7 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
               icon: const Icon(Icons.picture_as_pdf),
               label: const Text('Generate ATS-Friendly Resume PDF'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
+                backgroundColor: org.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -145,12 +146,12 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
     );
   }
 
-  Widget _templateSelector(Color secondaryColor, Color primaryColor) {
+  Widget _templateSelector(Color accent, Color primary) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Template', style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor, fontSize: 15)),
+          Text('Template', style: TextStyle(fontWeight: FontWeight.bold, color: primary, fontSize: 15)),
           const SizedBox(height: 12),
           Row(
             children: ResumeTemplate.values.map((t) {
@@ -164,15 +165,15 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected ? secondaryColor.withOpacity(0.15) : Colors.grey.shade100,
+                        color: isSelected ? accent.withOpacity(0.15) : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isSelected ? secondaryColor : Colors.grey.shade300),
+                        border: Border.all(color: isSelected ? accent : Colors.grey.shade300),
                       ),
                       child: Column(children: [
-                        Icon(Icons.description_outlined, color: isSelected ? secondaryColor : Colors.grey.shade600),
+                        Icon(Icons.description_outlined, color: isSelected ? accent : Colors.grey.shade600),
                         const SizedBox(height: 4),
                         Text(t.name[0].toUpperCase() + t.name.substring(1),
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? secondaryColor : Colors.grey.shade700)),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? accent : Colors.grey.shade700)),
                       ]),
                     ),
                   ),
@@ -185,15 +186,15 @@ class _ResumeBuilderScreenState extends ConsumerState<ResumeBuilderScreen> {
     );
   }
 
-Widget _personalInfoCard(Color primaryColor) {
+Widget _personalInfoCard(Color primary) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.person, color: primaryColor),
+            Icon(Icons.person, color: primary),
             const SizedBox(width: 12),
-            Text('Personal Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+            Text('Personal Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
           ]),
           const SizedBox(height: 16),
           TextField(controller: _nameController, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person_outline))),
@@ -210,15 +211,15 @@ Widget _personalInfoCard(Color primaryColor) {
     );
   }
 
-  Widget _summaryCard(Color primaryColor) {
+  Widget _summaryCard(Color primary) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.notes, color: primaryColor),
+            Icon(Icons.notes, color: primary),
             const SizedBox(width: 12),
-            Text('Professional Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+            Text('Professional Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
           ]),
           const SizedBox(height: 16),
           TextField(
@@ -232,15 +233,15 @@ Widget _personalInfoCard(Color primaryColor) {
     );
   }
 
-  Widget _skillsCard(Color primaryColor, Color secondaryColor) {
+  Widget _skillsCard(Color primary, Color accent) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.star_outline, color: primaryColor),
+            Icon(Icons.star_outline, color: primary),
             const SizedBox(width: 12),
-            Text('Skills', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+            Text('Skills', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
           ]),
           const SizedBox(height: 4),
           Text('Choose a category first, then add skills under it.',
@@ -260,7 +261,7 @@ Widget _personalInfoCard(Color primaryColor) {
               onPressed: _addCustomCategory,
               icon: const Icon(Icons.add),
               tooltip: 'Add category',
-              style: IconButton.styleFrom(backgroundColor: secondaryColor),
+              style: IconButton.styleFrom(backgroundColor: accent),
             ),
           ]),
           const SizedBox(height: 12),
@@ -273,7 +274,7 @@ Widget _personalInfoCard(Color primaryColor) {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton.filled(onPressed: _addSkill, icon: const Icon(Icons.add), style: IconButton.styleFrom(backgroundColor: secondaryColor)),
+            IconButton.filled(onPressed: _addSkill, icon: const Icon(Icons.add), style: IconButton.styleFrom(backgroundColor: accent)),
           ]),
           const SizedBox(height: 16),
           ..._skillsByCategory.entries.map((entry) {
@@ -282,7 +283,7 @@ Widget _personalInfoCard(Color primaryColor) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(entry.key, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: primaryColor)),
+                Text(entry.key, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: primary)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -329,16 +330,16 @@ Widget _personalInfoCard(Color primaryColor) {
     });
   }
 
-  Widget _experienceCard(Color primaryColor, Color secondaryColor) {
+  Widget _experienceCard(Color primary, Color accent) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Row(children: [
-              Icon(Icons.work_outline, color: primaryColor),
+              Icon(Icons.work_outline, color: primary),
               const SizedBox(width: 12),
-              Text('Experience', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+              Text('Experience', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
             ]),
             TextButton.icon(
               onPressed: () => _editExperience(),
@@ -499,15 +500,15 @@ Future<void> _editExperience({ExperienceItem? existing, int? index}) async {
     }
   }
 
-Widget _achievementsCard(Color primaryColor, Color secondaryColor) {
+Widget _achievementsCard(Color primary, Color accent) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.emoji_events_outlined, color: primaryColor),
+            Icon(Icons.emoji_events_outlined, color: primary),
             const SizedBox(width: 12),
-            Text('Key Achievements', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+            Text('Key Achievements', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
           ]),
           const SizedBox(height: 4),
           Text('Awards, top ranks, notable wins, recognition.',
@@ -521,7 +522,7 @@ Widget _achievementsCard(Color primaryColor, Color secondaryColor) {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                leading: const Icon(Icons.star, color: Color(0xFFEAB308)),
+                leading: Icon(Icons.star, color: Theme.of(context).colorScheme.secondary),
                 title: Text(entry.value),
                 trailing: IconButton(
                   icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
@@ -548,16 +549,16 @@ Widget _achievementsCard(Color primaryColor, Color secondaryColor) {
     });
   }
 
-Widget _educationCard(Color primaryColor, Color secondaryColor) {
+Widget _educationCard(Color primary, Color accent) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Row(children: [
-              Icon(Icons.school_outlined, color: primaryColor),
+              Icon(Icons.school_outlined, color: primary),
               const SizedBox(width: 12),
-              Text('Education', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+              Text('Education', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
             ]),
             TextButton.icon(
               onPressed: () => _editEducation(),
@@ -685,16 +686,16 @@ Future<void> _editEducation({EducationItem? existing, int? index}) async {
     }
   }
 
-Widget _certificationsCard(Color primaryColor, Color secondaryColor) {
+Widget _certificationsCard(Color primary, Color accent) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Row(children: [
-              Icon(Icons.verified_outlined, color: primaryColor),
+              Icon(Icons.verified_outlined, color: primary),
               const SizedBox(width: 12),
-              Text('Certifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primaryColor)),
+              Text('Certifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: primary)),
             ]),
             TextButton.icon(
               onPressed: () => _editCertification(),
@@ -819,3 +820,5 @@ class _ResumePreviewScreen extends StatelessWidget {
     );
   }
 }
+
+

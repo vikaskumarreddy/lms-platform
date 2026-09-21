@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/routes.dart';
-import '../../../../core/widgets/common_header.dart';
 import '../../../../core/providers/auth_provider.dart';
+import '../../../../core/providers/org_theme_provider.dart';
+import '../../../../core/widgets/glass_widgets.dart';
 
+/// Registration screen, restyled to match the glossy Login screen: aurora gradient
+/// backdrop + glowing orbs + a floating glass card, all themed from the org's colors.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
   @override
@@ -13,6 +16,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _loading = false;
+  bool _obscurePassword = true;
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -29,32 +33,77 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(orgThemeProvider);
     return Scaffold(
-      appBar: const CommonHeader(showBackButton: true, title: 'Create Account'),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person))),
-              const SizedBox(height: 16),
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)), keyboardType: TextInputType.emailAddress),
-              const SizedBox(height: 16),
-              TextField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
-              const SizedBox(height: 16),
-              TextField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock)), obscureText: true),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _handleRegister,
-                  child: _loading ? const CircularProgressIndicator(color: Colors.white) : const Text('Register'),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [...theme.primaryGradient, theme.background],
+                  stops: const [0.0, 0.45, 1.0],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
-              TextButton(onPressed: () => context.go(AppRoutes.login), child: const Text('Already have an account? Login')),
-            ],
+            ),
           ),
-        ),
+          Positioned(top: -50, left: -50, child: GlowOrb(color: theme.accent, size: 200)),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                        onPressed: () => context.canPop() ? context.pop() : context.go(AppRoutes.login),
+                      ),
+                      Text('Create Account', style: TextStyle(color: theme.onPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                    child: GlassPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          GlassField(controller: _nameController, label: 'Full Name', icon: Icons.person_outline_rounded, theme: theme),
+                          const SizedBox(height: 14),
+                          GlassField(controller: _emailController, label: 'Email', icon: Icons.email_outlined, theme: theme, keyboardType: TextInputType.emailAddress),
+                          const SizedBox(height: 14),
+                          GlassField(controller: _phoneController, label: 'Phone', icon: Icons.phone_outlined, theme: theme, keyboardType: TextInputType.phone),
+                          const SizedBox(height: 14),
+                          GlassField(
+                            controller: _passwordController,
+                            label: 'Password',
+                            icon: Icons.lock_outline_rounded,
+                            theme: theme,
+                            obscureText: _obscurePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: theme.textSecondary, size: 20),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          GradientButton(theme: theme, loading: _loading, label: 'Register', onPressed: _loading ? null : _handleRegister),
+                          TextButton(
+                            onPressed: () => context.go(AppRoutes.login),
+                            child: Text('Already have an account? Login', style: TextStyle(color: theme.textSecondary, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -67,12 +116,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     setState(() => _loading = true);
-    // Previously this screen never called the backend at all and just
-    // navigated to Home directly, meaning "registered" users had no real
-    // account, no token, and no session -- a fresh app restart (or even the
-    // very next screen) would find no stored credentials. Registration now
-    // goes through the same auth provider as login so a real session is
-    // created and persisted.
     final success = await ref.read(mobileAuthProvider.notifier).register(
       _nameController.text.trim(),
       _emailController.text.trim(),

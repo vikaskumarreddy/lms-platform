@@ -10,4 +10,7 @@ import java.util.List;
 public interface MediaItemRepository extends JpaRepository<MediaItem, Long> {
     List<MediaItem> findAllByOrderByCreatedAtDesc();
     List<MediaItem> findAllByMediaTypeOrderByCreatedAtDesc(String mediaType);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(m.storedSize), 0) FROM MediaItem m WHERE m.mediaType = :mediaType")
+    long sumStoredSizeByMediaType(@org.springframework.data.repository.query.Param("mediaType") String mediaType);
 }

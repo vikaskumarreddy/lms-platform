@@ -62,4 +62,79 @@ class NotificationItem {
     if (description != null && description!.isNotEmpty) fields['Description'] = description;
     return fields;
   }
+
+  bool get isReminder =>
+      type.toLowerCase() == 'reminder' ||
+      title.toLowerCase().contains('reminder') ||
+      (actionUrl != null && actionUrl!.contains('reminders'));
+
+  bool get isPlacement =>
+      type.toLowerCase() == 'placement' ||
+      title.toLowerCase().contains('placement') ||
+      title.toLowerCase().contains('drive') ||
+      (actionUrl != null && actionUrl!.contains('placement'));
+
+  bool get isExam =>
+      type.toLowerCase() == 'exam' ||
+      title.toLowerCase().contains('exam') ||
+      (actionUrl != null && actionUrl!.contains('exam'));
+
+  bool get isAssignment =>
+      type.toLowerCase() == 'assignment' ||
+      title.toLowerCase().contains('assignment') ||
+      (actionUrl != null && actionUrl!.contains('assignment'));
+
+  bool get isCourse =>
+      type.toLowerCase() == 'course' ||
+      title.toLowerCase().contains('course') ||
+      (actionUrl != null && actionUrl!.contains('course'));
+
+  String get categoryBadgeText {
+    if (isReminder) return 'REMINDER';
+    if (isPlacement) return 'PLACEMENT DRIVE';
+    if (isExam) return 'EXAM ALERT';
+    if (isAssignment) return 'ASSIGNMENT';
+    if (isCourse) return 'COURSE UPDATE';
+    if (type.toLowerCase() == 'announcement') return 'ANNOUNCEMENT';
+    return 'LMS NOTIFICATION';
+  }
+}
+
+/// Extension to ensure category getters are accessible across all compilation modes and hot restarts
+extension NotificationItemCategory on NotificationItem {
+  bool get isReminderItem =>
+      type.toLowerCase() == 'reminder' ||
+      title.toLowerCase().contains('reminder') ||
+      (actionUrl != null && actionUrl!.contains('reminders'));
+
+  bool get isPlacementItem =>
+      type.toLowerCase() == 'placement' ||
+      title.toLowerCase().contains('placement') ||
+      title.toLowerCase().contains('drive') ||
+      (actionUrl != null && actionUrl!.contains('placement'));
+
+  bool get isExamItem =>
+      type.toLowerCase() == 'exam' ||
+      title.toLowerCase().contains('exam') ||
+      (actionUrl != null && actionUrl!.contains('exam'));
+
+  bool get isAssignmentItem =>
+      type.toLowerCase() == 'assignment' ||
+      title.toLowerCase().contains('assignment') ||
+      (actionUrl != null && actionUrl!.contains('assignment'));
+
+  bool get isCourseItem =>
+      type.toLowerCase() == 'course' ||
+      title.toLowerCase().contains('course') ||
+      (actionUrl != null && actionUrl!.contains('course'));
+
+  String get badgeText {
+    if (isReminder) return 'REMINDER';
+    if (isPlacement) return 'PLACEMENT DRIVE';
+    if (isExam) return 'EXAM ALERT';
+    if (isAssignment) return 'ASSIGNMENT';
+    if (isCourse) return 'COURSE UPDATE';
+    if (type.toLowerCase() == 'announcement') return 'ANNOUNCEMENT';
+    return 'LMS NOTIFICATION';
+  }
 }

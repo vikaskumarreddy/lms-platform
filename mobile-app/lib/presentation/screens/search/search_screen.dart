@@ -52,7 +52,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     label: Text(filter),
                     selected: isSelected,
                     onSelected: (_) => setState(() => _selectedFilter = filter),
-                    selectedColor: const Color(0xFFEAB308),
+                    selectedColor: Theme.of(context).colorScheme.secondary,
                     backgroundColor: Colors.grey.shade100,
                     labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.grey.shade700),
                   ),

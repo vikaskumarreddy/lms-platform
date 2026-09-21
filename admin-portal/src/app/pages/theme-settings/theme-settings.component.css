@@ -1,0 +1,78 @@
+.page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:20px; flex-wrap:wrap; }
+.page-head h1 { font-size:24px; font-weight:700; margin:0 0 8px; }
+.intro { color:var(--text-secondary); margin:0; max-width:640px; line-height:1.6; }
+.head-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+.note {
+  background:#EFF6FF; border:1px solid #BFDBFE; color:#1E3A8A;
+  padding:12px 16px; border-radius:10px; font-size:13px; margin-bottom:20px; max-width:1100px;
+}
+.alert { padding:12px 14px; border-radius:8px; font-size:14px; margin-bottom:16px; max-width:1100px; }
+.alert-ok { background:#DCFCE7; color:#166534; }
+.alert-error { background:#FEE2E2; color:#991B1B; }
+
+.theme-layout { display:grid; grid-template-columns:1fr 420px; gap:24px; align-items:start; }
+
+.theme-form { display:flex; flex-direction:column; gap:16px; }
+.group-card { background:var(--surface); color:var(--text); border:1px solid var(--border-light); border-radius:14px; padding:16px 18px; }
+.group-card h3 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--primary); margin:0 0 12px; }
+
+.color-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--border-light); }
+.color-row:last-child { border-bottom:none; }
+.color-row label { font-size:13px; font-weight:600; color:var(--text); }
+.color-input { display:flex; align-items:center; gap:8px; }
+.color-input input[type="color"] { width:40px; height:32px; border:1px solid var(--border-light); border-radius:6px; padding:2px; cursor:pointer; background:var(--surface); }
+.hex-field { width:96px; padding:6px 10px; border:1px solid var(--border-light); border-radius:6px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--surface); color:var(--text); }
+.hex-field:focus { outline:none; border-color:var(--primary); }
+
+/* ---- Live preview: a self-contained mock, scoped to --p-* so it never leaks into the real theme ---- */
+.theme-preview-pane { position:sticky; top:20px; }
+.preview-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:8px; }
+
+.mock-app {
+  display:flex; border-radius:16px; overflow:hidden; border:1px solid #E2E8F0; box-shadow:0 4px 20px rgba(0,0,0,.08);
+  height:520px; background:var(--p-bg);
+}
+.mock-sidebar {
+  width:56px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:10px; padding:14px 0;
+  background:linear-gradient(180deg, var(--p-sidebar-start) 0%, var(--p-sidebar-mid) 60%, var(--p-sidebar-end) 100%);
+}
+.mock-logo { width:28px; height:28px; border-radius:8px; background:rgba(255,255,255,.9); display:flex; align-items:center; justify-content:center; font-size:15px; margin-bottom:8px; }
+.mock-nav-item { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; color:rgba(255,255,255,.8); }
+.mock-nav-item.active { background:rgba(255,255,255,.22); }
+
+.mock-content { flex:1; padding:16px; overflow-y:auto; }
+.mock-h1 { font-size:16px; font-weight:700; color:var(--p-text); margin-bottom:12px; }
+.mock-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.mock-card { background:var(--p-surface); border:1px solid var(--p-border); border-radius:10px; padding:10px; display:flex; align-items:center; gap:8px; }
+.mock-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff; flex-shrink:0; }
+.mock-stat { font-size:15px; font-weight:700; color:var(--p-text); line-height:1.1; }
+.mock-stat-label { font-size:9px; color:var(--p-text-secondary); margin-top:2px; }
+
+.mock-panel { background:var(--p-surface); border:1px solid var(--p-border); border-radius:10px; padding:12px; margin-bottom:12px; }
+.mock-panel-title { font-size:12px; font-weight:700; color:var(--p-text); margin-bottom:8px; }
+.mock-bar { height:10px; border-radius:6px; background:var(--p-surface-alt); margin-bottom:6px; overflow:hidden; }
+.mock-bar-fill { height:100%; border-radius:6px; }
+
+.mock-badges { display:flex; gap:6px; flex-wrap:wrap; }
+.mock-badge { padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; }
+
+/* ---- Mobile app mini-preview: a rounded phone silhouette showing the app's own colors ---- */
+.mock-phone { border-radius:24px; overflow:hidden; border:1px solid #E2E8F0; box-shadow:0 4px 20px rgba(0,0,0,.1); max-width:280px; margin:0 auto; }
+.mock-phone-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; }
+.mock-phone-title { font-size:14px; font-weight:700; }
+.mock-phone-icon { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; }
+.mock-phone-body { padding:14px; display:flex; flex-direction:column; gap:10px; min-height:120px; }
+.mock-phone-card { border-radius:12px; padding:12px; }
+.mock-phone-card-title { font-size:13px; font-weight:700; }
+.mock-phone-card-sub { font-size:11px; margin-top:2px; }
+.mock-phone-navbar { padding:10px 14px 16px; display:flex; justify-content:center; }
+.mock-phone-nav-pill { display:flex; align-items:center; gap:10px; border-radius:999px; padding:8px 14px; box-shadow:0 6px 16px rgba(0,0,0,.25); }
+.mock-phone-nav-icon { font-size:14px; opacity:.85; }
+.mock-phone-nav-bubble { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 4px 10px rgba(0,0,0,.3); border:2px solid #fff; }
+
+@media(max-width:1024px) {
+  .theme-layout { grid-template-columns:1fr; }
+  .theme-preview-pane { position:static; }
+  .mock-app { height:420px; }
+}

@@ -8,4 +8,7 @@ import java.util.List;
 public interface PdfDocumentRepository extends JpaRepository<PdfDocument, Long> {
 
     List<PdfDocument> findAllByOrderByCreatedAtDesc();
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.storedSize), 0) FROM PdfDocument p")
+    long sumStoredSize();
 }

@@ -10,6 +10,7 @@ import { FacultyComponent } from './pages/faculty/faculty.component';
 import { PlacementsComponent } from './pages/placements/placements.component';
 import { PaymentsComponent } from './pages/payments/payments.component';
 import { SettingsComponent } from './pages/settings/settings.component';
+import { ThemeSettingsComponent } from './pages/theme-settings/theme-settings.component';
 import { CalendarEventsComponent } from './pages/calendar-events/calendar-events.component';
 import { AssignmentsAdminComponent } from './pages/assignments-admin/assignments-admin.component';
 import { ExamsAdminComponent } from './pages/exams-admin/exams-admin.component';
@@ -77,7 +78,10 @@ export const routes: Routes = [
       // The tenant's own Razorpay credentials — fees are collected into the
       // institute's account, so the keys are per-organization, not per-deployment.
       { path: 'payment-settings', component: PaymentSettingsComponent },
-      { path: 'settings', component: SettingsComponent }
+      { path: 'settings', component: SettingsComponent },
+      // Per-organization brand colors. Guarded like Account: any org admin (platform
+      // super admin or the tenant's own INSTITUTE_ADMIN) can restyle their portal.
+      { path: 'theme-settings', component: ThemeSettingsComponent, canActivate: [orgAdminGuard] }
     ]
   },
   { path: '**', redirectTo: '/login' }

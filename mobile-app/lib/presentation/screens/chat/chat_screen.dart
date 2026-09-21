@@ -38,7 +38,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isStudent ? const Color(0xFF0F172A) : Colors.grey.shade200,
+                      color: isStudent ? Theme.of(context).colorScheme.primary : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
@@ -73,7 +73,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white, size: 20),
                     onPressed: () {

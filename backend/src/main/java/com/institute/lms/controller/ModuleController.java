@@ -1,12 +1,15 @@
 package com.institute.lms.controller;
 
+import com.institute.lms.dto.course.BulkImportResult;
 import com.institute.lms.dto.course.ModuleLessonsDTO;
 import com.institute.lms.dto.course.ModuleRequest;
 import com.institute.lms.entity.Module;
 import com.institute.lms.service.CourseService;
 import com.institute.lms.util.UserContext;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/modules")
@@ -46,6 +49,19 @@ public class ModuleController {
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * Admin portal: bulk-create modules — and any lessons nested in a module row —
+     * from a JSON or Excel upload. Title and description are mandatory; rows
+     * missing an order index get the next free one automatically. A row that fails
+     * validation is skipped and reported rather than failing the whole upload.
+     */
+    @PostMapping(value = "/bulk-import/course/{courseId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<BulkImportResult> bulkImportModules(@PathVariable Long courseId,
+                                                             @RequestParam("file") MultipartFile file) {
+        userContext.requireOrgAdminOrFaculty();
+        return ResponseEntity.ok(courseService.importModules(courseId, file));
     }
 
     /** Admin portal: delete a single module (and its lessons) in place. */

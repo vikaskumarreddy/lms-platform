@@ -14,4 +14,6 @@ public interface ExamSubmissionRepository extends JpaRepository<ExamSubmission, 
     Optional<ExamSubmission> findByUserIdAndExamId(Long userId, Long examId);
     long countByExamId(Long examId);
     long countByExamIdAndIsGradedTrue(Long examId);
+    long countByIsGradedFalse();
+    long countByIsGradedTrue();
 }

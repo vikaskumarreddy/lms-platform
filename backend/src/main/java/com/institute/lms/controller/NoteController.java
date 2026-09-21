@@ -33,6 +33,12 @@ public class NoteController {
         return noteRepository.findByUserIdAndLessonId(userId, lessonId);
     }
 
+    @GetMapping("/user/{userId}/topic/{topicId}")
+    public List<Note> getNotesForTopic(@PathVariable Long userId, @PathVariable Long topicId) {
+        userContext.requireSelfOrAdmin(userId);
+        return noteRepository.findByUserIdAndTopicId(userId, topicId);
+    }
+
     @PostMapping
     public ResponseEntity<Note> createNote(@RequestBody Map<String, Object> body) {
         Long userId = body.get("userId") != null ? ((Number) body.get("userId")).longValue() : null;
@@ -44,6 +50,7 @@ public class NoteController {
         Note note = new Note();
         note.setUserId(userId);
         note.setLessonId(body.get("lessonId") != null ? ((Number) body.get("lessonId")).longValue() : null);
+        note.setTopicId(body.get("topicId") != null ? ((Number) body.get("topicId")).longValue() : null);
         note.setTitle(body.getOrDefault("title", "Untitled Note").toString());
         note.setContent(body.getOrDefault("content", "").toString());
         return ResponseEntity.ok(noteRepository.save(note));
@@ -56,6 +63,9 @@ public class NoteController {
                     userContext.requireSelfOrAdmin(existing.getUserId());
                     if (body.containsKey("title")) existing.setTitle(String.valueOf(body.get("title")));
                     if (body.containsKey("content")) existing.setContent(String.valueOf(body.get("content")));
+                    if (body.containsKey("topicId")) {
+                        existing.setTopicId(body.get("topicId") != null ? ((Number) body.get("topicId")).longValue() : null);
+                    }
                     return ResponseEntity.ok(noteRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

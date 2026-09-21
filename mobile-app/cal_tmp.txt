@@ -1,0 +1,558 @@
+import 'package:flutter/material.dart';
+import '../../../core/services/api_service.dart';
+import '../../../data/models/event_model.dart';
+import '../../../core/widgets/common_header.dart';
+import '../browser/in_app_browser_screen.dart';
+
+/// Palette matching the reference design.
+const Color kCalGreen = Color(0xFFA3B07C);
+const Color kCalGreenDark = Color(0xFF8B9A5B);
+const Color kCalCream = Color(0xFFF5EDDE);
+const Color kCalOrange = Color(0xFFF09E4C);
+const Color kCalPurple = Color(0xFF8B5CF6);
+
+class CalendarScreen extends StatefulWidget {
+  const CalendarScreen({super.key});
+  @override
+  State<CalendarScreen> createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends State<CalendarScreen> {
+  late DateTime _currentMonth;
+  late DateTime _selectedDate;
+  bool _loading = true;
+  late final PageController _monthPager;
+  late final DateTime _pagerBaseMonth;
+
+  final List<String> _monthNames = const [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  final List<String> _weekdays = const ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  List<_CalendarEvent> _allEvents = [];
+  Map<int, bool> _attendanceByEventId = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _currentMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    _selectedDate = DateTime.now();
+    _pagerBaseMonth =
+        DateTime(DateTime.now().year, DateTime.now().month - 60, 1);
+    _monthPager = PageController(initialPage: 60);
+    _loadEvents();
+  }
+
+  @override
+  void dispose() {
+    _monthPager.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadEvents() async {
+    List<EventModel> events;
+    try {
+      events = await ApiService().getEvents();
+    } catch (_) {
+      events = [];
+    }
+
+    final attendance = await ApiService().getAttendanceHistory();
+    final history = (attendance['history'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    _attendanceByEventId = {
+      for (final h in history)
+        if (h['eventId'] != null) (h['eventId'] as num).toInt(): h['present'] == true,
+    };
+
+    if (!mounted) return;
+    setState(() {
+      _allEvents = _groupByMonth(events);
+      _loading = false;
+    });
+  }
+
+  List<_CalendarEvent> _groupByMonth(List<EventModel> events) {
+    final grouped = <String, List<_CalendarEvent>>{};
+    for (final e in events) {
+      final dt = DateTime.tryParse(e.startTime ?? '');
+      if (dt == null) continue;
+      final monthKey = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+      final day = dt.day.toString().padLeft(2, '0');
+      final dateLabel = e.date;
+      final item = _toEventItem(e, dt);
+      final group = grouped.putIfAbsent(monthKey, () => []);
+
+      final existingIndex = group.indexWhere((g) => g.day == day);
+      if (existingIndex >= 0) {
+        group[existingIndex].items.add(item);
+      } else {
+        group.add(_CalendarEvent(
+          day: day,
+          date: dateLabel,
+          monthKey: monthKey,
+          items: [item],
+        ));
+      }
+    }
+    grouped.forEach((key, list) => list.sort((a, b) => a.day.compareTo(b.day)));
+    return grouped.values.expand((g) => g).toList();
+  }
+
+  Color _eventColor(String? type) {
+    switch ((type ?? '').toLowerCase()) {
+      case 'exam':
+      case 'test':
+        return Colors.red;
+      case 'placement':
+      case 'drive':
+        return Colors.green;
+      case 'holiday':
+        return Colors.purple;
+      case 'interview':
+        return Colors.orange;
+      case 'class':
+      case 'workshop':
+      case 'webinar':
+      case 'live':
+        return Colors.blue;
+      default:
+        return const Color(0xFF10B981);
+    }
+  }
+
+  _EventItem _toEventItem(EventModel e, DateTime dt) {
+    final now = DateTime.now();
+    final isPast = dt.isBefore(now);
+    final attendance = _attendanceByEventId[e.id];
+    String status;
+    if (attendance != null) {
+      status = attendance ? 'Attended' : 'Missed';
+    } else if (isPast) {
+      status = 'Completed';
+    } else {
+      status = 'Upcoming';
+    }
+    return _EventItem(
+      title: e.title,
+      time: e.time.isEmpty ? 'All Day' : e.time,
+      color: _eventColor(e.eventType),
+      type: e.eventType ?? 'Event',
+      isPast: isPast,
+      meetLink: e.meetLink ?? '',
+      status: status,
+    );
+  }
+
+  String get _monthKey => '${_currentMonth.year}-${_currentMonth.month.toString().padLeft(2, '0')}';
+
+  List<_CalendarEvent> get _currentMonthEvents {
+    return _allEvents.where((e) => e.monthKey == _monthKey).toList();
+  }
+
+  void _goToPreviousMonth() => _animateToMonth(DateTime(_currentMonth.year, _currentMonth.month - 1, 1));
+
+  void _goToNextMonth() => _animateToMonth(DateTime(_currentMonth.year, _currentMonth.month + 1, 1));
+
+  void _selectDay(DateTime day) => setState(() => _selectedDate = day);
+
+  DateTime _monthForPage(int page) => DateTime(_pagerBaseMonth.year, _pagerBaseMonth.month + page, 1);
+
+  void _onMonthPageChanged(int page) {
+    final month = _monthForPage(page);
+    setState(() {
+      _currentMonth = month;
+      final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+      final clampedDay = _selectedDate.day.clamp(1, daysInMonth);
+      _selectedDate = DateTime(month.year, month.month, clampedDay);
+    });
+  }
+
+  void _animateToMonth(DateTime month) {
+    final diff = (month.year - _pagerBaseMonth.year) * 12 + (month.month - _pagerBaseMonth.month);
+    if (_monthPager.hasClients) {
+      _monthPager.animateToPage(diff, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    } else {
+      setState(() => _currentMonth = DateTime(month.year, month.month, 1));
+    }
+  }
+
+  void _openLink(String url, String title) {
+    if (url.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => InAppBrowserScreen(url: url, title: title),
+      ),
+    );
+  }
+
+  // ---------- helpers for the grid ----------
+
+  /// Items scheduled on the currently selected date.
+  List<_EventItem> get _selectedDayItems {
+    final key = _selectedDate.day.toString().padLeft(2, '0');
+    for (final e in _allEvents) {
+      if (e.monthKey == _monthKey && e.day == key) return e.items;
+    }
+    return const [];
+  }
+
+  Map<int, List<_EventItem>> get _monthEventsByDay {
+    final map = <int, List<_EventItem>>{};
+    for (final e in _currentMonthEvents) {
+      map[int.parse(e.day)] = e.items;
+    }
+    return map;
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context) {
+    return CommonHeaderScaffold(
+      subtitle: 'Calendar',
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: kCalGreenDark))
+          : Stack(
+              children: [
+                Column(
+                  children: [
+                    _buildMonthCard(),
+                    const SizedBox(height: 16),
+                    Expanded(child: _buildTodayPanel()),
+                  ],
+                ),
+                Positioned(
+                  right: 20,
+                  bottom: 24,
+                  child: FloatingActionButton(
+                    backgroundColor: kCalGreenDark,
+                    foregroundColor: Colors.white,
+                    elevation: 6,
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Create event coming soon')));
+                    },
+                    child: const Icon(Icons.add, size: 30),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  // ---------- month grid card ----------
+
+  Widget _buildMonthCard() {
+    final eventsByDay = _monthEventsByDay;
+    final first = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final daysInMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
+    final leadingBlanks = first.weekday % 7;
+    final today = DateTime.now();
+    final totalCells = leadingBlanks + daysInMonth;
+    final rows = (totalCells / 7).ceil();
+
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final v = details.primaryVelocity ?? 0;
+        if (v < -200) {
+          _goToNextMonth();
+        } else if (v > 200) {
+          _goToPreviousMonth();
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF9CA97F),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${_monthNames[_currentMonth.month]} ${_currentMonth.year}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: _weekdays
+                  .map((d) => Expanded(
+                        child: Center(
+                          child: Text(d,
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.75),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 10),
+            const Divider(color: Colors.white24, height: 1, thickness: 0.6),
+            const SizedBox(height: 12),
+            ...List.generate(rows, (row) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: List.generate(7, (col) {
+                    final index = row * 7 + col - leadingBlanks;
+                    if (index < 0 || index >= daysInMonth) {
+                      return const Expanded(child: SizedBox(height: 40));
+                    }
+                    final day = index + 1;
+                    final date =
+                        DateTime(_currentMonth.year, _currentMonth.month, day);
+                    final isSelected = _sameDay(date, _selectedDate);
+                    final dayItems = eventsByDay[day] ?? const [];
+                    final hasEvent = dayItems.isNotEmpty;
+
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => _selectDay(date),
+                        behavior: HitTestBehavior.opaque,
+                        child: SizedBox(
+                          height: 40,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF7D8A5C)
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '$day',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                height: 5,
+                                child: hasEvent
+                                    ? Container(
+                                        width: 5,
+                                        height: 5,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              );
+            }),
+            const SizedBox(height: 2),
+            Container(
+              width: 90,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------- today / selected-day panel ----------
+
+  Widget _buildTodayPanel() {
+    final items = _selectedDayItems;
+    final isToday = _sameDay(_selectedDate, DateTime.now());
+    final label = isToday
+        ? 'Today'
+        : '${_weekdays[_selectedDate.weekday % 7]}, ${_selectedDate.day} ${_monthNames[_selectedDate.month - 1]}';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCalCream,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF3A3A2E))),
+          const SizedBox(height: 4),
+          Text(
+            items.isEmpty ? 'No events scheduled' : '${items.length} event${items.length > 1 ? 's' : ''}',
+            style: TextStyle(fontSize: 13, color: Colors.brown.shade400),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: items.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.event_busy, size: 40, color: Colors.brown.shade300),
+                        const SizedBox(height: 8),
+                        Text('Nothing planned for this day',
+                            style: TextStyle(color: Colors.brown.shade400, fontSize: 13)),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) => _buildTimelineEvent(items[i]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildTimelineEvent(_EventItem item) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.brown.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 58,
+            child: Text(item.time,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF3A3A2E))),
+          ),
+          Column(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.only(top: 3),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: item.color),
+              ),
+              Container(width: 2, height: 52, color: item.color.withOpacity(0.3)),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF3A3A2E))),
+                const SizedBox(height: 4),
+                Text(item.type, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _statusColor(item.status).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(item.status,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _statusColor(item.status))),
+                    ),
+                    const Spacer(),
+                    if (item.meetLink.isNotEmpty && !item.isPast)
+                      GestureDetector(
+                        onTap: () => _openLink(item.meetLink, item.title),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: kCalGreenDark,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text('Join',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Attended':
+        return const Color(0xFF4CAF50);
+      case 'Missed':
+        return const Color(0xFFE05252);
+      case 'Completed':
+        return Colors.grey.shade600;
+      default:
+        return kCalOrange;
+    }
+  }
+}
+
+class _CalendarEvent {
+  final String day;
+  final String date;
+  final String monthKey;
+  final List<_EventItem> items;
+  _CalendarEvent({required this.day, required this.date, required this.monthKey, required this.items});
+}
+
+class _EventItem {
+  final String title;
+  final String time;
+  final Color color;
+  final String type;
+  final bool isPast;
+  final String meetLink;
+  final String status;
+  _EventItem({required this.title, required this.time, required this.color, required this.type, required this.isPast, required this.meetLink, required this.status});
+}

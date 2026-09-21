@@ -12,11 +12,11 @@ class CertificatePdfGenerator {
     required String courseName,
     String? duration,
     required String credentialId,
-    required String issueDate,
+    required String issueDate, int accentColor = 0xFFEAB308, int primaryColor = 0xFF0F172A,
   }) async {
     final doc = pw.Document();
-    final gold = PdfColor.fromInt(0xFFEAB308);
-    final navy = PdfColor.fromInt(0xFF0F172A);
+    final gold = PdfColor.fromInt(accentColor);
+    final navy = PdfColor.fromInt(primaryColor);
 
     doc.addPage(
       pw.Page(

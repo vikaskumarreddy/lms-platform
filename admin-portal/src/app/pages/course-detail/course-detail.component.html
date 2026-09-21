@@ -16,11 +16,16 @@
         </span>
       </p>
     </div>
+    <span style="flex:1"></span>
+    <button class="btn btn-secondary" (click)="openEditCourse()">✏️ Edit Course</button>
   </div>
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h2 style="font-size:16px;font-weight:700;color:#0F172A;">📦 Modules ({{course.modules.length}})</h2>
-    <button class="btn btn-primary" (click)="openAddModule()">+ Add Module</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" (click)="openBulkImportModules()">⬆ Import Modules</button>
+      <button class="btn btn-primary" (click)="openAddModule()">+ Add Module</button>
+    </div>
   </div>
 
   <div *ngFor="let m of course.modules" class="card" style="margin-bottom:16px;padding:0;overflow:hidden;">
@@ -32,6 +37,8 @@
         <p style="color:#64748B;font-size:12px;">{{m.lessons.length}} lesson(s) · order {{m.orderIndex}}</p>
       </div>
       <span *ngIf="m.isLocked" class="badge badge-warning">🔒 Locked</span>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); openAddLesson(m)">+ Add Lesson</button>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); openBulkImportLessons(m)">⬆ Import</button>
       <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); openEditModule(m)">Edit</button>
       <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" (click)="$event.stopPropagation(); deleteModule(m)">Delete</button>
       <span style="font-size:14px;color:#94A3B8;">{{m.expanded ? '▲' : '▼'}}</span>
@@ -41,8 +48,8 @@
       <p *ngIf="m.description" style="color:#475569;font-size:13px;margin-bottom:12px;">{{m.description}}</p>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h4 style="font-weight:700;font-size:13px;color:#334155;">📄 Lessons</h4>
-        <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="openAddLesson(m)">+ Add Lesson</button>
+        <h4 style="font-weight:700;font-size:13px;color:#334155;">📄 Lessons ({{m.lessons.length}})</h4>
+        <span style="font-size:11px;color:#94A3B8;">Add or import lessons from the module header above</span>
       </div>
 
       <div *ngFor="let l of m.lessons" class="card" style="margin-bottom:10px;padding:12px 16px;background:white;">
@@ -63,12 +70,63 @@
           <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" (click)="deleteLesson(l)">Delete</button>
         </div>
       </div>
-      <div *ngIf="m.lessons.length === 0" style="color:#94A3B8;font-size:12px;text-align:center;padding:12px;">No lessons yet. Click "+ Add Lesson".</div>
+      <div *ngIf="m.lessons.length === 0" style="color:#94A3B8;font-size:12px;text-align:center;padding:12px;">No lessons yet. Click "+ Add Lesson" in the module header.</div>
     </div>
   </div>
 
   <div *ngIf="course.modules.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;">
     No modules yet. Click "+ Add Module" to start building this course.
+  </div>
+</div>
+
+<!-- Edit Course Modal — title, description, thumbnail, plan, instructor, published -->
+<div class="modal-overlay" *ngIf="showCourseModal" (click)="closeCourseModal()">
+  <div class="modal-content" style="width:92%;max-width:600px;max-height:90vh;overflow-y:auto;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;font-weight:700;">Edit Course</h2>
+      <button class="btn btn-secondary" (click)="closeCourseModal()">✕</button>
+    </div>
+    <form (ngSubmit)="saveCourse()">
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Course Title</label>
+        <input type="text" [(ngModel)]="courseForm.title" name="cTitle" required class="form-input" placeholder="Course title">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Description</label>
+        <textarea [(ngModel)]="courseForm.description" name="cDesc" rows="4" class="form-input" placeholder="What this course covers"></textarea>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="form-label">Thumbnail URL</label>
+        <input type="text" [(ngModel)]="courseForm.thumbnailUrl" name="cThumb" class="form-input" placeholder="https://example.com/image.jpg">
+      </div>
+      <div *ngIf="courseForm.thumbnailUrl" style="margin-bottom:14px;">
+        <img [src]="courseForm.thumbnailUrl" alt="Thumbnail preview" style="max-width:220px;max-height:120px;border-radius:8px;object-fit:cover;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">Instructor</label>
+          <select [(ngModel)]="courseForm.instructorId" name="cInstructor" class="form-input">
+            <option [ngValue]="null">No instructor assigned</option>
+            <option *ngFor="let f of faculty" [ngValue]="f.id">{{f.name}} ({{f.email}})</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Subscription Plan</label>
+          <select [(ngModel)]="courseForm.planId" name="cPlan" class="form-input">
+            <option [ngValue]="null">No plan (free access)</option>
+            <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <input type="checkbox" [(ngModel)]="courseForm.isPublished" name="cPublished" style="width:18px;height:18px;">
+        <label style="margin-bottom:0;font-size:13px;font-weight:600;">Published (visible to students)</label>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" (click)="closeCourseModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="savingCourse">{{savingCourse ? 'Saving...' : 'Update Course'}}</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -248,6 +306,72 @@
     </div>
     <div *ngIf="viewMediaIsPdf">
       <iframe [src]="viewMediaSafeUrl" style="width:100%;height:75vh;border:1px solid #E2E8F0;border-radius:8px;" title="PDF viewer"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk import modal — modules (course level) or lessons (module level) -->
+<div class="modal-overlay" *ngIf="showBulkImport" (click)="closeBulkImport()">
+  <div class="modal-content" style="width:92%;max-width:640px;max-height:90vh;overflow-y:auto;" (click)="$event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:700;">{{bulkImportTarget === 'modules' ? 'Import Modules' : 'Import Lessons'}}</h2>
+      <button class="btn btn-secondary" (click)="closeBulkImport()">✕</button>
+    </div>
+
+    <p style="color:#64748B;font-size:13px;margin-bottom:12px;">
+      <ng-container *ngIf="bulkImportTarget === 'modules'; else lessonTarget">
+        Each row becomes a module in <strong>{{course?.title}}</strong>.
+      </ng-container>
+      <ng-template #lessonTarget>
+        Each row becomes a lesson in <strong>{{bulkImportModule?.title}}</strong>.
+      </ng-template>
+      Upload a JSON or Excel (.xlsx/.xls) file, up to 500 rows. Everything imported is created exactly as if it had been added by hand.
+    </p>
+
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#475569;">
+      <ng-container *ngIf="bulkImportTarget === 'modules'; else lessonHelp">
+        <div style="font-weight:700;margin-bottom:6px;">Columns / fields</div>
+        <div>• <b>Title</b> and <b>Description</b> — both mandatory</div>
+        <div>• Optional: Icon, Color, Order Index, Is Locked, Lessons (JSON array in the cell)</div>
+        <div style="margin-top:6px;">Rows without an Order Index are appended after the course's last module automatically.</div>
+      </ng-container>
+      <ng-template #lessonHelp>
+        <div style="font-weight:700;margin-bottom:6px;">Columns / fields</div>
+        <div>• <b>Title</b> — mandatory</div>
+        <div>• Optional: Heading, Content, Video URL, Video Source, Video ID, Thumbnail URL, PDF Notes URL, PDF Source, PDF Note ID, Order Index, Duration Minutes, Is Locked, Is Mandatory</div>
+        <div>• A <b>Module</b> column routes a row to another module of this course (module title or order index)</div>
+        <div style="margin-top:6px;">Rows without an Order Index are appended after the module's last lesson automatically. For uploaded media use Video Source / PDF Source = SELF together with Video ID / PDF Note ID.</div>
+      </ng-template>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+      <input #bulkFile type="file" accept=".json,.xlsx,.xls,.xlsm" hidden (change)="onBulkFilePicked($event)">
+      <button class="btn btn-secondary" (click)="bulkFile.click()">Choose file</button>
+      <span style="font-size:13px;color:#64748B;">{{bulkImportFile ? bulkImportFile.name : 'No file selected'}}</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" style="font-size:12px;" (click)="downloadImportTemplate()">⬇ Sample JSON</button>
+    </div>
+
+    <div *ngIf="bulkImportError" style="padding:10px 12px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:13px;margin-bottom:14px;">
+      ⚠️ {{bulkImportError}}
+    </div>
+
+    <div *ngIf="bulkImportResult" style="padding:12px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"
+         [style.background]="bulkImportResult.failed ? '#FEF3C7' : '#DCFCE7'"
+         [style.color]="bulkImportResult.failed ? '#92400E' : '#166534'">
+      <div style="font-weight:700;margin-bottom:4px;">
+        {{bulkImportResult.imported}} imported<ng-container *ngIf="bulkImportResult.lessonsImported"> (plus {{bulkImportResult.lessonsImported}} lesson(s))</ng-container> · {{bulkImportResult.failed}} skipped
+      </div>
+      <div *ngIf="bulkImportResult.errors.length" style="max-height:180px;overflow-y:auto;margin-top:6px;">
+        <div *ngFor="let e of bulkImportResult.errors">• {{e}}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button class="btn btn-secondary" (click)="closeBulkImport()">Close</button>
+      <button class="btn btn-primary" [disabled]="bulkImporting || !bulkImportFile" (click)="runBulkImport()">
+        {{bulkImporting ? 'Importing...' : 'Start Import'}}
+      </button>
     </div>
   </div>
 </div>

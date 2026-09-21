@@ -5,10 +5,32 @@ import 'package:lms_student_app/data/models/course_section.dart';
 import 'package:lms_student_app/data/models/lesson.dart';
 import 'package:lms_student_app/data/models/assignment_model.dart';
 import 'package:lms_student_app/data/models/exam_model.dart';
+import 'package:lms_student_app/data/models/event_model.dart';
+import 'package:lms_student_app/data/models/mentor_model.dart';
 import 'package:lms_student_app/data/models/placement_drive_model.dart';
 import 'package:lms_student_app/data/models/bookmark_model.dart';
+import 'notifications_provider.dart';
 
+export 'org_theme_provider.dart';
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+
+
+/// The logged-in student's mentors (batch mentor + course instructors).
+final mentorsProvider = FutureProvider<List<MentorModel>>((ref) async {
+  final json = await ref.watch(apiServiceProvider).getMyMentors();
+  return json.map((item) => MentorModel.fromJson(item)).toList();
+});
+
+/// The student's study-time summary — totals plus a 12-point monthly series of
+/// {period, label, minutes} recorded from real lesson sessions.
+final studyTimeSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return ref.watch(apiServiceProvider).getStudyTimeSummary();
+});
+
+/// The next two events for the logged-in student, from the dashboard endpoint.
+final myUpcomingEventsProvider = FutureProvider<List<EventModel>>((ref) async {
+  return ref.watch(apiServiceProvider).getMyUpcomingEvents(limit: 2);
+});
 
 final coursesProvider = FutureProvider<List<CourseModel>>((ref) async {
   final api = ref.watch(apiServiceProvider);
@@ -78,3 +100,48 @@ final attendanceHistoryProvider = FutureProvider<Map<String, dynamic>>((ref) asy
   final api = ref.watch(apiServiceProvider);
   return api.getAttendanceHistory();
 });
+
+final certificatesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getCertificates();
+});
+
+final studentDashboardProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getStudentDashboard();
+});
+
+final interviewHistoryProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getMyInterviewHistory();
+});
+
+/// Global state indicating whether the student has hidden the main bottom navigation bar
+/// to use the platform in distraction-free mode.
+final shellNavBarHiddenProvider = StateProvider<bool>((ref) => false);
+
+/// Clears all in-memory student cached data in Riverpod providers so that
+/// logging out and logging in as another student immediately fetches that student's
+/// fresh data without needing to terminate or restart the application.
+void invalidateAllUserData(dynamic ref) {
+  ref.invalidate(shellNavBarHiddenProvider);
+  ref.invalidate(userProfileProvider);
+  ref.invalidate(coursesProvider);
+  ref.invalidate(mentorsProvider);
+  ref.invalidate(studyTimeSummaryProvider);
+  ref.invalidate(myUpcomingEventsProvider);
+  ref.invalidate(assignmentsProvider);
+  ref.invalidate(examsProvider);
+  ref.invalidate(placementDrivesProvider);
+  ref.invalidate(placementMetricsProvider);
+  ref.invalidate(placementOverviewProvider);
+  ref.invalidate(attendanceHistoryProvider);
+  ref.invalidate(certificatesProvider);
+  ref.invalidate(bookmarksProvider);
+  ref.invalidate(studentDashboardProvider);
+  ref.invalidate(interviewHistoryProvider);
+  ref.invalidate(notificationsProvider);
+  ref.invalidate(unreadCountProvider);
+}

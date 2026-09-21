@@ -10,6 +10,10 @@ class CourseModel {
   final int totalLessons;
   final int completedLessons;
 
+  /// Who teaches the course. Real data from the backend's {@code instructorName}
+  /// field, shown as the small caption above the course title.
+  final String instructorName;
+
   CourseModel({
     required this.id,
     required this.title,
@@ -19,6 +23,7 @@ class CourseModel {
     this.progress,
     this.totalLessons = 0,
     this.completedLessons = 0,
+    this.instructorName = '',
   });
 
   factory CourseModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +36,7 @@ class CourseModel {
       progress: _safeDouble(json['progress']),
       totalLessons: _safeInt(json['totalLessons']),
       completedLessons: _safeInt(json['completedLessons']),
+      instructorName: json['instructorName']?.toString() ?? '',
     );
   }
 

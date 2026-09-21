@@ -1,24 +1,34 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../core/services/api_service.dart';
 import '../../../data/models/question_model.dart';
 
-class QaScreen extends StatefulWidget {
+class QaScreen extends ConsumerStatefulWidget {
   const QaScreen({super.key});
   @override
-  State<QaScreen> createState() => _QaScreenState();
+  ConsumerState<QaScreen> createState() => _QaScreenState();
 }
 
-class _QaScreenState extends State<QaScreen> {
+class _QaScreenState extends ConsumerState<QaScreen> {
   String _selectedFilter = 'All';
   final _questionController = TextEditingController();
   final _titleController = TextEditingController();
   final _categoryController = TextEditingController();
   bool _showAskForm = false;
   bool _isLoading = true;
+  bool _isSubmitting = false;
   List<QuestionModel> _questions = [];
 
   final List<String> _filters = ['All', 'Java', 'SQL', 'DSA', 'Web', 'Coding'];
+
+  static const _bgDark = Color(0xFF071D43);
+  static const _cardDark = Color(0xFF0C2B64);
+  static const _cyan = Color(0xFF27D9D3);
+  static const _green = Color(0xFF10B981);
+  static const _amber = Color(0xFFF59E0B);
 
   @override
   void initState() {
@@ -32,7 +42,8 @@ class _QaScreenState extends State<QaScreen> {
       if (!mounted) return;
       setState(() {
         _questions = questions;
-        final backendCategories = questions.map((q) => q.category).toSet().toList();
+        final backendCategories =
+            questions.map((q) => q.category).toSet().toList();
         for (final cat in backendCategories) {
           if (cat.isNotEmpty && !_filters.contains(cat)) {
             _filters.add(cat);
@@ -75,10 +86,14 @@ class _QaScreenState extends State<QaScreen> {
 
   Color _categoryColor(String category) {
     final colors = <Color>[
-      const Color(0xFF3B82F6), const Color(0xFF10B981), const Color(0xFF8B5CF6),
-      const Color(0xFF06B6D4), const Color(0xFFF97316), const Color(0xFFEC4899),
+      const Color(0xFF38BDF8),
+      const Color(0xFF10B981),
+      const Color(0xFF9B5CFF),
+      const Color(0xFF27D9D3),
+      const Color(0xFFF59E0B),
+      const Color(0xFFEC4899),
     ];
-    return colors[category.hashCode % colors.length];
+    return colors[category.hashCode.abs() % colors.length];
   }
 
   String _authorInitial(String authorName) {
@@ -86,36 +101,36 @@ class _QaScreenState extends State<QaScreen> {
     return authorName[0].toUpperCase();
   }
 
-  void _submitQuestion() async {
+  Future<void> _submitQuestion() async {
     final text = _questionController.text.trim();
     final title = _titleController.text.trim();
-    final category = _categoryController.text.trim().isEmpty ? 'General' : _categoryController.text.trim();
+    final category = _categoryController.text.trim().isEmpty
+        ? 'General'
+        : _categoryController.text.trim();
     if (text.isEmpty || title.isEmpty) return;
 
+    setState(() => _isSubmitting = true);
     final result = await ApiService().createQuestion(
       title: title,
       content: text,
       category: category,
     );
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
 
     if (result != null) {
-      if (!mounted) return;
-      setState(() {
-        _showAskForm = false;
-        _questionController.clear();
-        _titleController.clear();
-        _categoryController.clear();
-        _questions.insert(0, result);
-      });
+      _questionController.clear();
+      _titleController.clear();
+      _categoryController.clear();
+      setState(() => _showAskForm = false);
+      _loadQuestions();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Your question has been posted successfully'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
+          content: Text('Question posted successfully!'),
+          backgroundColor: Color(0xFF10B981),
         ),
       );
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to post question. Please try again.'),
@@ -125,147 +140,536 @@ class _QaScreenState extends State<QaScreen> {
     }
   }
 
+  void _showQuestionDetails(QuestionModel qa) {
+    final authorColor = _categoryColor(qa.category);
+    final answerCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: const Color(0xFF092350),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        final systemBottom = MediaQuery.of(ctx).padding.bottom;
+        final isHidden = ref.read(shellNavBarHiddenProvider);
+        final safeBottom = bottomInset > 0
+            ? bottomInset + 16
+            : math.max(systemBottom + 20, isHidden ? 28.0 : 110.0);
+
+        return SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom),
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: authorColor.withOpacity(0.25),
+                    child: Text(
+                      _authorInitial(qa.authorName),
+                      style: TextStyle(
+                        color: authorColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          qa.authorName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatTimeAgo(qa.createdAt),
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: authorColor.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: authorColor.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      qa.category,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: authorColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                qa.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (qa.content.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  qa.content,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13.5,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+              const Divider(color: Colors.white12, height: 28),
+              Row(
+                children: [
+                  Icon(
+                    qa.isAnswered ? Icons.check_circle : Icons.hourglass_empty,
+                    size: 15,
+                    color: qa.isAnswered ? _green : _amber,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${qa.answerCount} Answers',
+                    style: TextStyle(
+                      color: qa.isAnswered ? _green : _amber,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Answer input
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF104476).withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                ),
+                child: TextField(
+                  controller: answerCtrl,
+                  cursorColor: _cyan,
+                  maxLines: 2,
+                  style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                  decoration: const InputDecoration(
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    hintText: 'Write your answer or response...',
+                    hintStyle: TextStyle(color: Colors.white54, fontSize: 13),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.all(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (answerCtrl.text.trim().isNotEmpty) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Answer submitted!'),
+                          backgroundColor: _green,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.send_rounded, size: 15),
+                  label: const Text('Submit Answer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _cyan,
+                    foregroundColor: const Color(0xFF041838),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF0F172A);
-    final secondaryColor = const Color(0xFFEAB308);
-
-    return Scaffold(
-      appBar: const CommonHeader(title: 'Q&A'),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => setState(() => _showAskForm = !_showAskForm),
-        backgroundColor: secondaryColor,
-        foregroundColor: primaryColor,
-        icon: Icon(_showAskForm ? Icons.close : Icons.add),
-        label: Text(_showAskForm ? 'Cancel' : 'Ask Question'),
-      ),
+    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
+    return CommonHeaderScaffold(
+      subtitle: 'Q&A',
+      backgroundColor: _bgDark,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: _cyan))
           : Column(
               children: [
+                // Top Community Banner
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0F3268), Color(0xFF164789)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF1E5BB0).withOpacity(0.50)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _cyan.withOpacity(0.20),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.forum_rounded,
+                            color: _cyan, size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Community Q&A',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${_questions.length} questions • ${_questions.where((q) => q.isAnswered).length} answered',
+                              style: const TextStyle(
+                                color: Color(0xFF93C5FD),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () =>
+                            setState(() => _showAskForm = !_showAskForm),
+                        icon: Icon(
+                          _showAskForm
+                              ? Icons.close_rounded
+                              : Icons.add_rounded,
+                          size: 16,
+                        ),
+                        label: Text(_showAskForm ? 'Close' : 'Ask'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _cyan,
+                          foregroundColor: const Color(0xFF041838),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Collapsible Ask Form
                 if (_showAskForm)
                   Container(
-                    margin: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: secondaryColor.withOpacity(0.5)),
+                      color: _cardDark.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF1E5BB0).withOpacity(0.60)),
                     ),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Ask a Question', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor)),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _titleController,
-                        decoration: const InputDecoration(
-                          hintText: 'Question title',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Color(0xFFF8FAFC),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ask a Question',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _questionController,
-                        maxLines: 3,
-                        maxLength: 500,
-                        decoration: const InputDecoration(
-                          hintText: 'Describe your question in detail...',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Color(0xFFF8FAFC),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF104476).withOpacity(0.55),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.15)),
+                          ),
+                          child: TextField(
+                            controller: _titleController,
+                            cursorColor: _cyan,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13.5),
+                            decoration: const InputDecoration(
+                              filled: true,
+                              fillColor: Colors.transparent,
+                              hintText: 'Question title...',
+                              hintStyle: TextStyle(
+                                  color: Colors.white54, fontSize: 13),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: ['Java', 'SQL', 'DSA', 'Web', 'Coding'].map((tag) =>
-                              FilterChip(
-                                label: Text(tag, style: const TextStyle(fontSize: 11)),
-                                selected: _categoryController.text == tag,
-                                onSelected: (_) => setState(() => _categoryController.text = tag),
-                                visualDensity: VisualDensity.compact,
+                        const SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF104476).withOpacity(0.55),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.15)),
+                          ),
+                          child: TextField(
+                            controller: _questionController,
+                            cursorColor: _cyan,
+                            maxLines: 3,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13.5),
+                            decoration: const InputDecoration(
+                              filled: true,
+                              fillColor: Colors.transparent,
+                              hintText: 'Describe your question in detail...',
+                              hintStyle: TextStyle(
+                                  color: Colors.white54, fontSize: 13),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: ['Java', 'SQL', 'DSA', 'Web', 'Coding']
+                                    .map(
+                                      (tag) => InkWell(
+                                        onTap: () => setState(
+                                            () => _categoryController.text = tag),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                _categoryController.text == tag
+                                                    ? _cyan.withOpacity(0.25)
+                                                    : Colors.white.withOpacity(0.08),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: _categoryController
+                                                          .text ==
+                                                      tag
+                                                  ? _cyan
+                                                  : Colors.white12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            tag,
+                                            style: TextStyle(
+                                              color: _categoryController
+                                                          .text ==
+                                                      tag
+                                                  ? _cyan
+                                                  : Colors.white70,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                               ),
-                            ).toList(),
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed:
+                                  _isSubmitting ? null : _submitQuestion,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _cyan,
+                                foregroundColor: const Color(0xFF041838),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Color(0xFF041838)),
+                                    )
+                                  : const Text('Post',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold)),
+                            ),
+                          ],
                         ),
-                        ElevatedButton(
-                          onPressed: _submitQuestion,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: secondaryColor,
-                            foregroundColor: primaryColor,
-                          ),
-                          child: const Text('Post Question'),
-                        ),
-                      ]),
-                    ]),
-                  ),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [primaryColor, primaryColor.withOpacity(0.85)],
+                      ],
                     ),
                   ),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Community Q&A', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_questions.length} questions • ${_questions.where((q) => q.isAnswered).length} answered',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                    const SizedBox(height: 12),
-                  ]),
-                ),
+
+                // Category Filter Pills
                 SizedBox(
-                  height: 44,
-                  child: ListView(
+                  height: 42,
+                  child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    children: _filters.map((filter) {
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _filters.length,
+                    itemBuilder: (context, index) {
+                      final filter = _filters[index];
                       final isSelected = _selectedFilter == filter;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(filter),
-                          selected: isSelected,
-                          onSelected: (_) => setState(() => _selectedFilter = filter),
-                          selectedColor: secondaryColor,
-                          labelStyle: TextStyle(
-                            color: isSelected ? primaryColor : Colors.grey.shade700,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        child: InkWell(
+                          onTap: () =>
+                              setState(() => _selectedFilter = filter),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF104476)
+                                  : Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected
+                                    ? _cyan
+                                    : Colors.white.withOpacity(0.12),
+                              ),
+                            ),
+                            child: Text(
+                              filter,
+                              style: TextStyle(
+                                color: isSelected ? _cyan : Colors.white70,
+                                fontSize: 12.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
                       );
-                    }).toList(),
+                    },
                   ),
                 ),
+                const SizedBox(height: 8),
+
+                // Questions List
                 Expanded(
                   child: _filteredQuestions.isEmpty
                       ? Center(
-                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade300),
-                            const SizedBox(height: 12),
-                            Text('No questions yet', style: TextStyle(color: Colors.grey.shade500)),
-                            const SizedBox(height: 4),
-                            Text('Be the first to ask!', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                          ]),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.forum_outlined,
+                                  size: 60, color: Colors.white24),
+                              const SizedBox(height: 12),
+                              const Text('No questions found',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 16)),
+                              const SizedBox(height: 4),
+                              const Text('Be the first to ask a question!',
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: 12)),
+                            ],
+                          ),
                         )
                       : RefreshIndicator(
                           onRefresh: _loadQuestions,
+                          color: _cyan,
+                          backgroundColor: const Color(0xFF092350),
                           child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                            padding: EdgeInsets.fromLTRB(16, 8, 16, isNavBarHidden ? 24 : 90),
                             itemCount: _filteredQuestions.length,
-                            itemBuilder: (context, index) => _QuestionCard(
-                              qa: _filteredQuestions[index],
-                              formatTimeAgo: _formatTimeAgo,
-                              categoryColor: _categoryColor,
-                              authorInitial: _authorInitial,
-                            ),
+                            itemBuilder: (context, index) {
+                              final qa = _filteredQuestions[index];
+                              return _QuestionCard(
+                                qa: qa,
+                                formatTimeAgo: _formatTimeAgo,
+                                categoryColor: _categoryColor,
+                                authorInitial: _authorInitial,
+                                onTap: () => _showQuestionDetails(qa),
+                              );
+                            },
                           ),
                         ),
                 ),
@@ -280,100 +684,178 @@ class _QuestionCard extends StatelessWidget {
   final String Function(String?) formatTimeAgo;
   final Color Function(String) categoryColor;
   final String Function(String) authorInitial;
+  final VoidCallback onTap;
 
   const _QuestionCard({
     required this.qa,
     required this.formatTimeAgo,
     required this.categoryColor,
     required this.authorInitial,
+    required this.onTap,
   });
+
+  static const _cardDark = Color(0xFF0C2B64);
+  static const _cyan = Color(0xFF27D9D3);
+  static const _green = Color(0xFF10B981);
+  static const _amber = Color(0xFFF59E0B);
 
   @override
   Widget build(BuildContext context) {
-    final secondaryColor = const Color(0xFFEAB308);
     final authorColor = categoryColor(qa.category);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: authorColor.withOpacity(0.15),
-              child: Text(authorInitial(qa.authorName), style: TextStyle(color: authorColor, fontWeight: FontWeight.bold, fontSize: 14)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(qa.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 2),
-                Text('${qa.authorName} • ${formatTimeAgo(qa.createdAt)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: authorColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+      decoration: BoxDecoration(
+        color: _cardDark.withOpacity(0.70),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF1E5BB0).withOpacity(0.45)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 17,
+                      backgroundColor: authorColor.withOpacity(0.20),
+                      child: Text(
+                        authorInitial(qa.authorName),
+                        style: TextStyle(
+                          color: authorColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            qa.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${qa.authorName} • ${formatTimeAgo(qa.createdAt)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: authorColor.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        qa.category,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: authorColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (qa.content.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    qa.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.white70,
+                      height: 1.4,
+                    ),
                   ),
-                  child: Text(qa.category, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: authorColor)),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: qa.isAnswered
+                            ? _green.withOpacity(0.20)
+                            : _amber.withOpacity(0.20),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            qa.isAnswered
+                                ? Icons.check_circle_rounded
+                                : Icons.hourglass_empty_rounded,
+                            size: 13,
+                            color: qa.isAnswered ? _green : _amber,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${qa.answerCount} Answers',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: qa.isAnswered ? _green : _amber,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.thumb_up_alt_outlined,
+                        size: 14, color: Colors.white60),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${qa.voteCount}',
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
+                    const Spacer(),
+                    const Text(
+                      'View & Answer →',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _cyan,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-              ]),
+              ],
             ),
-            IconButton(
-              icon: Icon(
-                qa.answerCount > 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                color: qa.answerCount > 0 ? Colors.green : Colors.grey.shade400,
-                size: 18,
-              ),
-              onPressed: () {},
-              tooltip: '${qa.answerCount} answers',
-            ),
-          ]),
-          const SizedBox(height: 8),
-          if (qa.content.isNotEmpty)
-            Text(
-              qa.content,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4),
-            ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: qa.isAnswered ? Colors.green.withOpacity(0.1) : secondaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(children: [
-                Icon(
-                  qa.isAnswered ? Icons.check_circle : Icons.hourglass_empty,
-                  size: 12,
-                  color: qa.isAnswered ? Colors.green : const Color(0xFFB45309),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${qa.answerCount} Answers',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: qa.isAnswered ? Colors.green : const Color(0xFFB45309),
-                  ),
-                ),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            Icon(Icons.thumb_up_outlined, size: 14, color: Colors.grey.shade500),
-            const SizedBox(width: 4),
-            Text('${qa.voteCount}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            const Spacer(),
-            Text('View', style: TextStyle(fontSize: 12, color: Colors.blue.shade600, fontWeight: FontWeight.w600)),
-          ]),
-        ]),
+          ),
+        ),
       ),
     );
   }

@@ -286,21 +286,21 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
     .gateway-picker{max-width:720px;padding:16px 18px}
     .gateway-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
     .tab-btn{
-      padding:8px 16px;border-radius:8px;border:1px solid #CBD5E1;background:#fff;
-      font-size:13px;font-weight:600;color:#475569;cursor:pointer;
+      padding:8px 16px;border-radius:8px;border:1px solid var(--border-light);background:var(--surface);
+      font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;
     }
-    .tab-btn.active{background:#0D9488;border-color:#0D9488;color:#fff}
+    .tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
     .active-gateway-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .active-gateway-row label{font-size:13px;font-weight:600;color:#134E4A}
+    .active-gateway-row label{font-size:13px;font-weight:600;color:var(--text)}
     .active-gateway-row select{
-      padding:8px 12px;border:1px solid #CBD5E1;border-radius:8px;
-      font-size:13px;font-family:inherit;color:#134E4A;background:#fff;
+      padding:8px 12px;border:1px solid var(--border-light);border-radius:8px;
+      font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);
     }
 
     .status-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
-    .status-hint{color:#64748B;font-size:13px}
+    .status-hint{color:var(--text-secondary);font-size:13px}
 
-    .intro{color:#64748B;font-size:13px;line-height:1.65;margin:0 0 24px}
+    .intro{color:var(--text-secondary);font-size:13px;line-height:1.65;margin:0 0 24px}
 
     .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
     .field{display:flex;flex-direction:column;min-width:0}
@@ -309,33 +309,33 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
     /* flex, not block, so the "saved" pill can sit beside the label text */
     .field label{
       display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-      font-weight:600;font-size:13px;color:#134E4A;margin-bottom:6px;
+      font-weight:600;font-size:13px;color:var(--text);margin-bottom:6px;
     }
     .field .saved{
-      font-weight:600;font-size:11px;color:#166534;background:#DCFCE7;
+      font-weight:600;font-size:11px;color:var(--success-text);background:var(--success-bg);
       padding:2px 8px;border-radius:999px;letter-spacing:.2px;
     }
     .field input,.field select{
       width:100%;box-sizing:border-box;padding:10px 14px;
-      border:1px solid #CBD5E1;border-radius:8px;
-      font-size:14px;font-family:inherit;color:#134E4A;background:#fff;
+      border:1px solid var(--border-light);border-radius:8px;
+      font-size:14px;font-family:inherit;color:var(--text);background:var(--surface);
     }
     .field input:focus,.field select:focus{
-      outline:none;border-color:#0D9488;box-shadow:0 0 0 3px rgba(13,148,136,.12);
+      outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,148,136,.12);
     }
-    .field input::placeholder{color:#94A3B8}
-    .field small{margin-top:6px;font-size:12px;color:#94A3B8;line-height:1.5}
+    .field input::placeholder{color:var(--text-muted)}
+    .field small{margin-top:6px;font-size:12px;color:var(--text-muted);line-height:1.5}
 
     .webhook-panel{
-      margin-top:24px;background:#F0FDFA;border:1px solid #5EEAD4;
+      margin-top:24px;background:var(--bg);border:1px solid var(--border);
       border-radius:12px;padding:16px 18px;
     }
-    .webhook-title{font-weight:700;font-size:13px;color:#134E4A;margin-bottom:6px}
-    .webhook-panel p{margin:0;font-size:13px;color:#134E4A;line-height:1.6}
+    .webhook-title{font-weight:700;font-size:13px;color:var(--text);margin-bottom:6px}
+    .webhook-panel p{margin:0;font-size:13px;color:var(--text);line-height:1.6}
     .webhook-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
     .webhook-row code{
-      flex:1;min-width:260px;background:#fff;border:1px solid #5EEAD4;border-radius:8px;
-      padding:9px 12px;font-size:12px;color:#134E4A;
+      flex:1;min-width:260px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+      padding:9px 12px;font-size:12px;color:var(--text);
       overflow-wrap:anywhere;
     }
     .webhook-row .btn{padding:8px 16px;font-size:12px;white-space:nowrap}

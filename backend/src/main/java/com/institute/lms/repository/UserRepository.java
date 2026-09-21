@@ -21,6 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndBatchId(User.UserRole role, Long batchId);
     List<User> findByRoleAndPlanId(User.UserRole role, Long planId);
     long countByRole(User.UserRole role);
+    long countByRoleAndIsActive(User.UserRole role, Boolean isActive);
     
     // Organization-scoped queries
     List<User> findByOrganizationId(Long organizationId);

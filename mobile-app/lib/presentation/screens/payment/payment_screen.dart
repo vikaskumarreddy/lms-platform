@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/constants/routes.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/widgets/charts.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/org_theme_provider.dart';
 
 /// Real gateway checkout. The amount is NOT typed in by anyone: the backend
 /// derives it from the student's subscription plan price, and this screen just
@@ -112,7 +114,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
           return Scaffold(
             appBar: AppBar(
-              backgroundColor: const Color(0xFF0F172A),
+                          backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Colors.white,
               title: const Text('Secure Checkout',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -143,73 +145,81 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(orgThemeProvider);
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: theme.background,
       appBar: const CommonHeader(title: 'Payment'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _success
-              ? _successView()
+              ? _successView(theme)
               : RefreshIndicator(
                   onRefresh: _loadStatus,
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                      GlossyCard(
+                        baseColor: theme.primary,
+                        opacity: 0.94,
+                        borderRadius: BorderRadius.circular(22),
+                        padding: const EdgeInsets.all(22),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${_gatewayLabel()} Secure Checkout',
-                                style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 13)),
-                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(
+                                child: Text('${_gatewayLabel()} Secure Checkout',
+                                    style: TextStyle(
+                                        color: theme.onPrimary.withOpacity(0.72),
+                                        fontSize: 13)),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: theme.accent.withOpacity(0.18),
+                                    border: Border.all(
+                                        color: theme.accent.withOpacity(0.5))),
+                                child: Icon(Icons.lock_rounded,
+                                    color: theme.accent, size: 18),
+                              ),
+                            ]),
+                            const SizedBox(height: 10),
                             Text('\u20B9${_amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                    color: Colors.white,
+                                style: TextStyle(
+                                    color: theme.onPrimary,
                                     fontSize: 34,
                                     fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
-                            const Text('Subscription enrollment fee',
+                            Text('Subscription enrollment fee',
                                 style: TextStyle(
-                                    color: Colors.white,
+                                    color: theme.onPrimary,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w400)),
                           ],
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: const Column(
+                      GlossyCard(
+                        baseColor: theme.surface,
+                        opacity: 0.9,
+                        borderRadius: BorderRadius.circular(18),
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Your enrollment is one payment away',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 15,
-                                    color: Color(0xFF0F172A))),
-                            SizedBox(height: 6),
+                                    color: theme.textPrimary)),
+                            const SizedBox(height: 6),
                             Text(
                               'Tapping Pay opens the gateway secure checkout. Cards, UPI, '
                               'netbanking and wallets are supported. Once the payment is '
                               'verified you will be taken to your dashboard automatically.',
                               style: TextStyle(
-                                  color: Color(0xFF475569),
+                                  color: theme.textSecondary,
                                   fontSize: 13,
                                   height: 1.4),
                             ),
@@ -219,35 +229,74 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _paying ? null : _startPayment,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F172A),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                        height: 54,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            gradient: LinearGradient(
+                              colors: [
+                                theme.accent,
+                                Color.alphaBlend(
+                                    Colors.black.withOpacity(0.18), theme.accent),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: theme.accentGlow,
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8)),
+                            ],
                           ),
-                          child: _paying
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2.4))
-                              : const Text('Pay Securely',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700)),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: _paying ? null : _startPayment,
+                              child: Center(
+                                child: _paying
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.4))
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.shield_rounded,
+                                              size: 18,
+                                              color: theme.accent
+                                                          .computeLuminance() <
+                                                      0.5
+                                                  ? Colors.white
+                                                  : theme.primary),
+                                          const SizedBox(width: 8),
+                                          Text('Pay Securely',
+                                              style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: theme.accent
+                                                              .computeLuminance() <
+                                                          0.5
+                                                      ? Colors.white
+                                                      : theme.primary)),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Center(
+                      Center(
                         child: Text(
                           'Payments are verified server-side before your '
                           'enrollment is activated.',
                           textAlign: TextAlign.center,
                           style:
-                              TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                              TextStyle(color: theme.textSecondary, fontSize: 12),
                         ),
                       ),
                     ],
@@ -256,7 +305,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _successView() {
+  Widget _successView(dynamic theme) {
     // Auto-redirect to dashboard after 3 seconds so the user isn't stuck on
     // this screen even if they don't tap the button.
     return StatefulBuilder(
@@ -279,37 +328,38 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                    color: Color(0xFFDCFCE7), shape: BoxShape.circle),
-                child: const Icon(Icons.check_rounded,
-                    color: Color(0xFF16A34A), size: 48),
+                decoration: BoxDecoration(
+                    color: theme.success.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: theme.success.withOpacity(0.4))),
+                child: Icon(Icons.check_rounded, color: theme.success, size: 48),
               ),
               const SizedBox(height: 16),
-              const Text('Payment successful!',
+              Text('Payment successful!',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A))),
+                      color: theme.textPrimary)),
               const SizedBox(height: 6),
-              const Text('Your enrollment is confirmed.',
-                  style: TextStyle(color: Color(0xFF475569))),
+              Text('Your enrollment is confirmed.',
+                  style: TextStyle(color: theme.textSecondary)),
               const SizedBox(height: 12),
               Text(
                 secondsLeft > 0
                     ? 'Redirecting in $secondsLeft second${secondsLeft == 1 ? '' : 's'}...'
                     : 'Redirecting...',
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                style: TextStyle(color: theme.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 20),
               SizedBox(
                 width: 220,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
-                    foregroundColor: Colors.white,
+                    backgroundColor: theme.primary,
+                    foregroundColor: theme.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: () {
                     _successRedirectTimer?.cancel();

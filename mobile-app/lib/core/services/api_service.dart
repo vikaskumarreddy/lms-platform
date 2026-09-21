@@ -33,6 +33,75 @@ class ApiService {
     };
   }
 
+  Future<List<Map<String, dynamic>>> getStudyTopics() async {
+    final response = await http.get(Uri.parse('$baseUrl/study-topics'),
+        headers: await _getHeaders()).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw Exception('Could not load topics. Please try again.');
+    }
+    return (jsonDecode(response.body) as List)
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> createStudyTopic(String title) async {
+    final response = await http.post(Uri.parse('$baseUrl/study-topics'),
+        headers: await _getHeaders(), body: jsonEncode({'title': title.trim()}))
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw Exception('Could not save topic. Please try again.');
+    }
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> getPersonalReminders() async {
+    final response = await http.get(Uri.parse('$baseUrl/personal-reminders'),
+        headers: await _getHeaders()).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw Exception('Could not load reminders');
+    return (jsonDecode(response.body) as List)
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  }
+
+  Future<void> createPersonalReminder({required String title,
+      required String description, required DateTime dueAt}) async {
+    // Store the absolute instant and the selected date's UTC offset for display.
+    final minutes = dueAt.timeZoneOffset.inMinutes;
+    final zone = '${minutes < 0 ? '-' : '+'}${(minutes.abs() ~/ 60).toString().padLeft(2, '0')}:${(minutes.abs() % 60).toString().padLeft(2, '0')}';
+    final response = await http.post(Uri.parse('$baseUrl/personal-reminders'),
+        headers: await _getHeaders(), body: jsonEncode({
+          'title': title.trim(), 'description': description.trim(),
+          'dueAt': dueAt.toUtc().toIso8601String(), 'timeZone': zone,
+        })).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw Exception('Could not save reminder');
+  }
+
+  Future<void> updateReminderStatus(int id, String status) async {
+    final response = await http.patch(Uri.parse('$baseUrl/personal-reminders/$id/status'),
+        headers: await _getHeaders(), body: jsonEncode({'status': status}))
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw Exception('Could not update reminder');
+  }
+
+  Future<void> updatePersonalReminder(int id, {required String title,
+      required String description, required DateTime dueAt}) async {
+    final minutes = dueAt.timeZoneOffset.inMinutes;
+    final zone = '${minutes < 0 ? '-' : '+'}${(minutes.abs() ~/ 60).toString().padLeft(2, '0')}:${(minutes.abs() % 60).toString().padLeft(2, '0')}';
+    final response = await http.put(Uri.parse('$baseUrl/personal-reminders/$id'),
+        headers: await _getHeaders(), body: jsonEncode({
+          'title': title.trim(), 'description': description.trim(),
+          'dueAt': dueAt.toUtc().toIso8601String(), 'timeZone': zone,
+        })).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw Exception('Could not update reminder');
+  }
+
+  Future<void> deletePersonalReminder(int id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/personal-reminders/$id'),
+        headers: await _getHeaders()).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Could not delete reminder');
+    }
+  }
+
+
   Future<List<SubscriptionPlanModel>> getSubscriptionPlans() async {
     try {
       final headers = await _getHeaders();
@@ -218,6 +287,126 @@ class ApiService {
     } catch (e) {
       print('Error fetching student dashboard: $e');
       return {};
+    }
+  }
+
+  // ---------------------------------------------------------------- mentors
+  // The dashboard's "Your Mentors" card. Mentors are derived server-side from the
+  // student's batch mentor plus the instructors of their courses — there is no
+  // separate assignment table, and this card used to be a hardcoded placeholder.
+
+  /// Mentors of the logged-in user. Empty list when the student has no batch
+  /// mentor and no course instructor yet (an honest "nothing configured" state).
+  Future<List<Map<String, dynamic>>> getMyMentors() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/mentors/me'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching mentors: $e');
+      return [];
+    }
+  }
+
+  // ------------------------------------------------------- study time ledger
+  // Records how long a student actually spends in a lesson. Consumed by the
+  // dashboard's "Time Spending" trend.
+
+  /// Opens a study session for a lesson. Returns the session id to close later,
+  /// or null when the backend is unreachable (the player must keep working).
+  Future<int?> startStudySession({
+    required int lessonId,
+    int? courseId,
+    String source = 'LESSON',
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/study-time/start'),
+        headers: headers,
+        body: json.encode({
+          'lessonId': lessonId,
+          if (courseId != null) 'courseId': courseId,
+          'source': source,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return (data['logId'] as num?)?.toInt();
+      }
+      return null;
+    } catch (e) {
+      print('Error starting study session: $e');
+      return null;
+    }
+  }
+
+  /// Closes a study session. With no [logId] the backend closes whichever session
+  /// is still open for this student, which is the reliable path on dispose.
+  Future<bool> endStudySession({int? logId}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse(logId == null
+            ? '$baseUrl/study-time/stop-active'
+            : '$baseUrl/study-time/$logId/stop'),
+        headers: headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error ending study session: $e');
+      return false;
+    }
+  }
+
+  /// The student's study-time summary: totalMinutes, todayMinutes, monthMinutes,
+  /// sessionCount and a 12-point `monthly` series of {period, label, minutes}.
+  Future<Map<String, dynamic>> getStudyTimeSummary() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/study-time/summary'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {};
+    } catch (e) {
+      print('Error fetching study time summary: $e');
+      return {};
+    }
+  }
+
+  /// The next [limit] events for the logged-in student, soonest first — the
+  /// dashboard "Upcoming" card's own endpoint rather than a client-side filter
+  /// over the whole event feed.
+  Future<List<EventModel>> getMyUpcomingEvents({int limit = 2}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      if (userId == null) return [];
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/dashboard/student/$userId/upcoming-events?limit=$limit'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => EventModel.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching upcoming events: $e');
+      return [];
     }
   }
 
@@ -1169,7 +1358,7 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>?> createNote({required String title, required String content, int? lessonId}) async {
+  Future<Map<String, dynamic>?> createNote({required String title, required String content, int? lessonId, int? topicId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
@@ -1182,6 +1371,7 @@ class ApiService {
         body: json.encode({
           'userId': userId,
           'lessonId': lessonId,
+          'topicId': topicId,
           'title': title,
           'content': content,
         }),
@@ -1197,12 +1387,13 @@ class ApiService {
     }
   }
 
-  Future<bool> updateNote(int noteId, {String? title, String? content}) async {
+  Future<bool> updateNote(int noteId, {String? title, String? content, int? topicId}) async {
     try {
       final headers = await _getHeaders();
       final body = <String, dynamic>{};
       if (title != null) body['title'] = title;
       if (content != null) body['content'] = content;
+      if (topicId != null) body['topicId'] = topicId;
 
       final response = await http.put(
         Uri.parse('$baseUrl/notes/$noteId'),
@@ -1502,6 +1693,53 @@ class ApiService {
     } catch (e) {
       print('Error posting comment: $e');
       return false;
+    }
+  }
+
+  // MARK: - Organization theme
+  //
+  // Mirrors the admin-portal's brand-color customization (Settings > Theme):
+  // the same `theme` map returned in `GET /api/organizations/current` there is
+  // read here so the student app matches whatever colors the tenant picked.
+
+  /// The current organization's `theme` map (CSS-variable-style keys -> hex colors),
+  /// merged with platform defaults server-side, or null if the call fails.
+  Future<Map<String, dynamic>?> getOrganizationTheme() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/organizations/current'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        final theme = decoded['theme'];
+        return theme is Map<String, dynamic> ? theme : null;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching organization theme: $e');
+      return null;
+    }
+  }
+
+  /// The current organization's display name (e.g. "Axisora Technologies"),
+  /// shown centered in the shared glass header. Null when unavailable.
+  Future<String?> getCurrentOrganizationName() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/organizations/current'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        return (decoded['name'] as String?)?.trim();
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching organization name: $e');
+      return null;
     }
   }
 }

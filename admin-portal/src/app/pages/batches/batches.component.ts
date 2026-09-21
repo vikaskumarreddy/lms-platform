@@ -223,9 +223,9 @@ interface SubscriptionPlan {
         </div>
 
         <!-- Add student to batch -->
-        <div *ngIf="showAddStudent" class="card" style="margin-bottom:16px;padding:16px;background:#F8FAFC;">
+        <div *ngIf="showAddStudent" class="card" style="margin-bottom:16px;padding:16px;background:var(--surface-alt);">
           <div style="display:flex;gap:12px;align-items:center;">
-            <select [(ngModel)]="selectedStudentId" style="flex:1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;font-size:14px;background:white;">
+            <select [(ngModel)]="selectedStudentId" style="flex:1;padding:10px;border:1px solid var(--border-light);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
               <option [ngValue]="null">Select a student to add...</option>
               <option *ngFor="let s of availableStudents" [ngValue]="s.id">{{s.name}} ({{s.email}})</option>
             </select>
@@ -286,12 +286,18 @@ interface SubscriptionPlan {
       z-index: 1000;
     }
     .modal-content {
-      background: white;
+      background: var(--surface);
+      color: var(--text);
       border-radius: 16px;
       padding: 32px;
       box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
       max-height: 90vh;
       overflow-y: auto;
+    }
+    .modal-content select {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border-light);
     }
   `]
 })

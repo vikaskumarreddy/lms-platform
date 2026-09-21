@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/org_theme_provider.dart';
 
-/// The Axisora Forge Academy app logo mark.
+/// The organization's app logo mark.
 ///
-/// This currently renders a polished, code-drawn wordmark + icon (no image
-/// asset exists in the project yet). To swap in a real logo image once one
-/// is available, drop the file at `assets/images/logo.png`, add it under
-/// `flutter: assets:` in pubspec.yaml, and replace the `Container` below
-/// with `Image.asset('assets/images/logo.png', width: size, height: size)`
-/// -- everywhere this widget is used (Landing, Splash, Drawer) will then
-/// automatically pick up the real logo with no other changes needed.
-class AppLogo extends StatelessWidget {
+/// Rendered as a polished, code-drawn glossy badge (no image asset exists in the
+/// project yet) using only the organization's theme colors — no hardcoded brand
+/// hex values. To swap in a real logo image once one is available, drop the file
+/// at `assets/images/logo.png`, add it under `flutter: assets:` in pubspec.yaml,
+/// and replace the `Container` below with `Image.asset(...)` — everywhere this
+/// widget is used (Landing, Splash, Login, Drawer) then picks up the real logo.
+class AppLogo extends ConsumerWidget {
   final double size;
   final bool showText;
+  final String? orgName;
 
-  const AppLogo({super.key, this.size = 40, this.showText = true});
+  const AppLogo({super.key, this.size = 40, this.showText = true, this.orgName});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(orgThemeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final name = orgName?.trim();
+    final label = (name == null || name.isEmpty) ? 'Academy' : name;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -25,18 +30,24 @@ class AppLogo extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFFEAB308)],
-              stops: [0.0, 0.55, 1.0],
+            gradient: LinearGradient(
+              colors: [...theme.primaryGradient, theme.accent],
+              stops: const [0.0, 0.55, 1.0],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(size * 0.28),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEAB308).withOpacity(0.45),
+                color: theme.accentGlow,
                 blurRadius: size * 0.35,
                 offset: Offset(0, size * 0.08),
+              ),
+              BoxShadow(
+                color: Colors.white.withOpacity(0.35),
+                blurRadius: size * 0.12,
+                spreadRadius: -size * 0.08,
+                offset: Offset(0, -size * 0.1),
               ),
             ],
           ),
@@ -62,21 +73,11 @@ class AppLogo extends StatelessWidget {
         if (showText) ...[
           SizedBox(width: size * 0.3),
           Text(
-            'Axisora',
+            label,
             style: TextStyle(
-              fontSize: size * 0.5,
+              fontSize: size * 0.42,
               fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-              letterSpacing: 0.2,
-              height: 1,
-            ),
-          ),
-          Text(
-            'Forge',
-            style: TextStyle(
-              fontSize: size * 0.5,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFFEAB308),
+              color: isDark ? Colors.white : theme.primary,
               letterSpacing: 0.2,
               height: 1,
             ),

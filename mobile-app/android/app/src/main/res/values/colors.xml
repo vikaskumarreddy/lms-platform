@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Gold accent, matches AppTheme.accentColor (0xFFEAB308) used for the
-         small notification-icon background dot on Android's status bar/tray. -->
-    <color name="notification_accent">#EAB308</color>
+    <!-- Brand accent, matches AppTheme cyan (#27D9D3) used for the
+         notification-icon background dot and highlight on Android's status bar/tray. -->
+    <color name="notification_accent">#27D9D3</color>
 </resources>

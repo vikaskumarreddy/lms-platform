@@ -3,7 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/routes.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/org_theme_provider.dart';
+import '../../../core/widgets/glass_widgets.dart';
 
+/// Splash screen, restyled with the same aurora-gradient + glowing-orb + glossy
+/// badge look as Login. Reads the *cached* org theme (from the last session on
+/// this device) so returning users see their tenant's colors immediately, before
+/// the network call in [MobileAuthNotifier] even resolves.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
   @override
@@ -14,15 +20,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Kick off the persisted-login check as early as possible.
     ref.read(mobileAuthProvider.notifier);
     Future.delayed(const Duration(milliseconds: 1600), _navigate);
   }
 
-  /// Route to Home if a valid session is already stored, otherwise to Landing.
   Future<void> _navigate() async {
     if (!mounted) return;
-    // If the async check hasn't finished yet, wait briefly for it.
     var state = ref.read(mobileAuthProvider);
     final started = DateTime.now();
     while (state.isLoading && DateTime.now().difference(started).inMilliseconds < 4000) {
@@ -34,35 +37,58 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       context.go(AppRoutes.login);
       return;
     }
-    // Persisted sessions for students that still owe a payment are sent to the
-    // payment screen too, not just fresh logins. Uses paymentRequired (the
-    // authoritative backend flag) with a fallback to individual field checks.
     final user = state.user;
-    print('SPLASH_DEBUG: user=${user?.fullName}, role=${user?.role}, paymentRequired=${user?.paymentRequired}, paymentMethod=${user?.paymentMethod}, paymentStatus=${user?.paymentStatus}, planId=${user?.planId}');
     final needsPayment = user != null &&
         user.role == 'STUDENT' &&
         (user.paymentRequired ||
             (user.paymentMethod == 'ONLINE' &&
              user.paymentStatus != 'COMPLETED' &&
              user.planId != null));
-    print('SPLASH_DEBUG: needsPayment=$needsPayment');
     context.go(needsPayment ? AppRoutes.paymentFor(user.planId!) : AppRoutes.home);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(orgThemeProvider);
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.school, size: 80, color: Color(0xFFEAB308)),
-            const SizedBox(height: 16),
-            Text('Axisora Forge Academy', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('Empowering Your Future', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey)),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [...theme.primaryGradient, theme.background],
+                  stops: const [0.0, 0.6, 1.0],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ),
+          Positioned(top: -60, right: -50, child: GlowOrb(color: theme.accent, size: 220)),
+          Positioned(bottom: 80, left: -60, child: GlowOrb(color: theme.primary, size: 200)),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                LogoBadge(theme: theme, size: 96),
+                const SizedBox(height: 20),
+                Text(
+                  'Welcome',
+                  style: TextStyle(color: theme.onPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text('Empowering Your Future', style: TextStyle(color: theme.onPrimary.withOpacity(0.75), fontSize: 14)),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: theme.accent),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

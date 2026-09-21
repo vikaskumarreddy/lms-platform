@@ -44,6 +44,15 @@
             <artifactId>pdfbox</artifactId>
             <version>3.0.2</version>
         </dependency>
+        <!-- Bulk import of modules & lessons from Excel (.xlsx / .xls) files.
+             poi-ooxml pulls in poi, xmlbeans, commons-compress and curvesapi
+             transitively; JSON imports need no extra dependency (Jackson ships
+             with spring-boot-starter-web). -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>4.1.2</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

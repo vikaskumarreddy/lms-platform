@@ -1,0 +1,106 @@
+﻿95	|                     ],
+96	|                   ),
+97	|                 );
+98	|               }
+99	|             }
+100	|           }
+101	|         }
+102	|       },
+103	|       child: Scaffold(
+104	|         key: mainScaffoldKey,
+105	|         // extendBody lets page content scroll behind the floating glass nav bar
+106	|         // (the Apple News+ style: the bar hovers over the content, it does not
+107	|         // push it up), matching the reference "floating pill" bottom bar.
+108	|         extendBody: !ownsNavigation &&
+109	|             GoRouterState.of(context).uri.path != AppRoutes.calendar,
+110	|         drawer: _buildDrawer(context),
+111	|         body: widget.child,
+112	|         bottomNavigationBar: ownsNavigation
+113	|             ? null
+114	|             : ModernBottomNavBar(
+115	|                 currentIndex: _getCurrentIndex(),
+116	|                 tabs: _tabs,
+117	|                 onTap: (index) => context.go(_tabs[index].$1),
+118	|               ),
+119	|       ),
+120	|     );
+121	|   }
+122	| 
+123	|   Widget _buildDrawer(BuildContext context) {
+124	|     final profileAsync = ref.watch(userProfileProvider);
+125	|     final profile = profileAsync.asData?.value;
+126	|     final rawName = (profile?['name'] as String?)?.trim();
+127	|     final displayName =
+128	|         (rawName == null || rawName.isEmpty) ? 'Student' : rawName;
+129	|     final batchName = (profile?['batchName'] as String?) ?? 'No batch assigned';
+130	|     final isActive = profile?['isActive'] != false;
+131	|     final theme = ref.watch(orgThemeProvider);
+132	|     final secondaryColor = theme.accent;
+133	| 
+134	|     return Drawer(
+135	|       child: Column(
+136	|         children: [
+137	|           Container(
+138	|             decoration: BoxDecoration(
+139	|               gradient: LinearGradient(colors: theme.primaryGradient),
+140	|             ),
+141	|             child: SafeArea(
+142	|               child: Padding(
+143	|                 padding: const EdgeInsets.all(20),
+144	|                 child: Column(
+145	|                   crossAxisAlignment: CrossAxisAlignment.start,
+146	|                   children: [
+147	|                     Row(
+148	|                       children: [
+149	|                         CircleAvatar(
+150	|                           radius: 28,
+151	|                           backgroundColor: secondaryColor,
+152	|                           child: Text(AvatarUtils.initialsFor(displayName),
+153	|                               style: const TextStyle(
+154	|                                   color: Colors.white,
+155	|                                   fontSize: 20,
+156	|                                   fontWeight: FontWeight.bold)),
+157	|                         ),
+158	|                         const SizedBox(width: 12),
+159	|                         Expanded(
+160	|                           child: Column(
+161	|                             crossAxisAlignment: CrossAxisAlignment.start,
+162	|                             children: [
+163	|                               Text(displayName,
+164	|                                   style: const TextStyle(
+165	|                                       color: Colors.white,
+166	|                                       fontSize: 16,
+167	|                                       fontWeight: FontWeight.bold)),
+168	|                               const SizedBox(height: 2),
+169	|                               Text(batchName,
+170	|                                   style: const TextStyle(
+171	|                                       color: Colors.white70, fontSize: 12)),
+172	|                             ],
+173	|                           ),
+174	|                         ),
+175	|                       ],
+176	|                     ),
+177	|                     const SizedBox(height: 12),
+178	|                     Container(
+179	|                       padding: const EdgeInsets.symmetric(
+180	|                           horizontal: 10, vertical: 4),
+181	|                       decoration: BoxDecoration(
+182	|                           color: isActive ? secondaryColor : Colors.grey,
+183	|                           borderRadius: BorderRadius.circular(12)),
+184	|                       child: Text(isActive ? 'Active' : 'Inactive',
+185	|                           style: const TextStyle(
+186	|                               color: Colors.white,
+187	|                               fontSize: 11,
+188	|                               fontWeight: FontWeight.bold)),
+189	|                     ),
+190	|                   ],
+191	|                 ),
+192	|               ),
+193	|             ),
+194	|           ),
+195	|           Expanded(
+196	|             child: ListView(
+197	|               padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
+198	|               children: [
+199	|                 _DrawerItem(
+200	|                   icon: Icons.home_outlined,

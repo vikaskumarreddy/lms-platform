@@ -3,9 +3,6 @@ import '../../../core/widgets/common_header.dart';
 import '../../../data/models/subscription_plan.dart';
 import '../../../core/services/api_service.dart';
 
-const Color _kInk = Color(0xFF0F172A);
-const Color _kAccent = Color(0xFFEAB308);
-
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
 
@@ -54,12 +51,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     });
   }
 
-  Color _parseColor(String colorHex) {
-    if (colorHex.isEmpty) return _kInk;
+  Color _parseColor(BuildContext context, String colorHex) {
+    if (colorHex.isEmpty) return Theme.of(context).colorScheme.primary;
     try {
       return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
     } catch (_) {
-      return _kInk;
+      return Theme.of(context).colorScheme.primary;
     }
   }
 
@@ -107,7 +104,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: _kInk, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
             child: const Text('Send request'),
           ),
         ],
@@ -171,7 +168,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [_kInk, _kInk.withOpacity(0.8)]),
+        gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withOpacity(0.8)]),
       ),
       child: Column(
         children: [
@@ -180,7 +177,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           const SizedBox(height: 8),
           Text(
             _currentPlanName ?? 'No plan assigned',
-            style: const TextStyle(color: _kAccent, fontWeight: FontWeight.bold, fontSize: 26),
+            style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold, fontSize: 26),
           ),
           if (_currentPlanName == null) ...[
             const SizedBox(height: 4),
@@ -200,18 +197,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF3C7),
-        border: Border.all(color: const Color(0xFFFCD34D)),
+        color: Theme.of(context).colorScheme.secondary.withOpacity(0.15),
+        border: Border.all(color: Theme.of(context).colorScheme.secondary.withOpacity(0.5)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.hourglass_top, color: Color(0xFF92400E), size: 20),
+          Icon(Icons.hourglass_top, color: Theme.of(context).colorScheme.secondary, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Your request for $planName is awaiting approval from your institute.',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF78350F), height: 1.4),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface, height: 1.4),
             ),
           ),
         ],
@@ -220,11 +217,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _planCard(SubscriptionPlanModel plan) {
-    final planColor = _parseColor(plan.color);
+    final planColor = _parseColor(context, plan.color);
     final isCurrent = _isCurrent(plan);
     final isPending = _isPendingPlan(plan);
     // Any open request blocks every other plan, not just the one asked for.
     final blocked = _pendingRequest != null && !isPending;
+    final theme = Theme.of(context).colorScheme;
+    final isCurrentPlan = _isCurrent(plan);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -248,7 +247,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 if (isCurrent)
                   _tag('CURRENT', planColor)
                 else if (plan.isPopular)
-                  _tag('POPULAR', _kAccent),
+                  _tag('POPULAR', Theme.of(context).colorScheme.secondary),
               ],
             ),
             const SizedBox(height: 8),
@@ -282,7 +281,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ? null
                     : () => _requestUpgrade(plan),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isCurrent ? planColor : _kAccent,
+                  backgroundColor: isCurrent ? planColor : Theme.of(context).colorScheme.secondary,
                   foregroundColor: isCurrent ? Colors.white : Colors.black,
                   disabledBackgroundColor: Colors.grey.shade300,
                   disabledForegroundColor: Colors.grey.shade700,

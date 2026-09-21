@@ -5,6 +5,7 @@ import '../../../../core/widgets/common_header.dart';
 import '../../../../data/models/exam_model.dart';
 import '../browser/in_app_browser_screen.dart';
 import '../assessment/assessment_paper_screen.dart';
+import '../courses/learning_collection.dart';
 
 enum _ExamFilter { pending, graded, upcoming }
 
@@ -130,51 +131,55 @@ Future<void> _submitExam(ExamModel exam) async {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CommonHeader(showBackButton: true, title: 'Exams'),
+    return CommonHeaderScaffold(
+      subtitle: 'Exams',
+      backgroundColor: const Color(0xFF071D43),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text('Error: $_error'))
-              : Column(
-                  children: [
-                    _buildOverview(),
-                    _buildTabs(),
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _load,
-                        child: _filtered.isEmpty
-                            ? ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: const [
-                                  SizedBox(height: 120),
-                                  Center(child: Text('No exams in this category', style: TextStyle(color: Colors.grey))),
-                                ],
-                              )
-                            : ListView.builder(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                                itemCount: _filtered.length,
-                                itemBuilder: (context, i) {
-                                  final e = _filtered[i];
-                                  return _ExamCard(
-                                    exam: e,
-                                    isGraded: _isGraded(e),
-                                    isSubmitted: _isSubmitted(e),
-                                    onViewDetails: () => _viewDetails(e),
-                                    onSubmit: () => _submitExam(e),
-                                    onOpenPaper: () => _openPaper(e),
-                                  );
-                                },
-                              ),
-                      ),
-                    ),
-                  ],
+              ? Center(
+                  child: TextButton(
+                    onPressed: _load,
+                    child: const Text('Failed to load exams. Retry'),
+                  ),
+                )
+              : LearningCollection(
+                  title: 'My\\nexams',
+                  noun: 'Exams',
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onRefresh: _load,
+                  entries: _all.map((exam) {
+                    final graded = _isGraded(exam);
+                    final submitted = _isSubmitted(exam);
+                    return LearningEntry(
+                      id: exam.id,
+                      title: exam.title,
+                      label: 'Exam',
+                      completed: graded,
+                      progress: graded ? 1 : submitted ? .65 : 0,
+                      detail: graded
+                          ? 'Graded · ${exam.marksObtained ?? 0}/${exam.totalMarks ?? 0} marks'
+                          : submitted
+                              ? 'Completed · awaiting grade'
+                              : exam.status == 'Missed'
+                                  ? 'Missed · ${exam.durationDisplay}'
+                                  : '${exam.formattedDate} · ${exam.durationDisplay} · ${exam.totalMarks ?? 0} marks',
+                      onOpen: () {
+                        if (exam.isInApp) {
+                          _openPaper(exam);
+                        } else if (submitted) {
+                          _viewDetails(exam);
+                        } else {
+                          _submitExam(exam);
+                        }
+                      },
+                    );
+                  }).toList(),
                 ),
     );
   }
 
-  Widget _buildOverview() {
+  Widget _buildOverview(dynamic theme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
@@ -189,7 +194,7 @@ Future<void> _submitExam(ExamModel exam) async {
     );
   }
 
-  Widget _buildTabs() {
+  Widget _buildTabs(dynamic theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
@@ -201,16 +206,16 @@ Future<void> _submitExam(ExamModel exam) async {
         padding: const EdgeInsets.all(3),
         child: Row(
           children: [
-            _buildTab(_ExamFilter.upcoming, 'Upcoming ($_upcomingCount)'),
-            _buildTab(_ExamFilter.pending, 'Pending ($_pendingCount)'),
-            _buildTab(_ExamFilter.graded, 'Graded ($_gradedCount)'),
+            _buildTab(_ExamFilter.upcoming, 'Upcoming ($_upcomingCount)', theme),
+            _buildTab(_ExamFilter.pending, 'Pending ($_pendingCount)', theme),
+            _buildTab(_ExamFilter.graded, 'Graded ($_gradedCount)', theme),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTab(_ExamFilter target, String label) {
+  Widget _buildTab(_ExamFilter target, String label, dynamic theme) {
     final selected = _filter == target;
     return Expanded(
       child: GestureDetector(
@@ -228,7 +233,7 @@ Future<void> _submitExam(ExamModel exam) async {
             style: TextStyle(
               fontSize: 12,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? const Color(0xFF0F172A) : Colors.grey.shade600,
+              color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade600,
             ),
           ),
         ),
@@ -304,8 +309,6 @@ class _ExamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondaryColor = const Color(0xFFEAB308);
-
     String statusLabel;
     Color statusColor;
     if (isGraded) {
@@ -394,7 +397,7 @@ class _ExamCard extends StatelessWidget {
                   icon: Icon(isSubmitted ? Icons.fact_check_outlined : Icons.edit_note, size: 19),
                   label: Text(isSubmitted ? 'View Answers' : 'Start Exam'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isSubmitted ? const Color(0xFF0F172A) : secondaryColor,
+                    backgroundColor: isSubmitted ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary,
                     foregroundColor: isSubmitted ? Colors.white : Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -406,8 +409,8 @@ class _ExamCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: onViewDetails,
-                      icon: Icon(Icons.link, size: 18, color: secondaryColor),
-                      label: Text('View Details', style: TextStyle(color: secondaryColor)),
+                      icon: Icon(Icons.link, size: 18, color: Theme.of(context).colorScheme.secondary),
+                      label: Text('View Details', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -416,7 +419,7 @@ class _ExamCard extends StatelessWidget {
                       onPressed: onSubmit,
                       icon: const Icon(Icons.upload, size: 18),
                       label: const Text('Submit'),
-                      style: ElevatedButton.styleFrom(backgroundColor: secondaryColor, foregroundColor: Colors.black),
+                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.secondary, foregroundColor: Colors.black),
                     ),
                 ],
               ),
@@ -426,3 +429,5 @@ class _ExamCard extends StatelessWidget {
     );
   }
 }
+
+

@@ -4,7 +4,9 @@ import '../services/mobile_auth_service.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 import '../models/auth_user.dart';
+import 'data_providers.dart';
 import 'subscription_provider.dart';
+import 'org_theme_provider.dart';
 
 /// Tracks whether the user is logged in and holds the auth user info.
 final mobileAuthProvider = StateNotifierProvider<MobileAuthNotifier, MobileAuthState>((ref) {
@@ -47,6 +49,9 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     // state resets to Free and previously-unlocked courses appear locked.
     if (loggedIn) {
       await _syncSubscription();
+      // Restoring a persisted session also re-applies the org's brand colors so a
+      // theme change an admin made since the last cold start is picked up on launch.
+      await _ref.read(orgThemeProvider.notifier).refresh();
     }
   }
 
@@ -54,9 +59,13 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     try {
       final response = await _auth.login(email, password);
       state = state.copyWith(isLoggedIn: true, user: response.user);
+      invalidateAllUserData(_ref);
       // Sync subscription from backend profile
       await _syncSubscription();
       await _registerPushToken();
+      // Applies the org's saved theme (or built-in defaults for an org that never
+      // customized one) immediately after login.
+      await _ref.read(orgThemeProvider.notifier).refresh();
       return true;
     } catch (e) {
       return false;
@@ -67,9 +76,11 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     try {
       final response = await _auth.register(fullName, email, password, phone);
       state = state.copyWith(isLoggedIn: true, user: response.user);
+      invalidateAllUserData(_ref);
       // Sync subscription from backend profile
       await _syncSubscription();
       await _registerPushToken();
+      await _ref.read(orgThemeProvider.notifier).refresh();
       return true;
     } catch (e) {
       return false;
@@ -79,8 +90,12 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
   Future<void> logout() async {
     await PushNotificationService().clearToken();
     await _auth.logout();
+    invalidateAllUserData(_ref);
     state = state.copyWith(isLoggedIn: false, clearUser: true);
     _ref.read(subscriptionProvider.notifier).reset();
+    // Clears the previous tenant's brand colors so they don't bleed into the next
+    // login on a shared device, until the new session's theme loads.
+    await _ref.read(orgThemeProvider.notifier).reset();
   }
 
   /// Flips the cached user's payment flag to COMPLETED so the router redirect

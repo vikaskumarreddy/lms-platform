@@ -52,6 +52,14 @@ interface Course {
 interface Faculty { id: number; name: string; email: string; }
 interface SubscriptionPlan { id: number; name: string; price: number; period: string; }
 
+/** Response of a bulk import: what landed, what was skipped, and why. */
+interface BulkImportResult {
+  imported: number;
+  lessonsImported?: number;
+  failed: number;
+  errors: string[];
+}
+
 /**
  * Course Detail page: module cards with inline CRUD, each containing lesson
  * cards with inline CRUD. Replaces the old single giant scrolling form.
@@ -90,6 +98,21 @@ export class CourseDetailComponent implements OnInit {
   activeModuleForLesson: CourseModule | null = null;
   lessonForm: any = {};
   savingLesson = false;
+
+  // Course edit modal state (title / description / thumbnail / plan / instructor)
+  showCourseModal = false;
+  courseForm: any = {};
+  savingCourse = false;
+
+  // Bulk import modal state — shared by the module import (course level) and the
+  // lesson import (module level); only the target and the hint text differ.
+  showBulkImport = false;
+  bulkImportTarget: 'modules' | 'lessons' = 'modules';
+  bulkImportModule: CourseModule | null = null;
+  bulkImportFile: File | null = null;
+  bulkImporting = false;
+  bulkImportResult: BulkImportResult | null = null;
+  bulkImportError = '';
 
   constructor(
     private route: ActivatedRoute,
@@ -163,6 +186,52 @@ export class CourseDetailComponent implements OnInit {
   toggleModule(m: CourseModule) { m.expanded = !m.expanded; }
 
   back() { this.router.navigate(['/courses']); }
+
+  // ── Course metadata CRUD ─────────────────────────────────────
+  // Before this the title/description could only be set at creation time: the
+  // course form existed but nothing in the UI opened it for an existing course.
+  openEditCourse() {
+    if (!this.course) return;
+    this.courseForm = {
+      title: this.course.title,
+      description: this.course.description || '',
+      thumbnailUrl: this.course.thumbnailUrl || '',
+      instructorId: this.course.instructorId ?? null,
+      planId: this.course.planId ?? null,
+      isPublished: !!this.course.isPublished
+    };
+    this.showCourseModal = true;
+  }
+
+  closeCourseModal() { this.showCourseModal = false; }
+
+  /** Metadata-only update — the backend leaves the module/lesson tree untouched. */
+  saveCourse() {
+    if (!this.course) return;
+    this.savingCourse = true;
+    this.api.put(`/api/courses/${this.course.id}`, this.courseForm).subscribe({
+      next: () => { this.savingCourse = false; this.closeCourseModal(); this.loadCourse(); },
+      error: (err) => { this.savingCourse = false; this.errors.show(err, 'Failed to update course'); }
+    });
+  }
+
+  togglePublished() {
+    if (!this.course) return;
+    // The update endpoint applies title/description/thumbnail/plan wholesale, so a
+    // published-state flip has to carry the current values back with it.
+    const body = {
+      title: this.course.title,
+      description: this.course.description || '',
+      thumbnailUrl: this.course.thumbnailUrl || '',
+      instructorId: this.course.instructorId ?? null,
+      planId: this.course.planId ?? null,
+      isPublished: !this.course.isPublished
+    };
+    this.api.put(`/api/courses/${this.course.id}`, body).subscribe({
+      next: () => this.loadCourse(),
+      error: (err) => this.errors.show(err, 'Failed to change the published state')
+    });
+  }
 
   // ── Module CRUD ──────────────────────────────────────────────
   openAddModule() {
@@ -253,6 +322,110 @@ export class CourseDetailComponent implements OnInit {
       next: () => this.loadCourse(),
       error: (err) => this.errors.show(err, 'Failed to delete lesson')
     });
+  }
+
+  // ── Bulk import (JSON or Excel) ──────────────────────────────
+  openBulkImportModules() {
+    this.bulkImportTarget = 'modules';
+    this.bulkImportModule = null;
+    this.resetBulkImport();
+    this.showBulkImport = true;
+  }
+
+  openBulkImportLessons(m: CourseModule) {
+    this.bulkImportTarget = 'lessons';
+    this.bulkImportModule = m;
+    this.resetBulkImport();
+    this.showBulkImport = true;
+  }
+
+  private resetBulkImport() {
+    this.bulkImportFile = null;
+    this.bulkImportResult = null;
+    this.bulkImportError = '';
+    this.bulkImporting = false;
+  }
+
+  closeBulkImport() { this.showBulkImport = false; this.bulkImportModule = null; }
+
+  /** Client-side guard mirroring the server's accepted extensions. */
+  onBulkFilePicked(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files && input.files.length ? input.files[0] : null;
+    this.bulkImportError = '';
+    this.bulkImportResult = null;
+    if (file && !/\.(json|xlsx|xls|xlsm)$/i.test(file.name)) {
+      this.bulkImportFile = null;
+      this.bulkImportError = `"${file.name}" is not a JSON or Excel file. Choose a .json, .xlsx or .xls file.`;
+    } else {
+      this.bulkImportFile = file;
+    }
+    // Allows re-picking the same file after a failed attempt.
+    input.value = '';
+  }
+
+  runBulkImport() {
+    if (!this.bulkImportFile) {
+      this.bulkImportError = 'Choose a file to import.';
+      return;
+    }
+    const endpoint = this.bulkImportTarget === 'modules'
+      ? `/api/modules/bulk-import/course/${this.courseId}`
+      : `/api/lessons/bulk-import/module/${this.bulkImportModule?.id}`;
+    const form = new FormData();
+    form.append('file', this.bulkImportFile, this.bulkImportFile.name);
+
+    this.bulkImporting = true;
+    this.bulkImportError = '';
+    this.bulkImportResult = null;
+
+    this.api.postForm<BulkImportResult>(endpoint, form).subscribe({
+      next: (result) => {
+        this.bulkImporting = false;
+        this.bulkImportResult = {
+          imported: result?.imported || 0,
+          lessonsImported: result?.lessonsImported || 0,
+          failed: result?.failed || 0,
+          errors: result?.errors || []
+        };
+        if (this.bulkImportResult.imported > 0 || (this.bulkImportResult.lessonsImported || 0) > 0) {
+          this.loadCourse();
+        }
+      },
+      error: (err) => {
+        this.bulkImporting = false;
+        this.bulkImportError = this.errors.parse(err).message;
+      }
+    });
+  }
+
+  /**
+   * Downloads a sample JSON file for the current target so the exact field names
+   * (and, for lessons, how a module is referenced) are discoverable without docs.
+   */
+  downloadImportTemplate() {
+    const lesson = {
+      title: 'Lesson title', heading: 'Short heading', content: '<p>Lesson notes (HTML allowed)</p>',
+      videoUrl: 'https://example.com/video.mp4', videoSource: 'URL', videoId: null,
+      thumbnailUrl: '', pdfNotesUrl: '', pdfSource: 'URL', pdfNoteId: null,
+      orderIndex: 0, durationMinutes: 10, isLocked: false, isMandatory: true
+    };
+    const payload = this.bulkImportTarget === 'modules'
+      ? [{
+          title: 'Module title', description: 'What this module covers', icon: '📘',
+          color: '#4F46E5', orderIndex: 0, isLocked: false,
+          lessons: [{ ...lesson, title: 'First lesson in this module' }]
+        }]
+      : [{ ...lesson, moduleTitle: '' }];
+
+    const name = this.bulkImportTarget === 'modules' ? 'modules-import-template.json' : 'lessons-import-template.json';
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Media view popup (self-hosted videos & PDFs) ──────────────

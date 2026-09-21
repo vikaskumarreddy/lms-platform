@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/router_provider.dart';
+import 'core/providers/org_theme_provider.dart';
 import 'core/services/app_messenger.dart';
 import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
@@ -35,6 +36,7 @@ class LmsApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final orgTheme = ref.watch(orgThemeProvider);
 
     // Push notifications only start doing anything once Firebase is actually
     // configured (admin has filled in System Config) -- this call is safe
@@ -52,8 +54,8 @@ class LmsApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Axisora Forge Academy',
       scaffoldMessengerKey: rootScaffoldMessengerKey,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightThemeFor(orgTheme),
+      darkTheme: AppTheme.darkThemeFor(orgTheme),
       themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,

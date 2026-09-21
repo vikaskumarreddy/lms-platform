@@ -1,0 +1,67 @@
+                  ],
+                ),
+              ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  decoration: BoxDecoration(
+                      color: theme.surface,
+                      border: Border(top: BorderSide(color: theme.divider))),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (drive.isInternal) ...[
+                          OutlinedButton.icon(
+                            onPressed: _busy ||
+                                    _loadingSlot ||
+                                    (!_booked &&
+                                        (closed ||
+                                            !card.isEligible ||
+                                            _status == 'REJECTED' ||
+                                            _status == 'SELECTED'))
+                                ? null
+                                : () async {
+                                    setState(() => _busy = true);
+                                    try {
+                                      await card.onScheduleSlot();
+                                      if (mounted) await _checkSlot();
+                                    } finally {
+                                      if (mounted) setState(() => _busy = false);
+                                    }
+                                  },
+                            icon: const Icon(Icons.event_available),
+                            label: Text(_loadingSlot
+                                ? 'Checking your slot…'
+                                : _booked
+                                    ? 'View my scheduled slot'
+                                    : 'Schedule my slot'),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        FilledButton.icon(
+                          onPressed: canApply && !_busy ? _apply : null,
+                          style: FilledButton.styleFrom(
+                              backgroundColor: theme.accent,
+                              foregroundColor:
+                                  theme.accent.computeLuminance() > 0.4
+                                  ? Colors.black
+                                  : Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16)),
+                          icon: Icon(_status == 'APPLIED'
+                              ? Icons.check_circle
+                              : Icons.arrow_forward),
+                          label: Text(_busy
+                              ? 'Please wait…'
+                              : _status != 'OPEN'
+                                  ? _status
+                                  : closed
+                                      ? 'Applications closed'
+                                      : !card.isEligible
+                                          ? 'Not eligible'
+                                          : 'Apply now'),
+                        ),
+                      ])),
+              ],
+            ),
+          ),
+        );

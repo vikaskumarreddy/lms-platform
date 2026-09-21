@@ -3,28 +3,48 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { ApiService } from '../services/api.service';
 import { CurrentOrgService } from '../services/current-org.service';
+import { ThemeService } from '../services/theme.service';
 import { ToastHostComponent } from '../components/toast-host.component';
 import { ConfirmDialogComponent } from '../components/confirm-dialog.component';
 import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_SECTIONS } from './admin-layout-menu';
+
+/** Maps a menu item id to the single emoji shown when the sidebar is collapsed to icon-only. */
+const COLLAPSED_ICONS: Record<string, string> = {
+  dashboard: '📊', organizations: '🏢', 'org-subscriptions': '⭐', 'platform-addons': '🧩',
+  'platform-billing': '🧾', payments: '💳', 'notifications-admin': '🔔', settings: '⚙️',
+  students: '🎓', courses: '📚', placements: '💼', 'events-admin': '🎉', 'calendar-events': '📅',
+  'assignments-admin': '📝', 'exams-admin': '📋', 'grading-admin': '✅', 'attendance-admin': '🗓️',
+  'certificates-admin': '🎓', 'qa-admin': '💬', 'company-questions': '🏢', 'media-hub': '🎬',
+  'leaderboard-admin': '🏆', 'daily-attendance': '🗓️', batches: '👥', faculty: '👨‍🏫',
+  'subscriptions-admin': '⭐', 'bookmarks-admin': '🔖', 'payment-settings': '⚙️', account: '🧾',
+  'theme-settings': '🎨'
+};
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent],
   template: `
-    <div class="sidebar">
+    <div class="sidebar" [class.collapsed]="collapsed">
       <div class="logo">
         <span class="logo-icon">🎓</span>
-        <span>{{ orgName || 'Axisora' }}</span>
+        @if (!collapsed) { <span>{{ orgName || 'Axisora' }}</span> }
+        <button type="button" class="collapse-toggle" (click)="toggleCollapsed()"
+              [attr.aria-label]="collapsed ? 'Expand sidebar' : 'Collapse sidebar'" [title]="collapsed ? 'Expand' : 'Collapse'">
+        {{ collapsed ? '»' : '«' }}
+      </button>
       </div>
 
+
       @for (section of menuSections; track $index) {
-        @if (section.groupLabel) {
+        @if (section.groupLabel && !collapsed) {
           <div class="nav-group">{{ section.groupLabel }}</div>
         }
         @for (item of visibleItems(section.items); track item.id) {
-          <a [routerLink]="item.route" routerLinkActive="active" [routerLinkActiveOptions]="{exact: !!item.exact}" class="nav-item">
-            {{ item.label }}
+          <a [routerLink]="item.route" routerLinkActive="active" [routerLinkActiveOptions]="{exact: !!item.exact}"
+             class="nav-item" [class.icon-only]="collapsed" [title]="collapsed ? item.label : ''">
+            <span class="nav-icon">{{ iconFor(item) }}</span>
+            @if (!collapsed) { <span class="nav-label">{{ labelFor(item) }}</span> }
             @if (item.badge === 'pendingApprovals' && pendingApprovals > 0) {
               <span class="nav-badge">{{ pendingApprovals }}</span>
             }
@@ -35,9 +55,12 @@ import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_S
         }
       }
 
-      <a (click)="logout()" class="nav-item" style="margin-top:auto;color:#F87171;">🚪 Logout</a>
+      <a (click)="logout()" class="nav-item" [class.icon-only]="collapsed" [title]="collapsed ? 'Logout' : ''" style="margin-top:auto;color:#F87171;">
+        <span class="nav-icon">🚪</span>
+        @if (!collapsed) { <span class="nav-label">Logout</span> }
+      </a>
     </div>
-    <div class="main-content">
+    <div class="main-content" [class.sidebar-collapsed]="collapsed">
       <!-- Read-only / expired banner, shown above every page so a lapsed tenant is not
            left guessing why their changes are refused. -->
       @if (subscriptionNotice) {
@@ -73,6 +96,23 @@ import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_S
       border-radius: 999px;
     }
     .nav-badge-alert { background: #DC2626; color: #fff; }
+
+    /* Collapse toggle: a small pill button pinned under the logo. */
+    .collapse-toggle {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; margin: 4px auto 8px;
+      background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 15px; font-weight: 700; transition: background .2s ease;
+    }
+    .collapse-toggle:hover { background: rgba(255,255,255,.22); }
+
+    /* Icon-only nav items when the sidebar is collapsed: centered icon, tooltip via title attr. */
+    .sidebar.collapsed { width: 72px; }
+    .sidebar.collapsed .logo { justify-content: center; padding: 0 0 16px; }
+    .nav-item.icon-only { justify-content: center; padding: 12px; margin: 2px auto; width: 44px; }
+    .nav-item.icon-only .nav-icon { font-size: 20px; }
+    .nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; }
+    .main-content.sidebar-collapsed { margin-left: 72px; }
     .sub-banner {
       display: flex;
       align-items: center;
@@ -93,9 +133,28 @@ export class AdminLayoutComponent implements OnInit {
   auth = inject(AuthService);
   private api = inject(ApiService);
   private currentOrg = inject(CurrentOrgService);
+  private theme = inject(ThemeService);
 
   /** Current organization name (tenant context). Falls back to "Axisora" on the platform. */
   orgName = '';
+
+  /** Icon-only sidebar, remembered per-browser so a collapse choice survives navigation/reload. */
+  collapsed = localStorage.getItem('sidebar_collapsed') === '1';
+
+  toggleCollapsed() {
+    this.collapsed = !this.collapsed;
+    localStorage.setItem('sidebar_collapsed', this.collapsed ? '1' : '0');
+  }
+
+  /** Single emoji shown for a menu item when the sidebar is collapsed to icon-only. */
+  iconFor(item: MenuItem): string {
+    return COLLAPSED_ICONS[item.id] || item.label.trim().charAt(0);
+  }
+
+  /** The item's label with its leading emoji stripped, since the icon is rendered separately. */
+  labelFor(item: MenuItem): string {
+    return item.label.replace(/^\S+\s*/, '');
+  }
 
   /** Banner shown above every page when the subscription needs attention. */
   subscriptionNotice: {
@@ -117,6 +176,10 @@ export class AdminLayoutComponent implements OnInit {
     this.api.get<any>('/api/organizations/current').subscribe({
       next: (org) => {
         if (org && org.name) this.orgName = org.name;
+        // Applies the tenant's saved theme (or the teal defaults for an org that never
+        // customized one) so every page — including this layout's own sidebar/banner —
+        // repaints in the org's brand colors immediately after login.
+        if (org && org.theme) this.theme.apply(org.theme);
       },
       error: () => {}
     });

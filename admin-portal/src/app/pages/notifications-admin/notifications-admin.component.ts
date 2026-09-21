@@ -50,16 +50,16 @@ interface NotificationRecord {
     <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
       <h3 style="margin-bottom:16px;">Send New Notification</h3>
       <div style="display:grid;gap:16px;">
-        <input [(ngModel)]="formData.title" placeholder="Title" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-        <textarea [(ngModel)]="formData.message" placeholder="Message" rows="3" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;"></textarea>
+        <input [(ngModel)]="formData.title" placeholder="Title" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
+        <textarea [(ngModel)]="formData.message" placeholder="Message" rows="3" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);"></textarea>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <select [(ngModel)]="formData.type" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <select [(ngModel)]="formData.type" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option value="info">Info</option>
             <option value="success">Success</option>
             <option value="warning">Warning</option>
             <option value="error">Error</option>
           </select>
-          <select [(ngModel)]="formData.targetType" (change)="onTargetTypeChange()" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+          <select [(ngModel)]="formData.targetType" (change)="onTargetTypeChange()" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option value="ALL">All Students</option>
             <option value="SUBSCRIPTION">Specific Subscription</option>
             <option value="BATCH">Specific Batch</option>
@@ -68,26 +68,26 @@ interface NotificationRecord {
         </div>
         <div *ngIf="formData.targetType === 'SUBSCRIPTION'" style="display:grid;gap:8px;">
           <label style="font-weight:600;font-size:14px;">Select Subscription Plan</label>
-          <select [(ngModel)]="formData.targetId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+          <select [(ngModel)]="formData.targetId" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option [ngValue]="null">Select a plan...</option>
             <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}} - ₹{{p.price}}{{p.period}}</option>
           </select>
         </div>
         <div *ngIf="formData.targetType === 'BATCH'" style="display:grid;gap:8px;">
           <label style="font-weight:600;font-size:14px;">Select Batch</label>
-          <select [(ngModel)]="formData.targetId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+          <select [(ngModel)]="formData.targetId" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option [ngValue]="null">Select a batch...</option>
             <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}{{b.isActive ? '' : ' (Inactive)'}}</option>
           </select>
         </div>
         <div *ngIf="formData.targetType === 'USER'" style="display:grid;gap:8px;">
           <label style="font-weight:600;font-size:14px;">Select Student</label>
-          <select [(ngModel)]="selectedStudentId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+          <select [(ngModel)]="selectedStudentId" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option [ngValue]="null">Select a student...</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{s.name}} ({{s.email}})</option>
           </select>
         </div>
-        <input [(ngModel)]="formData.actionUrl" placeholder="Action URL (route for mobile app, e.g. /courses)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+        <input [(ngModel)]="formData.actionUrl" placeholder="Action URL (route for mobile app, e.g. /courses)" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
       </div>
       <div style="margin-top:16px;display:flex;gap:12px;">
         <button class="btn btn-primary" (click)="send()" [disabled]="sending">Send Notifications</button>

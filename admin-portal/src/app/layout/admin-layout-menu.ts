@@ -90,6 +90,7 @@ export const TENANT_SECTIONS: MenuSection[] = [
       { id: 'payment-settings', label: '⚙️ Payment Settings', route: '/payment-settings' },
       { id: 'account', label: '🧾 Account', route: '/account', badge: 'account' },
       { id: 'settings', label: '⚙️ Settings', route: '/settings' },
+      { id: 'theme-settings', label: '🎨 Theme', route: '/theme-settings' },
     ],
   },
 ];

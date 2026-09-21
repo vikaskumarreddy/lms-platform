@@ -17,4 +17,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     @EntityGraph(attributePaths = {"user", "plan"})
     List<Subscription> findByUserId(Long userId);
+
+    long countByStatus(String status);
 }

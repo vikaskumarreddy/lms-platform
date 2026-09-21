@@ -67,7 +67,7 @@ class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF0F172A);
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final interviews = _filteredInterviews;
 
     return Scaffold(
@@ -236,7 +236,7 @@ class _TabButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade100,
+          color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(

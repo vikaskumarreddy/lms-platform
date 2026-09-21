@@ -90,6 +90,16 @@ export class AuthService {
     return role === 'INSTRUCTOR';
   }
 
+  /** True when the current user is a tenant organization admin (role INSTITUTE_ADMIN). */
+  get isInstituteAdmin(): boolean {
+    const u = this.user;
+    if (u && (u.roles?.includes('INSTITUTE_ADMIN') || u.role === 'INSTITUTE_ADMIN')) {
+      return true;
+    }
+    const role = this.jwtRoleClaim();
+    return role === 'INSTITUTE_ADMIN';
+  }
+
   /** Decodes the `role` claim from the stored access token, or null. */
   private jwtRoleClaim(): string | null {
     const token = this.token;

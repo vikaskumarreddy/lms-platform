@@ -1,0 +1,43 @@
+.stat-card { display:flex; align-items:center; gap:16px; }
+.icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; }
+.stat-value { font-size:26px; font-weight:700; line-height:1.2; }
+.stat-label { color:var(--text-secondary); font-size:13px; margin-top:2px; }
+.stat-sub { color:var(--text-muted); font-size:11px; margin-top:2px; }
+
+.empty-cell { text-align:center; color:var(--text-muted); padding:24px; }
+
+/* Batch placement bars */
+.batch-bar-row { display:grid; grid-template-columns:180px 1fr 220px; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-light); }
+.batch-bar-row:last-child { border-bottom:none; }
+.batch-bar-label { font-weight:600; font-size:13px; }
+.batch-bar-track { display:flex; height:14px; border-radius:8px; overflow:hidden; background:var(--surface-alt); }
+.batch-bar-placed { background:var(--success); height:100%; transition:width .3s ease; }
+.batch-bar-unplaced { background:#E2E8F0; height:100%; transition:width .3s ease; }
+.batch-bar-counts { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+
+/* Plan usage quota bars */
+.quota-row { margin-bottom:16px; }
+.quota-row:last-child { margin-bottom:0; }
+.quota-label { display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px; }
+.quota-track { height:10px; border-radius:6px; background:var(--surface-alt); overflow:hidden; }
+.quota-fill { height:100%; background:var(--primary); border-radius:6px; transition:width .3s ease; }
+
+/* Grading donut-style summary rows */
+.donut-row { display:flex; gap:10px; flex-wrap:wrap; }
+
+/* Action center list */
+.action-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+.action-item:last-child { border-bottom:none; }
+
+/* Placement funnel */
+.funnel-row { display:grid; grid-template-columns:100px 1fr; align-items:center; gap:12px; margin-bottom:12px; }
+.funnel-label { font-weight:600; font-size:13px; }
+.funnel-track { height:24px; border-radius:6px; background:var(--surface-alt); overflow:hidden; }
+.funnel-fill { height:100%; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; color:#fff; font-size:12px; font-weight:700; border-radius:6px; transition:width .3s ease; min-width:32px; }
+
+.chip-row { display:flex; gap:8px; flex-wrap:wrap; }
+
+@media(max-width:768px){
+  .batch-bar-row { grid-template-columns:1fr; }
+  .funnel-row { grid-template-columns:1fr; }
+}

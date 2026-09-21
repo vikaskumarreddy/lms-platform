@@ -70,7 +70,8 @@ interface Faculty {
           </span>
           <span class="badge badge-info">{{c.modules?.length || 0}} modules</span>
           <span class="badge badge-secondary">{{c.lessonsCount || 0}} lessons</span>
-          <button class="btn btn-secondary" style="margin-left:auto;padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); goToCourse(c)">Manage Content →</button>
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); editCourse(c)">Edit</button>
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); goToCourse(c)">Manage Content →</button>
           <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); deleteCourse(c)">Delete</button>
         </div>
       </div>
@@ -142,7 +143,8 @@ interface Faculty {
   `,
   styles: [`
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .modal-content { background: var(--surface); color: var(--text); border-radius: 16px; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .modal-content select { background: var(--surface); color: var(--text); border-color: var(--border-light); }
   `]
 })
 export class CoursesComponent implements OnInit {

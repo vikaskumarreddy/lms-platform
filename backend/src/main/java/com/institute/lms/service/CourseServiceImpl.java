@@ -1,5 +1,6 @@
 package com.institute.lms.service;
 
+import com.institute.lms.dto.course.BulkImportResult;
 import com.institute.lms.dto.course.CourseRequest;
 import com.institute.lms.dto.course.CourseSectionDTO;
 import com.institute.lms.dto.course.LessonProgressDTO;
@@ -20,14 +21,20 @@ import com.institute.lms.repository.ModuleRepository;
 import com.institute.lms.repository.PdfNoteRepository;
 import com.institute.lms.repository.ProgressRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.util.BulkImportParser;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +48,9 @@ public class CourseServiceImpl implements CourseService {
     private final ProgressRepository progressRepository;
     private final PdfNoteRepository pdfNoteRepository;
     private final MediaItemRepository mediaItemRepository;
+
+    /** Longest value the plain VARCHAR columns (title, heading, urls) can hold. */
+    private static final int MAX_TEXT_LENGTH = 255;
 
     public CourseServiceImpl(CourseRepository courseRepository, UserRepository userRepository,
                             ModuleRepository moduleRepository, LessonRepository lessonRepository,
@@ -166,11 +176,15 @@ public class CourseServiceImpl implements CourseService {
             course.setInstructor(instructor);
         }
 
-        // Safely delete existing modules and their lessons (with cascade from DB)
+        // The module/lesson tree is only rebuilt when the caller actually sends
+        // one. A metadata-only edit (title/description/thumbnail/plan/instructor)
+        // arrives with modules == null and must leave the existing content
+        // untouched — otherwise saving the course form would silently wipe every
+        // module and lesson in the course.
         List<Module> existingModules = course.getModules() != null
                 ? new ArrayList<>(course.getModules())
                 : new ArrayList<>();
-        if (!existingModules.isEmpty()) {
+        if (request.getModules() != null && !existingModules.isEmpty()) {
             // Delete progress records for lessons in these modules first (no DB cascade on progress)
             for (Module m : existingModules) {
                 if (m.getLessons() != null) {
@@ -468,6 +482,295 @@ public class CourseServiceImpl implements CourseService {
     public void deleteLesson(Long lessonId) {
         progressRepository.deleteByLessonId(lessonId);
         lessonRepository.deleteById(lessonId);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Admin portal: bulk import (JSON or Excel)
+    //
+    // Both importers build their entities through applyModuleRequest /
+    // applyLessonRequest — the exact code the single add/edit endpoints use — so
+    // self-hosted video/PDF resolution, defaults and locking all behave
+    // identically whether a module was imported or typed by hand.
+    // ─────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public BulkImportResult importModules(Long courseId, MultipartFile file) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("Course not found: " + courseId));
+
+        List<BulkImportParser.ParsedRow<ModuleRequest>> rows = BulkImportParser.parseModules(file);
+
+        BulkImportResult result = new BulkImportResult();
+        // Rows without an explicit order index continue after the last module
+        // already in the course (the same value the "Add Module" form pre-fills),
+        // so an import appends instead of colliding with existing content.
+        int nextOrder = nextModuleOrderIndex(course);
+
+        for (BulkImportParser.ParsedRow<ModuleRequest> row : rows) {
+            if (row.getError() != null) {
+                result.addError(rowMessage(row.getNumber(), null, row.getError()));
+                continue;
+            }
+            ModuleRequest request = row.getValue();
+            trimModule(request);
+            String problem = validateModule(request);
+            if (problem != null) {
+                result.addError(rowMessage(row.getNumber(), request.getTitle(), problem));
+                continue;
+            }
+
+            if (request.getOrderIndex() == null) {
+                request.setOrderIndex(nextOrder);
+            }
+            nextOrder = Math.max(nextOrder, request.getOrderIndex() + 1);
+
+            Module module = new Module();
+            applyModuleRequest(module, request);
+            module.setCourse(course);
+            Module savedModule = moduleRepository.save(module);
+            result.incrementImported();
+
+            // Nested lessons ride along exactly like a single "Add Lesson" call.
+            int lessonOrder = 0;
+            if (request.getLessons() != null) {
+                for (LessonRequest lessonRequest : request.getLessons()) {
+                    if (lessonRequest == null) {
+                        continue;
+                    }
+                    trimLesson(lessonRequest);
+                    String lessonProblem = validateLesson(lessonRequest);
+                    if (lessonProblem != null) {
+                        result.addError(rowMessage(row.getNumber(), request.getTitle(),
+                                "lesson \"" + describe(lessonRequest.getTitle()) + "\": " + lessonProblem));
+                        continue;
+                    }
+                    if (lessonRequest.getOrderIndex() == null) {
+                        lessonRequest.setOrderIndex(lessonOrder);
+                    }
+                    lessonOrder = Math.max(lessonOrder, lessonRequest.getOrderIndex() + 1);
+
+                    Lesson lesson = new Lesson();
+                    applyLessonRequest(lesson, lessonRequest);
+                    lesson.setModule(savedModule);
+                    lessonRepository.save(lesson);
+                    result.incrementLessonsImported();
+                }
+            }
+        }
+        return result;
+    }
+    @Override
+    @Transactional
+    public BulkImportResult importLessons(Long moduleId, MultipartFile file) {
+        Module target = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module not found: " + moduleId));
+        Course course = target.getCourse() != null
+                ? courseRepository.findById(target.getCourse().getId()).orElse(null)
+                : null;
+        Map<String, Module> modules = moduleLookup(course, target);
+
+        List<BulkImportParser.ParsedRow<BulkImportParser.LessonRow>> rows = BulkImportParser.parseLessons(file);
+
+        BulkImportResult result = new BulkImportResult();
+        // Running "next free order index" per module: the module's in-memory lesson
+        // set does not include what this import has just inserted, so the counter
+        // is kept here instead of being re-read from the entity.
+        Map<Long, Integer> nextOrderByModule = new HashMap<>();
+        for (Module module : modules.values()) {
+            nextOrderByModule.putIfAbsent(module.getId(), nextLessonOrderIndex(module));
+        }
+
+        for (BulkImportParser.ParsedRow<BulkImportParser.LessonRow> row : rows) {
+            if (row.getError() != null) {
+                result.addError(rowMessage(row.getNumber(), null, row.getError()));
+                continue;
+            }
+            LessonRequest request = row.getValue().getRequest();
+            trimLesson(request);
+
+            Module module = target;
+            String ref = row.getValue().getModuleRef();
+            if (ref != null) {
+                module = modules.get(ref.toLowerCase(Locale.ROOT));
+                if (module == null) {
+                    result.addError(rowMessage(row.getNumber(), request.getTitle(),
+                            "this course has no module \"" + ref + "\""));
+                    continue;
+                }
+            }
+
+            String problem = validateLesson(request);
+            if (problem != null) {
+                result.addError(rowMessage(row.getNumber(), request.getTitle(), problem));
+                continue;
+            }
+
+            int nextOrder = nextOrderByModule.getOrDefault(module.getId(), 0);
+            if (request.getOrderIndex() == null) {
+                request.setOrderIndex(nextOrder);
+            }
+            nextOrderByModule.put(module.getId(), Math.max(nextOrder, request.getOrderIndex() + 1));
+
+            Lesson lesson = new Lesson();
+            applyLessonRequest(lesson, request);
+            lesson.setModule(module);
+            lessonRepository.save(lesson);
+            result.incrementImported();
+        }
+        return result;
+    }
+    // ── Bulk import helpers ──────────────────────────────────────
+
+    /** All modules of the course keyed by id, title (lower-cased) and order index. */
+    private Map<String, Module> moduleLookup(Course course, Module fallback) {
+        Map<String, Module> lookup = new LinkedHashMap<>();
+        List<Module> modules = new ArrayList<>();
+        if (course != null && course.getModules() != null) {
+            modules.addAll(course.getModules());
+        }
+        if (modules.stream().noneMatch(m -> m.getId() != null && m.getId().equals(fallback.getId()))) {
+            modules.add(fallback);
+        }
+        for (Module module : modules) {
+            if (module.getId() != null) {
+                lookup.putIfAbsent(String.valueOf(module.getId()), module);
+            }
+            if (module.getTitle() != null && !module.getTitle().isBlank()) {
+                lookup.putIfAbsent(module.getTitle().trim().toLowerCase(Locale.ROOT), module);
+            }
+            if (module.getOrderIndex() != null) {
+                lookup.putIfAbsent(String.valueOf(module.getOrderIndex()), module);
+            }
+        }
+        return lookup;
+    }
+
+    /** First free order index after the course's last module (0 when it has none). */
+    private int nextModuleOrderIndex(Course course) {
+        int highest = -1;
+        if (course.getModules() != null) {
+            for (Module module : course.getModules()) {
+                if (module.getOrderIndex() != null) {
+                    highest = Math.max(highest, module.getOrderIndex());
+                }
+            }
+        }
+        return highest + 1;
+    }
+
+    /** First free order index after the module's last lesson (0 when it has none). */
+    private int nextLessonOrderIndex(Module module) {
+        int highest = -1;
+        if (module.getLessons() != null) {
+            for (Lesson lesson : module.getLessons()) {
+                if (lesson.getOrderIndex() != null) {
+                    highest = Math.max(highest, lesson.getOrderIndex());
+                }
+            }
+        }
+        return highest + 1;
+    }
+
+    /** "Row 4 (\"Getting started\"): Title is required." — what the admin sees. */
+    private static String rowMessage(int number, String title, String problem) {
+        String label = "Row " + number;
+        if (title != null && !title.isBlank()) {
+            label += " (\"" + title.trim() + "\")";
+        }
+        return label + ": " + problem;
+    }
+
+    private static String describe(String title) {
+        return title == null || title.isBlank() ? "untitled" : title.trim();
+    }
+    /** Title and description are the two mandatory fields of a module import. */
+    private static String validateModule(ModuleRequest request) {
+        if (isBlank(request.getTitle())) {
+            return "Title is required.";
+        }
+        if (isBlank(request.getDescription())) {
+            return "Description is required.";
+        }
+        if (request.getTitle().length() > MAX_TEXT_LENGTH) {
+            return "Title must be " + MAX_TEXT_LENGTH + " characters or fewer.";
+        }
+        if (tooLong(request.getIcon())) {
+            return "Icon is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if (tooLong(request.getColor())) {
+            return "Color is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if (request.getOrderIndex() != null && request.getOrderIndex() < 0) {
+            return "Order index cannot be negative.";
+        }
+        return null;
+    }
+
+    /** Title is the only mandatory field of a lesson; the rest mirrors the manual form. */
+    private static String validateLesson(LessonRequest request) {
+        if (isBlank(request.getTitle())) {
+            return "Title is required.";
+        }
+        if (request.getTitle().length() > MAX_TEXT_LENGTH) {
+            return "Title must be " + MAX_TEXT_LENGTH + " characters or fewer.";
+        }
+        if (tooLong(request.getHeading())) {
+            return "Heading is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if (tooLong(request.getVideoUrl())) {
+            return "Video URL is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if (tooLong(request.getThumbnailUrl())) {
+            return "Thumbnail URL is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if (tooLong(request.getPdfNotesUrl())) {
+            return "PDF notes URL is too long (max " + MAX_TEXT_LENGTH + " characters).";
+        }
+        if ("SELF".equalsIgnoreCase(request.getVideoSource()) && request.getVideoId() == null) {
+            return "Video ID is required when the video source is SELF.";
+        }
+        if ("SELF".equalsIgnoreCase(request.getPdfSource()) && request.getPdfNoteId() == null) {
+            return "PDF note ID is required when the PDF source is SELF.";
+        }
+        if (request.getOrderIndex() != null && request.getOrderIndex() < 0) {
+            return "Order index cannot be negative.";
+        }
+        if (request.getDurationMinutes() != null && request.getDurationMinutes() < 0) {
+            return "Duration cannot be negative.";
+        }
+        return null;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static boolean tooLong(String value) {
+        return value != null && value.length() > MAX_TEXT_LENGTH;
+    }
+
+    /** Spaces pasted in from a spreadsheet would otherwise show up in the app. */
+    private static void trimModule(ModuleRequest request) {
+        request.setTitle(trim(request.getTitle()));
+        request.setDescription(trim(request.getDescription()));
+        request.setIcon(trim(request.getIcon()));
+        request.setColor(trim(request.getColor()));
+    }
+
+    private static void trimLesson(LessonRequest request) {
+        request.setTitle(trim(request.getTitle()));
+        request.setHeading(trim(request.getHeading()));
+        request.setContent(trim(request.getContent()));
+        request.setVideoUrl(trim(request.getVideoUrl()));
+        request.setVideoSource(trim(request.getVideoSource()));
+        request.setThumbnailUrl(trim(request.getThumbnailUrl()));
+        request.setPdfNotesUrl(trim(request.getPdfNotesUrl()));
+        request.setPdfSource(trim(request.getPdfSource()));
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
     }
 
     private LessonProgressDTO toLessonProgressDTO(Lesson lesson, Set<Long> completedLessonIds) {

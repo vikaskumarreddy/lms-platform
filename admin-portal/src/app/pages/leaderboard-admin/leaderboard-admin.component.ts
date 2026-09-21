@@ -111,7 +111,8 @@ interface LeaderboardResponse {
     }
 
     .podium-tile {
-      background: white;
+      background: var(--surface);
+      color: var(--text);
       border-radius: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       padding: 20px 16px;

@@ -44,6 +44,16 @@ import '../../presentation/screens/main_shell_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 
+String _placementFilter(String? value) {
+  switch ((value ?? '').toLowerCase()) {
+    case 'open': return 'Open';
+    case 'applied': return 'Applied';
+    case 'selected': return 'Selected';
+    case 'rejected': return 'Rejected';
+    default: return 'All';
+  }
+}
+
 /// Root navigator key, shared with [InAppNotificationOverlay] so it can find
 /// a live [OverlayState] (via `Navigator.of(context).overlay`) to insert the
 /// foreground push-notification card into from outside the widget tree --
@@ -113,13 +123,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => MainShellScreen(child: child),
         routes: [
+          GoRoute(path: '/notes', builder: (context, state) => const NotesScreen(lessonId: 0)),
+          GoRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
           GoRoute(path: AppRoutes.home, builder: (context, state) => const HomeScreen()),
           GoRoute(path: AppRoutes.courses, builder: (context, state) => const CoursesScreen()),
           GoRoute(path: AppRoutes.courseDetail, builder: (context, state) => CourseDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
           GoRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
           GoRoute(path: AppRoutes.notifications, builder: (context, state) => NotificationsScreen()),
           GoRoute(path: AppRoutes.settings, builder: (context, state) => const SettingsScreen()),
-          GoRoute(path: AppRoutes.placementDrives, builder: (context, state) => const PlacementDrivesScreen()),
+          GoRoute(path: AppRoutes.placementDrives, builder: (context, state) => PlacementDrivesScreen(initialFilter: _placementFilter(state.uri.queryParameters['filter']))),
           GoRoute(path: AppRoutes.calendar, builder: (context, state) => const CalendarScreen()),
           GoRoute(path: AppRoutes.assignments, builder: (context, state) => const AssignmentsScreen()),
           GoRoute(path: AppRoutes.exams, builder: (context, state) => const ExamsScreen()),
@@ -137,6 +149,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
           GoRoute(path: AppRoutes.companyQuestions, builder: (context, state) => const CompanyQuestionsScreen()),
           GoRoute(path: AppRoutes.supportRequest, builder: (context, state) => const SupportRequestScreen()),
+          GoRoute(path: AppRoutes.sectionLessons, builder: (context, state) => CourseSectionLessonsScreen(sectionId: int.tryParse(state.pathParameters['sectionId'] ?? '') ?? 0)),
+          GoRoute(path: AppRoutes.lesson, builder: (context, state) => LessonPlayerScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
         ],
       ),
       GoRoute(path: AppRoutes.inAppBrowser, builder: (context, state) => InAppBrowserScreen(
@@ -155,10 +169,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
-      GoRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
+
       GoRoute(path: AppRoutes.payment, builder: (context, state) => PaymentScreen(planId: int.tryParse(state.pathParameters['planId'] ?? '') ?? 0)),
-      GoRoute(path: AppRoutes.sectionLessons, builder: (context, state) => CourseSectionLessonsScreen(sectionId: int.tryParse(state.pathParameters['sectionId'] ?? '') ?? 0)),
-      GoRoute(path: AppRoutes.lesson, builder: (context, state) => LessonPlayerScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

@@ -16,6 +16,8 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     @Query("SELECT q FROM Question q WHERE q.batchId IS NULL AND q.planId IS NULL")
     List<Question> findGeneralQuestions();
 
+    long countByIsAnsweredFalse();
+
     // Questions with batchId == null ("All Batches" in the admin portal) must be visible
     // to every student, regardless of plan, in addition to batch-specific questions.
     @Query("SELECT q FROM Question q WHERE q.batchId IS NULL OR q.batchId = :batchId")

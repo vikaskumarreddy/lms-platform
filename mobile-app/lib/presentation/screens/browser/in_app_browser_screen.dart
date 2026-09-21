@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -107,7 +107,7 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
     if (widget.url.isEmpty) {
       return Scaffold(
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0F172A),
+          backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           title: Text(
             widget.title,
@@ -129,7 +129,7 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         title: Text(
           widget.title,
@@ -178,7 +178,7 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
       body: _isPdf ? _buildPdfBody() : _buildWebViewBody(),
       bottomNavigationBar: (_isPdf && _pdfTotalPages > 0)
           ? Container(
-              color: const Color(0xFF0F172A),
+              color: Theme.of(context).colorScheme.primary,
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -288,7 +288,7 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
           LinearProgressIndicator(
             value: _progress,
             backgroundColor: Colors.grey.shade200,
-            color: const Color(0xFFEAB308),
+            color: Theme.of(context).colorScheme.secondary,
             minHeight: 2,
           ),
         Expanded(
@@ -375,7 +375,7 @@ class _FullscreenPdfViewState extends State<_FullscreenPdfView> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         title: Text(widget.title, overflow: TextOverflow.ellipsis),
         leading: IconButton(
@@ -413,7 +413,7 @@ class _FullscreenPdfViewState extends State<_FullscreenPdfView> {
       ),
       bottomNavigationBar: _totalPages > 0
           ? Container(
-              color: const Color(0xFF0F172A),
+              color: Theme.of(context).colorScheme.primary,
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,

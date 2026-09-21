@@ -104,12 +104,12 @@ class ResumeData {
 /// Builds ATS-friendly (plain text-extractable, single-column, no images/tables)
 /// resume PDFs in a few different visual styles from the same underlying data.
 class ResumePdfGenerator {
-  static Future<pw.Document> generate(ResumeData data, ResumeTemplate template) async {
+  static Future<pw.Document> generate(ResumeData data, ResumeTemplate template, {int primaryColor = 0xFF0F172A, int accentColor = 0xFFEAB308}) async {
     switch (template) {
       case ResumeTemplate.classic:
-        return _classic(data);
+        return _classic(data, primaryColor: primaryColor, accentColor: accentColor);
       case ResumeTemplate.modern:
-        return _modern(data);
+        return _modern(data, primaryColor: primaryColor, accentColor: accentColor);
       case ResumeTemplate.minimal:
         return _minimal(data);
     }
@@ -213,9 +213,9 @@ class ResumePdfGenerator {
     );
   }
 
-static Future<pw.Document> _classic(ResumeData d) async {
+static Future<pw.Document> _classic(ResumeData d, {required int primaryColor, required int accentColor}) async {
     final doc = pw.Document();
-    const navy = PdfColors.blueGrey900;
+    final navy = PdfColor.fromInt(primaryColor);
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(32),
@@ -259,10 +259,10 @@ static Future<pw.Document> _classic(ResumeData d) async {
     return doc;
   }
 
-  static Future<pw.Document> _modern(ResumeData d) async {
+  static Future<pw.Document> _modern(ResumeData d, {required int primaryColor, required int accentColor}) async {
     final doc = pw.Document();
-    const gold = PdfColor.fromInt(0xFFEAB308);
-    const navy = PdfColors.blueGrey900;
+    final gold = PdfColor.fromInt(accentColor);
+    final navy = PdfColor.fromInt(primaryColor);
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(0),

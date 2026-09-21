@@ -6,12 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api_service.dart';
 
-const Color _kInk = Color(0xFF0F172A);
-const Color _kAccent = Color(0xFFEAB308);
+const Color _kBgDark = Color(0xFF071D43);
+const Color _kCardDark = Color(0xFF0C2B64);
+const Color _kCardDarkBorder = Color(0xFF1E4E8C);
+const Color _kCyan = Color(0xFF27D9D3);
+const Color _kGold = Color(0xFFFFCF35);
 const Color _kCorrect = Color(0xFF10B981);
 const Color _kWrong = Color(0xFFEF4444);
-const Color _kMuted = Color(0xFF64748B);
-const Color _kPaper = Color(0xFFF8FAFC);
+const Color _kMuted = Color(0xFF94A3B8);
+const Color _kPaper = Color(0xFF071D43);
 
 /// The in-app question paper for an assignment or exam.
 ///
@@ -51,6 +54,8 @@ class AssessmentPaperScreen extends StatefulWidget {
 }
 
 class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
+  Color get _kInk => Theme.of(context).colorScheme.primary;
+  Color get _kAccent => Theme.of(context).colorScheme.secondary;
   final ApiService _api = ApiService();
   final PageController _pages = PageController();
 
@@ -251,8 +256,15 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(widget.practiceMode ? 'Submit answers?' : 'Submit paper?'),
+        backgroundColor: _kCardDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: _kCardDarkBorder.withOpacity(0.5)),
+        ),
+        title: Text(
+          widget.practiceMode ? 'Submit answers?' : 'Submit paper?',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,16 +281,19 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
             const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text('You cannot change your answers after submitting.',
-                  style: TextStyle(fontSize: 13, color: _kMuted)),
+                  style: TextStyle(fontSize: 13, color: Colors.white60)),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep working')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep working', style: TextStyle(color: Colors.white70)),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: _kInk, foregroundColor: Colors.white),
-            child: const Text('Submit'),
+            style: ElevatedButton.styleFrom(backgroundColor: _kGold, foregroundColor: const Color(0xFF071D43)),
+            child: const Text('Submit', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -289,8 +304,8 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   Widget _summaryRow(String label, String value) => Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: _kMuted)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(label, style: const TextStyle(color: Colors.white70)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
         ],
       );
 
@@ -333,7 +348,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     if (auto) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Time is up - your answers were submitted automatically.'),
-            backgroundColor: _kAccent),
+            backgroundColor: _kGold),
       );
     }
   }
@@ -344,14 +359,27 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     final leave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(widget.practiceMode ? 'Leave these questions?' : 'Leave the paper?'),
-        content: const Text('Your answers have not been submitted and will be lost.'),
+        backgroundColor: _kCardDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: _kCardDarkBorder.withOpacity(0.5)),
+        ),
+        title: Text(
+          widget.practiceMode ? 'Leave these questions?' : 'Leave the paper?',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Your answers have not been submitted and will be lost.',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Stay')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stay', style: TextStyle(color: Colors.white70)),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Leave', style: TextStyle(color: _kWrong)),
+            child: const Text('Leave', style: TextStyle(color: _kWrong, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -370,15 +398,28 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
         if (await _confirmExit() && mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: _kPaper,
-        body: SafeArea(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? _buildError()
-                  : _result != null
-                      ? _buildReview()
-                      : _buildPaper(),
+        backgroundColor: _kBgDark,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF051838),
+                Color(0xFF071D43),
+                Color(0xFF0A2558),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: _kCyan))
+                : _error != null
+                    ? _buildError()
+                    : _result != null
+                        ? _buildReview()
+                        : _buildPaper(),
+          ),
         ),
       ),
     );
@@ -395,14 +436,18 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.description_outlined, size: 56, color: _kMuted),
+                  const Icon(Icons.description_outlined, size: 56, color: Colors.white38),
                   const SizedBox(height: 16),
-                  Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: _kMuted)),
+                  Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _load,
-                    style: ElevatedButton.styleFrom(backgroundColor: _kInk, foregroundColor: Colors.white),
-                    child: const Text('Try again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kCyan,
+                      foregroundColor: const Color(0xFF071D43),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Try again', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -415,12 +460,24 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
 
   Widget _topBar({Widget? trailing}) {
     return Container(
-      color: _kInk,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF071D43),
+            Color(0xFF0A2558),
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.12)),
+        ),
+      ),
       padding: const EdgeInsets.fromLTRB(4, 8, 12, 12),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
             onPressed: () async {
               if (await _confirmExit() && mounted) Navigator.of(context).pop();
             },
@@ -439,7 +496,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                   widget.practiceMode
                       ? '${_questions.length} question${_questions.length == 1 ? '' : 's'} and answers'
                       : '${_questions.length} question${_questions.length == 1 ? '' : 's'}'
-                          '${_paperMarks > 0 ? '  -  $_paperMarks marks' : ''}',
+                          '${_paperMarks > 0 ? '  •  $_paperMarks marks' : ''}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -477,17 +534,27 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: low ? _kWrong : Colors.white.withOpacity(0.14),
+        color: low ? _kWrong.withOpacity(0.25) : _kCyan.withOpacity(0.20),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: low ? _kWrong : _kCyan.withOpacity(0.6),
+          width: 1.2,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.timer_outlined, size: 15, color: Colors.white),
+          Icon(Icons.timer_outlined, size: 15, color: low ? _kWrong : _kCyan),
           const SizedBox(width: 6),
-          Text(_formatClock(seconds < 0 ? 0 : seconds),
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.5)),
+          Text(
+            _formatClock(seconds < 0 ? 0 : seconds),
+            style: TextStyle(
+              color: low ? _kWrong : Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+          ),
         ],
       ),
     );
@@ -505,23 +572,23 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   Widget _progressStrip() {
     final progress = _questions.isEmpty ? 0.0 : _answeredCount / _questions.length;
     return Container(
-      color: Colors.white,
+      color: const Color(0xFF0C2B64).withOpacity(0.60),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       child: Column(
         children: [
           Row(
             children: [
               Text('Question ${_current + 1} of ${_questions.length}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kInk)),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
               const Spacer(),
-              Text('$_answeredCount answered', style: const TextStyle(fontSize: 12, color: _kMuted)),
+              Text('$_answeredCount answered', style: const TextStyle(fontSize: 12, color: Colors.white70)),
               const SizedBox(width: 10),
               InkWell(
                 onTap: _showPalette,
                 borderRadius: BorderRadius.circular(6),
                 child: const Padding(
-                  padding: EdgeInsets.all(2),
-                  child: Icon(Icons.grid_view_rounded, size: 18, color: _kInk),
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.grid_view_rounded, size: 18, color: _kCyan),
                 ),
               ),
             ],
@@ -532,8 +599,8 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 6,
-              backgroundColor: const Color(0xFFE2E8F0),
-              valueColor: const AlwaysStoppedAnimation(_kCorrect),
+              backgroundColor: Colors.white.withOpacity(0.12),
+              valueColor: const AlwaysStoppedAnimation(_kCyan),
             ),
           ),
         ],
@@ -545,7 +612,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   void _showPalette() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF071D43),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
@@ -554,11 +621,22 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const Text('Jump to question',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _kInk)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
             const SizedBox(height: 4),
             const Text('Green = answered, amber = flagged for review',
-                style: TextStyle(fontSize: 12, color: _kMuted)),
+                style: TextStyle(fontSize: 12, color: Colors.white60)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 10,
@@ -567,7 +645,10 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                 final q = _questions[i];
                 final answered = _isAnswered(q);
                 final flagged = _flagged.contains(q.id);
-                final color = flagged ? _kAccent : (answered ? _kCorrect : const Color(0xFFE2E8F0));
+                final isCurrent = i == _current;
+                final color = flagged
+                    ? _kGold
+                    : (answered ? _kCorrect : const Color(0xFF104476).withOpacity(0.6));
                 return GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
@@ -581,12 +662,14 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                       color: color,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                          color: i == _current ? _kInk : Colors.transparent, width: 2),
+                        color: isCurrent ? _kCyan : Colors.white24,
+                        width: isCurrent ? 2 : 1,
+                      ),
                     ),
                     child: Text('${i + 1}',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: (answered || flagged) ? Colors.white : _kInk,
+                          color: (answered || flagged) ? const Color(0xFF071D43) : Colors.white,
                         )),
                   ),
                 );
@@ -609,21 +692,28 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: _kCardDark.withOpacity(0.70),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _kCardDarkBorder.withOpacity(0.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    _pill('Q${index + 1}', _kInk),
+                    _pill('Q${index + 1}', _kCyan),
                     const SizedBox(width: 8),
                     _pill(q.typeLabel, q.typeColor),
                     if (!widget.practiceMode) ...[
                       const SizedBox(width: 8),
-                      _pill('${q.marks} mark${q.marks == 1 ? '' : 's'}', _kMuted),
+                      _pill('${q.marks} mark${q.marks == 1 ? '' : 's'}', _kGold),
                     ],
                     const Spacer(),
                     InkWell(
@@ -632,7 +722,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                       child: Icon(
                         _flagged.contains(q.id) ? Icons.flag : Icons.outlined_flag,
                         size: 20,
-                        color: _flagged.contains(q.id) ? _kAccent : _kMuted,
+                        color: _flagged.contains(q.id) ? _kGold : Colors.white60,
                       ),
                     ),
                   ],
@@ -640,18 +730,18 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                 const SizedBox(height: 14),
                 Text(q.text,
                     style: const TextStyle(
-                        fontSize: 16, height: 1.45, fontWeight: FontWeight.w600, color: _kInk)),
+                        fontSize: 16, height: 1.45, fontWeight: FontWeight.w600, color: Colors.white)),
                 if (q.isMultiple)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text('Select all that apply.',
-                        style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                        style: TextStyle(fontSize: 12, color: Colors.white60, fontStyle: FontStyle.italic)),
                   ),
                 if (q.isFillInBlank)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text('Type the exact answer.',
-                        style: TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                        style: TextStyle(fontSize: 12, color: Colors.white60, fontStyle: FontStyle.italic)),
                   ),
                 if (q.isCoding)
                   Padding(
@@ -660,7 +750,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                         widget.practiceMode
                             ? 'Write your solution below - compare it with the sample answer once you submit.'
                             : 'Not auto-graded - a mentor may review this separately.',
-                        style: const TextStyle(fontSize: 12, color: _kMuted, fontStyle: FontStyle.italic)),
+                        style: const TextStyle(fontSize: 12, color: Colors.white60, fontStyle: FontStyle.italic)),
                   ),
               ],
             ),
@@ -681,10 +771,12 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                      color: isSelected
+                          ? const Color(0xFF133E82).withOpacity(0.85)
+                          : _kCardDark.withOpacity(0.45),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                          color: isSelected ? _kCyan : _kCardDarkBorder.withOpacity(0.4),
                           width: isSelected ? 2 : 1),
                     ),
                     child: Row(
@@ -697,7 +789,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                               style: TextStyle(
                                 fontSize: 15,
                                 height: 1.4,
-                                color: _kInk,
+                                color: Colors.white,
                                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                               )),
                         ),
@@ -715,13 +807,11 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   Widget _textAnswerField(_Question q) {
     final controller = _textControllers.putIfAbsent(
         q.id, () => TextEditingController(text: _textAnswers[q.id] ?? ''));
-    // Coding answers get a dark, monospaced "editor" look so code reads clearly
-    // on a phone screen, distinct from the plain white box used for text answers.
     return Container(
       decoration: BoxDecoration(
-        color: q.isCoding ? const Color(0xFF0F172A) : Colors.white,
+        color: q.isCoding ? const Color(0xFF051838) : _kCardDark.withOpacity(0.65),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: q.isCoding ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+        border: Border.all(color: _kCardDarkBorder.withOpacity(0.55)),
       ),
       child: TextField(
         controller: controller,
@@ -732,16 +822,20 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           fontSize: 13.5,
           fontFamily: q.isCoding ? 'monospace' : null,
           height: q.isCoding ? 1.5 : 1.3,
-          color: q.isCoding ? const Color(0xFFE2E8F0) : _kInk,
+          color: q.isCoding ? const Color(0xFF38BDF8) : Colors.white,
         ),
-        cursorColor: q.isCoding ? _kAccent : _kInk,
+        cursorColor: _kCyan,
         decoration: InputDecoration(
+          filled: true,
+          fillColor: Colors.transparent,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
           contentPadding: const EdgeInsets.all(14),
           hintText: q.isCoding ? '// Write your code here...' : 'Type your answer...',
           hintStyle: TextStyle(
             fontFamily: q.isCoding ? 'monospace' : null,
-            color: q.isCoding ? const Color(0xFF64748B) : _kMuted,
+            color: q.isCoding ? const Color(0xFF64748B) : Colors.white38,
           ),
         ),
         onChanged: (value) {
@@ -765,16 +859,16 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       height: 28,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF2563EB) : Colors.transparent,
+        color: selected ? _kCyan : Colors.transparent,
         shape: multiple ? BoxShape.rectangle : BoxShape.circle,
         borderRadius: multiple ? BorderRadius.circular(7) : null,
         border: Border.all(
-            color: selected ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1), width: 2),
+            color: selected ? _kCyan : Colors.white38, width: 2),
       ),
       child: selected
-          ? const Icon(Icons.check, size: 17, color: Colors.white)
+          ? const Icon(Icons.check, size: 17, color: Color(0xFF071D43))
           : Text(letter,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _kMuted)),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70)),
     );
   }
 
@@ -783,7 +877,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   Widget _pill(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: color.withOpacity(0.18), borderRadius: BorderRadius.circular(6)),
       child: Text(label,
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     );
@@ -795,9 +889,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     final isLast = _timeUp || _current == _questions.length - 1;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      decoration: BoxDecoration(
+        color: const Color(0xFF051838),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12))),
       ),
       child: Row(
         children: [
@@ -808,7 +902,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                 icon: const Icon(Icons.chevron_left, size: 20),
                 label: const Text('Previous'),
                 style: OutlinedButton.styleFrom(
-                    foregroundColor: _kInk, padding: const EdgeInsets.symmetric(vertical: 14)),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    padding: const EdgeInsets.symmetric(vertical: 14)),
               ),
             ),
           if (_current > 0) const SizedBox(width: 10),
@@ -821,14 +917,14 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF071D43)))
                         : const Icon(Icons.check_circle_outline, size: 20),
                     label: Text(_submitting
                         ? 'Submitting...'
                         : (widget.practiceMode ? 'Submit answers' : 'Submit paper')),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: _kAccent,
-                        foregroundColor: Colors.black,
+                        backgroundColor: _kGold,
+                        foregroundColor: const Color(0xFF071D43),
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                   )
                 : ElevatedButton.icon(
@@ -836,8 +932,8 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                     icon: const Icon(Icons.chevron_right, size: 20),
                     label: const Text('Next'),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: _kInk,
-                        foregroundColor: Colors.white,
+                        backgroundColor: _kCyan,
+                        foregroundColor: const Color(0xFF071D43),
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                   ),
           ),
@@ -866,7 +962,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               _scoreCard(score, total, correct, count, percentage),
               const SizedBox(height: 18),
               const Text('Answer review',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _kInk)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
               const SizedBox(height: 10),
               ...List.generate(_questions.length, (i) => _reviewCard(_questions[i], i)),
             ],
@@ -874,19 +970,20 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+          decoration: BoxDecoration(
+            color: const Color(0xFF051838),
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12))),
           ),
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _kInk,
-                  foregroundColor: Colors.white,
+                  backgroundColor: _kCyan,
+                  foregroundColor: const Color(0xFF071D43),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   padding: const EdgeInsets.symmetric(vertical: 14)),
-              child: const Text('Done'),
+              child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ),
@@ -901,12 +998,12 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [tone.withOpacity(0.14), tone.withOpacity(0.04)],
+          colors: [tone.withOpacity(0.20), _kCardDark.withOpacity(0.70)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: tone.withOpacity(0.35)),
+        border: Border.all(color: tone.withOpacity(0.50)),
       ),
       child: Column(
         children: [
@@ -915,8 +1012,8 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           const SizedBox(height: 10),
           Text('$score / $total',
               style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: tone)),
-          Text('${percentage.toStringAsFixed(1)}%  -  $correct of $count correct',
-              style: const TextStyle(fontSize: 13, color: _kMuted)),
+          Text('${percentage.toStringAsFixed(1)}%  •  $correct of $count correct',
+              style: const TextStyle(fontSize: 13, color: Colors.white70)),
           const SizedBox(height: 14),
           Container(height: 1, color: tone.withOpacity(0.2)),
           const SizedBox(height: 14),
@@ -925,7 +1022,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                 ? 'Nice work! Scroll down to check each question against its answer.'
                 : 'Your result has been recorded and shared with your mentor.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: _kMuted),
+            style: const TextStyle(fontSize: 12, color: Colors.white60),
           ),
         ],
       ),
@@ -936,22 +1033,22 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
     if (q.isTextAnswer) return _textReviewCard(q, index);
     final selected = q.selectedOptionIds;
     final unanswered = selected.isEmpty;
-    final tone = q.isCorrect ? _kCorrect : (unanswered ? _kMuted : _kWrong);
+    final tone = q.isCorrect ? _kCorrect : (unanswered ? Colors.white38 : _kWrong);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardDark.withOpacity(0.70),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: _kCardDarkBorder.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _pill('Q${index + 1}', _kInk),
+              _pill('Q${index + 1}', _kCyan),
               const SizedBox(width: 8),
               _pill(
                 q.isCorrect ? 'Correct' : (unanswered ? 'Not answered' : 'Incorrect'),
@@ -966,7 +1063,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           const SizedBox(height: 12),
           Text(q.text,
               style: const TextStyle(
-                  fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: _kInk)),
+                  fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: Colors.white)),
           const SizedBox(height: 12),
           ...List.generate(q.options.length, (i) {
             final option = q.options[i];
@@ -974,12 +1071,12 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
             final isKey = option.isCorrect;
 
             Color background = Colors.transparent;
-            Color border = const Color(0xFFE2E8F0);
+            Color border = Colors.white12;
             if (isKey) {
-              background = _kCorrect.withOpacity(0.10);
+              background = _kCorrect.withOpacity(0.18);
               border = _kCorrect;
             } else if (picked) {
-              background = _kWrong.withOpacity(0.08);
+              background = _kWrong.withOpacity(0.18);
               border = _kWrong;
             }
 
@@ -996,9 +1093,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${_letter(i)}.',
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: _kMuted)),
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white60)),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(option.text, style: const TextStyle(fontSize: 14, height: 1.35))),
+                    Expanded(child: Text(option.text, style: const TextStyle(fontSize: 14, height: 1.35, color: Colors.white))),
                     if (picked) ...[
                       const SizedBox(width: 8),
                       _tag('Your answer', isKey ? _kCorrect : _kWrong),
@@ -1018,18 +1115,18 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: const Color(0xFF061A3C),
                 borderRadius: BorderRadius.circular(11),
-                border: const Border(left: BorderSide(color: _kInk, width: 3)),
+                border: const Border(left: BorderSide(color: _kCyan, width: 3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Why',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _kInk, letterSpacing: 0.6)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _kCyan, letterSpacing: 0.6)),
                   const SizedBox(height: 4),
                   Text(q.explanation!,
-                      style: const TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF334155))),
+                      style: const TextStyle(fontSize: 13, height: 1.45, color: Colors.white70)),
                 ],
               ),
             ),
@@ -1041,7 +1138,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
 
   Widget _textReviewCard(_Question q, int index) {
     final answered = (q.answerText ?? '').trim().isNotEmpty;
-    final tone = q.isCoding ? _kMuted : (q.isCorrect ? _kCorrect : (answered ? _kWrong : _kMuted));
+    final tone = q.isCoding ? _kMuted : (q.isCorrect ? _kCorrect : (answered ? _kWrong : Colors.white38));
     final statusLabel = q.isCoding
         ? 'Not auto-graded'
         : (q.isCorrect ? 'Correct' : (answered ? 'Incorrect' : 'Not answered'));
@@ -1050,16 +1147,16 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardDark.withOpacity(0.70),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: _kCardDarkBorder.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _pill('Q${index + 1}', _kInk),
+              _pill('Q${index + 1}', _kCyan),
               const SizedBox(width: 8),
               _pill(statusLabel, tone),
               const Spacer(),
@@ -1071,7 +1168,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
           const SizedBox(height: 12),
           Text(q.text,
               style: const TextStyle(
-                  fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: _kInk)),
+                  fontSize: 15, height: 1.4, fontWeight: FontWeight.w600, color: Colors.white)),
           const SizedBox(height: 12),
           if (q.isCoding)
             _codeBlock(label: 'Your answer', code: answered ? q.answerText! : '— not answered —')
@@ -1080,23 +1177,23 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: const Color(0xFF061A3C),
                 borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: _kCardDarkBorder.withOpacity(0.4)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Your answer',
                       style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w800, color: _kMuted, letterSpacing: 0.6)),
+                          fontSize: 11, fontWeight: FontWeight.w800, color: _kCyan, letterSpacing: 0.6)),
                   const SizedBox(height: 4),
                   Text(
                     answered ? q.answerText! : '— not answered —',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.4,
-                      color: answered ? _kInk : _kMuted,
+                      color: answered ? Colors.white : Colors.white60,
                     ),
                   ),
                 ],
@@ -1108,7 +1205,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _kCorrect.withOpacity(0.08),
+                color: _kCorrect.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: _kCorrect.withOpacity(0.4)),
               ),
@@ -1120,7 +1217,7 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
                           fontSize: 11, fontWeight: FontWeight.w800, color: _kCorrect, letterSpacing: 0.6)),
                   const SizedBox(height: 4),
                   Text(q.correctAnswerText ?? '',
-                      style: const TextStyle(fontSize: 14, height: 1.4, color: _kInk)),
+                      style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.white)),
                 ],
               ),
             ),
@@ -1131,18 +1228,18 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: const Color(0xFF061A3C),
                 borderRadius: BorderRadius.circular(11),
-                border: const Border(left: BorderSide(color: _kInk, width: 3)),
+                border: const Border(left: BorderSide(color: _kCyan, width: 3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Why',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _kInk, letterSpacing: 0.6)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _kCyan, letterSpacing: 0.6)),
                   const SizedBox(height: 4),
                   Text(q.explanation!,
-                      style: const TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF334155))),
+                      style: const TextStyle(fontSize: 13, height: 1.45, color: Colors.white70)),
                 ],
               ),
             ),
@@ -1159,16 +1256,16 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: const Color(0xFF051838),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        border: Border.all(color: _kCardDarkBorder.withOpacity(0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
               style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                  fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF38BDF8), letterSpacing: 0.6)),
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,

@@ -63,9 +63,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF0F172A);
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: const CommonHeader(title: 'Payment History'),

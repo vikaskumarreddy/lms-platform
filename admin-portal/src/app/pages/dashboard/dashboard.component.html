@@ -1,0 +1,180 @@
+<h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Dashboard</h1>
+
+@if (isPlatformAdmin) {
+  <div class="grid-4">
+    <div class="card stat-card"><div class="icon" style="background:#DBEAFE;color:#2563EB;">🏢</div><div><div class="stat-value">{{platformStats.totalOrganizations || 0}}</div><div class="stat-label">Total Organizations</div></div></div>
+    <div class="card stat-card"><div class="icon" style="background:#DCFCE7;color:#22C55E;">✅</div><div><div class="stat-value">{{platformStats.activeOrganizations || 0}}</div><div class="stat-label">Active Organizations</div></div></div>
+    <div class="card stat-card"><div class="icon" style="background:#FEE2E2;color:#DC2626;">⛔</div><div><div class="stat-value">{{platformStats.expiredOrganizations || 0}}</div><div class="stat-label">Expired Organizations</div></div></div>
+    <div class="card stat-card"><div class="icon" style="background:#FEF3C7;color:#D97706;">💰</div><div><div class="stat-value">₹{{platformStats.totalRevenue || 0}}</div><div class="stat-label">Total Revenue</div></div></div>
+  </div>
+  <div class="grid-2" style="margin-top:20px;">
+    <div class="card stat-card"><div class="icon" style="background:#E0E7FF;color:#3730A3;">🔁</div><div><div class="stat-value">{{platformStats.renewalCount || 0}}</div><div class="stat-label">Renewals</div></div></div>
+    <div class="card stat-card"><div class="icon" style="background:#DCFCE7;color:#166534;">📈</div><div><div class="stat-value">{{platformStats.renewalPercentage || 0}}%</div><div class="stat-label">Renewal Rate</div></div></div>
+  </div>
+} @else {
+
+  @if (loading) {
+    <div class="grid-4">
+      @for (i of [1,2,3,4]; track i) {
+        <div class="card skeleton" style="height:88px;"></div>
+      }
+    </div>
+  }
+
+  @if (!loading) {
+    <!-- ================= KPI CARDS ================= -->
+    <div class="grid-4">
+      <div class="card stat-card"><div class="icon" style="background:#DBEAFE;color:#2563EB;">🎓</div><div><div class="stat-value">{{overview.kpi.totalStudents}}</div><div class="stat-label">Total Students</div><div class="stat-sub">{{overview.kpi.activeStudents}} active</div></div></div>
+      <div class="card stat-card"><div class="icon" style="background:#DCFCE7;color:#16A34A;">💼</div><div><div class="stat-value">{{overview.kpi.placementRate}}%</div><div class="stat-label">Placement Rate</div><div class="stat-sub">{{overview.placements.placed}} placed / {{overview.placements.eligible}} eligible</div></div></div>
+      <div class="card stat-card"><div class="icon" style="background:#FEF3C7;color:#D97706;">🗓️</div><div><div class="stat-value">{{overview.kpi.averageAttendance}}%</div><div class="stat-label">Avg. Attendance</div></div></div>
+      @if (isOrgAdmin) {
+        <div class="card stat-card"><div class="icon" style="background:#EDE9FE;color:#6D28D7;">👨‍🏫</div><div><div class="stat-value">{{overview.kpi.totalFaculty || 0}}</div><div class="stat-label">Total Faculty</div></div></div>
+      } @else {
+        <div class="card stat-card"><div class="icon" style="background:#FEE2E2;color:#DC2626;">🚨</div><div><div class="stat-value">{{overview.actionCenter.lowAttendanceCount}}</div><div class="stat-label">Low Attendance Alerts</div></div></div>
+      }
+    </div>
+
+    @if (isOrgAdmin) {
+      <div class="grid-4" style="margin-top:20px;">
+        <div class="card stat-card"><div class="icon" style="background:#DCFCE7;color:#16A34A;">⭐</div><div><div class="stat-value">{{overview.kpi.activeSubscriptions || 0}}</div><div class="stat-label">Active Subscriptions</div></div></div>
+        <div class="card stat-card"><div class="icon" style="background:#DBEAFE;color:#2563EB;">💰</div><div><div class="stat-value">₹{{overview.kpi.monthlyRevenue || 0}}</div><div class="stat-label">Revenue Collected</div></div></div>
+        <div class="card stat-card"><div class="icon" style="background:#FEE2E2;color:#DC2626;">⚠️</div><div><div class="stat-value">₹{{overview.kpi.outstandingDues || 0}}</div><div class="stat-label">Outstanding Dues</div></div></div>
+        <div class="card stat-card"><div class="icon" style="background:#FEF3C7;color:#D97706;">🗃️</div><div><div class="stat-value">{{formatBytes(overview.kpi.storageBreakdown?.totalBytes)}}</div><div class="stat-label">Storage Used</div></div></div>
+      </div>
+    }
+
+    <!-- ================= SUBSCRIPTION QUOTAS + REVENUE BY MODE (admin-only) ================= -->
+    @if (isOrgAdmin) {
+      <div class="grid-2" style="margin-top:20px;">
+        <div class="card">
+          <h3 style="margin-bottom:16px;">Plan Usage</h3>
+          <div class="quota-row">
+            <div class="quota-label">Students <span class="muted small">{{overview.kpi.subscriptionQuotas?.activeStudentsUsed || 0}} / {{overview.kpi.subscriptionQuotas?.maxStudents || '∞'}}</span></div>
+            <div class="quota-track"><div class="quota-fill" [style.width.%]="studentQuotaPercent()"></div></div>
+          </div>
+          <div class="quota-row">
+            <div class="quota-label">Faculty <span class="muted small">{{overview.kpi.subscriptionQuotas?.facultyUsed || 0}} / {{overview.kpi.subscriptionQuotas?.maxFaculty || '∞'}}</span></div>
+            <div class="quota-track"><div class="quota-fill" [style.width.%]="facultyQuotaPercent()"></div></div>
+          </div>
+          <div class="quota-row">
+            <div class="quota-label">Storage <span class="muted small">{{overview.kpi.subscriptionQuotas?.storageGbUsed || 0}} GB / {{overview.kpi.subscriptionQuotas?.storageGbLimit || '∞'}} GB</span></div>
+            <div class="quota-track"><div class="quota-fill" [style.width.%]="storagePercent()"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:16px;">Revenue by Payment Mode</h3>
+          <table>
+            <thead><tr><th>Mode</th><th>Amount</th></tr></thead>
+            <tbody>
+              @for (row of revenueByModeEntries(); track row.mode) {
+                <tr><td>{{row.mode}}</td><td>₹{{row.amount}}</td></tr>
+              }
+              @if (revenueByModeEntries().length === 0) {
+                <tr><td colspan="2" class="empty-cell">No revenue recorded yet</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- ================= BATCH PLACEMENT BREAKDOWN ================= -->
+    <div class="card" style="margin-top:20px;">
+      <h3 style="margin-bottom:16px;">Batch Placement Breakdown</h3>
+      @for (batch of overview.batchBreakdown; track batch.batchId) {
+        <div class="batch-bar-row">
+          <div class="batch-bar-label">{{batch.batchName}} <span class="muted small">({{batch.totalStudents}} students)</span></div>
+          <div class="batch-bar-track">
+            <div class="batch-bar-placed" [style.width]="barWidth(batch.placed)"></div>
+            <div class="batch-bar-unplaced" [style.width]="barWidth(batch.unplaced)"></div>
+          </div>
+          <div class="batch-bar-counts"><span class="badge badge-success">{{batch.placed}} placed</span> <span class="badge badge-secondary">{{batch.unplaced}} unplaced</span></div>
+        </div>
+      }
+      @if (overview.batchBreakdown.length === 0) {
+        <div class="empty-state"><span class="empty-icon">📊</span><h3>No batches yet</h3></div>
+      }
+    </div>
+
+    <!-- ================= ACADEMICS: grading + certificates + action center ================= -->
+    <div class="grid-2" style="margin-top:20px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Grading Completion</h3>
+        <div class="donut-row">
+          <span class="badge badge-success">Assignments graded: {{overview.academics.assignmentsGraded}}</span>
+          <span class="badge badge-warning">Assignments pending: {{overview.academics.assignmentsPending}}</span>
+        </div>
+        <div class="donut-row" style="margin-top:8px;">
+          <span class="badge badge-success">Exams graded: {{overview.academics.examsGraded}}</span>
+          <span class="badge badge-warning">Exams pending: {{overview.academics.examsPending}}</span>
+        </div>
+        <div style="margin-top:16px;"><strong>{{overview.academics.certificatesIssued}}</strong> <span class="muted small">certificates issued</span></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Action Center</h3>
+        <div class="action-item"><span class="badge badge-danger">{{overview.actionCenter.pendingGrading}}</span> submissions awaiting grading</div>
+        <div class="action-item"><span class="badge badge-warning">{{overview.actionCenter.lowAttendanceCount}}</span> students below 75% attendance</div>
+        <div class="action-item"><span class="badge badge-info">{{overview.engagement.unansweredQuestions}}</span> unanswered Q&amp;A questions</div>
+      </div>
+    </div>
+
+    <!-- ================= BATCH HEALTH MATRIX ================= -->
+    <div class="card" style="margin-top:20px;">
+      <h3 style="margin-bottom:16px;">Batch Health</h3>
+      <table>
+        <thead><tr><th>Batch</th><th>Mentor</th><th>Students</th><th>Avg. Attendance</th><th>Status</th></tr></thead>
+        <tbody>
+          @for (b of overview.academics.batchHealth; track b.batchId) {
+            <tr>
+              <td>{{b.batchName}}</td>
+              <td>{{b.mentorName || '—'}}</td>
+              <td>{{b.studentCount}}</td>
+              <td><span class="badge" [class]="attendanceClass(b.averageAttendance)">{{b.averageAttendance}}%</span></td>
+              <td><span class="badge" [class.badge-success]="b.isActive" [class.badge-secondary]="!b.isActive">{{b.isActive ? 'Active' : 'Inactive'}}</span></td>
+            </tr>
+          }
+          @if (overview.academics.batchHealth.length === 0) {
+            <tr><td colspan="5" class="empty-cell">No batch data available</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ================= PLACEMENT FUNNEL + UPCOMING DRIVES ================= -->
+    <div class="grid-2" style="margin-top:20px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Placement Funnel</h3>
+        <div class="funnel-row"><div class="funnel-label">Eligible</div><div class="funnel-track"><div class="funnel-fill" style="width:100%;background:#94A3B8;">{{overview.placements.eligible}}</div></div></div>
+        <div class="funnel-row"><div class="funnel-label">In Process</div><div class="funnel-track"><div class="funnel-fill" [style.width]="barWidth(overview.placements.inProcess)" style="background:#D97706;">{{overview.placements.inProcess}}</div></div></div>
+        <div class="funnel-row"><div class="funnel-label">Placed</div><div class="funnel-track"><div class="funnel-fill" [style.width]="barWidth(overview.placements.placed)" style="background:#16A34A;">{{overview.placements.placed}}</div></div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Upcoming Placement Drives</h3>
+        <table>
+          <thead><tr><th>Company</th><th>Role</th><th>Deadline</th></tr></thead>
+          <tbody>
+            @for (d of overview.placements.upcomingDrives; track d.id) {
+              <tr><td>{{d.companyName}}</td><td>{{d.role || d.jobTitle || '—'}}</td><td>{{d.deadline | date:'MMM d'}}</td></tr>
+            }
+            @if (overview.placements.upcomingDrives.length === 0) {
+              <tr><td colspan="3" class="empty-cell">No upcoming drives</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ================= COMPANY KIT ENGAGEMENT ================= -->
+    <div class="card" style="margin-top:20px;">
+      <h3 style="margin-bottom:16px;">Company Question Kits</h3>
+      <div class="chip-row">
+        @for (kit of overview.placements.companyKitEngagement; track kit.kitId) {
+          <span class="badge badge-info">{{kit.companyName}}</span>
+        }
+        @if (overview.placements.companyKitEngagement.length === 0) {
+          <span class="muted small">No published kits yet</span>
+        }
+      </div>
+    </div>
+  }
+}

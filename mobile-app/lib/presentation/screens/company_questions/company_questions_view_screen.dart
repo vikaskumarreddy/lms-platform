@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/data_providers.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
-
-const Color _kInk = Color(0xFF0F172A);
-const Color _kAccent = Color(0xFFEAB308);
-const Color _kMuted = Color(0xFF64748B);
-const Color _kCorrect = Color(0xFF10B981);
 
 /// A read-only "Q&A blog" view for a company tile.
 ///
@@ -15,7 +12,7 @@ const Color _kCorrect = Color(0xFF10B981);
 /// student reads each question together with its answer, so there is no input,
 /// no submit, no evaluation and no grading here. Coding questions render their
 /// reference solution in a proper, copyable code block.
-class CompanyQuestionsViewScreen extends StatefulWidget {
+class CompanyQuestionsViewScreen extends ConsumerStatefulWidget {
   final int assessmentId;
   final String companyName;
   final String? companyDescription;
@@ -28,11 +25,18 @@ class CompanyQuestionsViewScreen extends StatefulWidget {
   });
 
   @override
-  State<CompanyQuestionsViewScreen> createState() =>
+  ConsumerState<CompanyQuestionsViewScreen> createState() =>
       _CompanyQuestionsViewScreenState();
 }
 
-class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen> {
+class _CompanyQuestionsViewScreenState
+    extends ConsumerState<CompanyQuestionsViewScreen> {
+  static const _bgDark = Color(0xFF071D43);
+  static const _cardDark = Color(0xFF0C2B64);
+  static const _cyan = Color(0xFF27D9D3);
+  static const _amber = Color(0xFFF59E0B);
+  static const _green = Color(0xFF10B981);
+
   final ApiService _api = ApiService();
 
   bool _loading = true;
@@ -63,14 +67,17 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
       final questions = raw is List
           ? raw
               .whereType<Map>()
-              .map((m) => _GuideQuestion.fromJson(Map<String, dynamic>.from(m)))
+              .map((m) =>
+                  _GuideQuestion.fromJson(Map<String, dynamic>.from(m)))
               .toList()
           : <_GuideQuestion>[];
+      if (!mounted) return;
       setState(() {
         _questions = questions;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = e.toString();
@@ -80,14 +87,12 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: CommonHeader(
-        title: widget.companyName,
-        showBackButton: true,
-      ),
+    return CommonHeaderScaffold(
+      subtitle: widget.companyName,
+      showBackButton: true,
+      backgroundColor: _bgDark,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: _cyan))
           : _error != null
               ? _buildError()
               : _questions.isEmpty
@@ -95,6 +100,7 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
                   : _buildBlog(),
     );
   }
+
   Widget _buildError() {
     return Center(
       child: Padding(
@@ -102,14 +108,26 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.menu_book_outlined, size: 56, color: _kMuted),
+            const Icon(Icons.error_outline_rounded,
+                size: 56, color: Colors.white38),
             const SizedBox(height: 16),
-            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: _kMuted)),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _load,
-              style: ElevatedButton.styleFrom(backgroundColor: _kInk, foregroundColor: Colors.white),
-              child: const Text('Try again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _cyan,
+                foregroundColor: const Color(0xFF041838),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text('Try again',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -124,12 +142,12 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.menu_book_outlined, size: 56, color: _kMuted),
+            const Icon(Icons.quiz_outlined, size: 56, color: Colors.white38),
             const SizedBox(height: 16),
             Text(
-              'No questions have been added for this company yet.',
+              'No questions have been added for ${widget.companyName} yet.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: _kMuted),
+              style: const TextStyle(color: Colors.white70),
             ),
           ],
         ),
@@ -138,22 +156,49 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
   }
 
   Widget _buildBlog() {
+    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, isNavBarHidden ? 24 : 90),
       children: [
         _buildIntro(),
-        const SizedBox(height: 16),
-        Text(
-          '${_questions.length} interview questions with answers',
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kMuted),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '${_questions.length} Interview Questions with Answers',
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF93C5FD),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _cyan.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'PREP GUIDE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: _cyan,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        for (var i = 0; i < _questions.length; i++) _buildQuestionCard(_questions[i], i),
-        const SizedBox(height: 8),
+        for (var i = 0; i < _questions.length; i++)
+          _buildQuestionCard(_questions[i], i),
+        const SizedBox(height: 12),
         Center(
           child: Text(
-            'A quick-guide only — nothing here is graded or saved.',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            'Quick-guide only — reading & learning mode.',
+            style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4)),
           ),
         ),
       ],
@@ -167,19 +212,52 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: _cardDark.withOpacity(0.70),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF1E5BB0).withOpacity(0.45)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.tips_and_updates_outlined, color: _kAccent),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _amber.withOpacity(0.20),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.tips_and_updates_rounded,
+                color: _amber, size: 20),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              desc,
-              style: const TextStyle(fontSize: 14, height: 1.45, color: _kInk),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Company Overview',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -190,18 +268,25 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
   Widget _buildQuestionCard(_GuideQuestion q, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: _cardDark.withOpacity(0.70),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF1E5BB0).withOpacity(0.45)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _pill('Q${index + 1}', _kInk),
+              _pill('Q${index + 1}', _cyan),
               const SizedBox(width: 8),
               _pill(q.typeLabel, q.typeColor),
             ],
@@ -210,16 +295,20 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
           Text(
             q.text,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 15.5,
               height: 1.4,
-              fontWeight: FontWeight.w600,
-              color: _kInk,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 14),
           ..._buildAnswer(q),
           if (q.isChoice && q.options.isEmpty) ...[
-            _answerBox(_kMuted, 'Answer', 'No options have been added for this question.'),
+            _answerBox(
+              Colors.white60,
+              'Answer',
+              'No options have been added for this question.',
+            ),
           ],
           if ((q.explanation ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -234,8 +323,8 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
     if (q.isCoding) {
       return [
         _answerBox(
-          _kInk,
-          'Solution',
+          _cyan,
+          'Solution Code',
           (q.answerText ?? '').trim().isEmpty
               ? 'No sample solution provided for this coding question.'
               : q.answerText!,
@@ -243,100 +332,200 @@ class _CompanyQuestionsViewScreenState extends State<CompanyQuestionsViewScreen>
         ),
       ];
     }
-    if (q.isChoice) {
-      return q.options
-          .map((o) => _optionRow(q, o))
-          .toList();
+    if (q.isFillInBlank) {
+      return [
+        _answerBox(
+          _green,
+          'Correct Answer',
+          (q.answerText ?? '').trim().isEmpty
+              ? 'No answer provided.'
+              : q.answerText!,
+        ),
+      ];
     }
-    // FILL_IN_BLANK
+    if (q.isMultipleAnswer) {
+      final correctCount = q.options.where((o) => o.isCorrect).length;
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.check_box_outlined, size: 14, color: _green),
+              const SizedBox(width: 6),
+              Text(
+                correctCount > 0
+                    ? 'Select all that apply ($correctCount correct answers)'
+                    : 'Multiple answers possible',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.70),
+                ),
+              ),
+            ],
+          ),
+        ),
+        ...q.options.map((o) => _optionRow(q, o, isMulti: true)),
+        if (q.options.isEmpty && (q.answerText ?? '').isNotEmpty)
+          _answerBox(
+            _green,
+            'Correct Answers',
+            q.answerText!,
+          ),
+      ];
+    }
+    if (q.isChoice) {
+      return [
+        ...q.options.map((o) => _optionRow(q, o, isMulti: false)),
+        if (q.options.isEmpty && (q.answerText ?? '').isNotEmpty)
+          _answerBox(
+            _green,
+            'Correct Answer',
+            q.answerText!,
+          ),
+      ];
+    }
+    // Default fallback
     return [
       _answerBox(
-        _kCorrect,
+        _green,
         'Answer',
-        (q.answerText ?? '').trim().isEmpty ? 'No answer provided.' : q.answerText!,
+        (q.answerText ?? '').trim().isEmpty
+            ? 'No answer provided.'
+            : q.answerText!,
       ),
     ];
   }
-Widget _optionRow(_GuideQuestion q, _GuideOption option) {
+
+  Widget _optionRow(_GuideQuestion q, _GuideOption option,
+      {bool isMulti = false}) {
     final isCorrect = option.isCorrect;
+    final optionLabel = String.fromCharCode(65 + option.index);
+    final textDisplay = option.text.isNotEmpty
+        ? option.text
+        : 'Option $optionLabel';
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isCorrect ? _kCorrect.withOpacity(0.08) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(11),
+        color: isCorrect
+            ? _green.withOpacity(0.18)
+            : Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCorrect ? _kCorrect.withOpacity(0.5) : const Color(0xFFE2E8F0),
+          color: isCorrect ? _green : Colors.white12,
+          width: isCorrect ? 1.5 : 1.0,
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${String.fromCharCode(65 + option.index)}.',
+            '$optionLabel.',
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: isCorrect ? _kCorrect : _kMuted,
+              fontWeight: FontWeight.bold,
+              color: isCorrect ? _green : Colors.white60,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              option.text,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isCorrect ? FontWeight.w700 : FontWeight.w400,
-                color: isCorrect ? const Color(0xFF065F46) : _kInk,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  textDisplay,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal,
+                    color: isCorrect ? Colors.white : Colors.white70,
+                  ),
+                ),
+                if (isCorrect) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _green.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'CORRECT ANSWER',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: _green,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
           if (isCorrect)
-            const Icon(Icons.check_circle, size: 20, color: _kCorrect)
+            Icon(
+              isMulti ? Icons.check_box_rounded : Icons.check_circle_rounded,
+              size: 20,
+              color: _green,
+            )
           else
-            Icon(Icons.circle_outlined, size: 20, color: Colors.grey.shade300),
+            Icon(
+              isMulti
+                  ? Icons.check_box_outline_blank_rounded
+                  : Icons.circle_outlined,
+              size: 20,
+              color: Colors.white24,
+            ),
         ],
       ),
     );
   }
 
-  Widget _answerBox(Color accent, String label, String content, {bool code = false}) {
+  Widget _answerBox(Color accent, String label, String content,
+      {bool code = false}) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(11),
-        border: Border(left: BorderSide(color: accent, width: 3)),
+        color: const Color(0xFF092350).withOpacity(0.85),
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: accent, width: 3.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
             child: Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: accent,
-                letterSpacing: 0.6,
+                letterSpacing: 0.8,
               ),
             ),
           ),
           if (code)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
               child: _codeBlock(code: content),
             )
           else
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
               child: Text(
                 content,
-                style: const TextStyle(fontSize: 14, height: 1.45, color: _kInk),
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: Colors.white,
+                ),
               ),
             ),
         ],
@@ -344,75 +533,62 @@ Widget _optionRow(_GuideQuestion q, _GuideOption option) {
     );
   }
 
-  /// Dark, monospaced, horizontally-scrollable code block with a copy action.
+  /// Dark, monospaced, horizontally-scrollable code block with copy action.
   Widget _codeBlock({required String code}) {
-    // Trim away one shared leading indentation so pasted code reads naturally.
     final lines = code.replaceAll('\r\n', '\n').split('\n');
-    var minIndent = 1 << 30;
+    var minIndent = 999;
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
       final indent = line.length - line.trimLeft().length;
       if (indent < minIndent) minIndent = indent;
     }
-    final normalized = minIndent == 1 << 30
-        ? code
-        : lines.map((l) => l.length >= minIndent ? l.substring(minIndent) : l).join('\n');
+    final normalized = (minIndent > 0 && minIndent < 999)
+        ? lines
+            .map((l) => l.length >= minIndent ? l.substring(minIndent) : l)
+            .join('\n')
+        : code;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        color: const Color(0xFF030D1E),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF1E5BB0).withOpacity(0.40)),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Container(
-            width: double.infinity,
-            color: const Color(0xFF1E293B),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.code, size: 14, color: Color(0xFF94A3B8)),
-                const SizedBox(width: 6),
-                const Text(
-                  'CODE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: Color(0xFF94A3B8),
-                  ),
-                ),
-                const Spacer(),
-                InkWell(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: normalized));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Solution copied'), duration: Duration(seconds: 1)),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(4),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.copy_rounded, size: 15, color: Color(0xFFCBD5E1)),
-                  ),
-                ),
-              ],
-            ),
-          ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(14, 14, 48, 14),
             child: SelectableText(
               normalized,
               style: const TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 13,
+                fontSize: 12.5,
                 height: 1.45,
                 color: Color(0xFFE2E8F0),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.copy_rounded,
+                    size: 16, color: Colors.white60),
+                tooltip: 'Copy solution',
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: normalized));
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Solution copied to clipboard!'),
+                      backgroundColor: Color(0xFF10B981),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -421,31 +597,29 @@ Widget _optionRow(_GuideQuestion q, _GuideOption option) {
     );
   }
 
-  Widget _explanationBox(String explanation) {
+  Widget _explanationBox(String text) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF9C3),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        color: const Color(0xFF0D3365).withOpacity(0.50),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _cyan.withOpacity(0.35)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Why / Explanation',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF92400E),
-              letterSpacing: 0.6,
+          const Icon(Icons.info_outline_rounded, size: 16, color: _cyan),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: Colors.white70,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            explanation,
-            style: const TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF78350F)),
           ),
         ],
       ),
@@ -454,86 +628,136 @@ Widget _optionRow(_GuideQuestion q, _GuideOption option) {
 
   Widget _pill(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-    );
-  }
-}
-
-/// One guide question fetched from the server with its full answer key.
-class _GuideQuestion {
-  final int id;
-  final String text;
-  final String questionType;
-  final String? explanation;
-  final String? answerText;
-  final List<_GuideOption> options;
-
-  const _GuideQuestion({
-    required this.id,
-    required this.text,
-    required this.questionType,
-    this.explanation,
-    this.answerText,
-    this.options = const [],
-  });
-
-  bool get isChoice => questionType == 'SINGLE_CHOICE' || questionType == 'MULTIPLE_ANSWER';
-  bool get isCoding => questionType == 'CODING';
-
-  String get typeLabel {
-    switch (questionType) {
-      case 'MULTIPLE_ANSWER':
-        return 'Multiple answers';
-      case 'CODING':
-        return 'Coding';
-      case 'FILL_IN_BLANK':
-        return 'Fill in the blank';
-      default:
-        return 'Multiple choice';
-    }
-  }
-
-  Color get typeColor {
-    switch (questionType) {
-      case 'CODING':
-        return const Color(0xFF4338CA);
-      case 'FILL_IN_BLANK':
-        return const Color(0xFF047857);
-      case 'MULTIPLE_ANSWER':
-        return const Color(0xFF7C3AED);
-      default:
-        return const Color(0xFF2563EB);
-    }
-  }
-
-  factory _GuideQuestion.fromJson(Map<String, dynamic> json) {
-    final rawOptions = (json['options'] as List?) ?? const [];
-    return _GuideQuestion(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      text: json['questionText'] ?? '',
-      questionType: json['questionType'] ?? 'SINGLE_CHOICE',
-      explanation: json['explanation'],
-      answerText: json['answerText'],
-      options: rawOptions
-          .whereType<Map>()
-          .map((m) => _GuideOption.fromJson(Map<String, dynamic>.from(m)))
-          .toList(),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.20),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
     );
   }
 }
 
 class _GuideOption {
+  final int index;
   final String text;
   final bool isCorrect;
-  final int index;
+  const _GuideOption({
+    required this.index,
+    required this.text,
+    required this.isCorrect,
+  });
 
-  const _GuideOption({required this.text, required this.isCorrect, required this.index});
+  factory _GuideOption.fromJson(Map<String, dynamic> json, int index) {
+    return _GuideOption(
+      index: index,
+      text: (json['optionText'] as String? ?? json['text'] as String? ?? '').trim(),
+      isCorrect: json['isCorrect'] == true,
+    );
+  }
+}
 
-  factory _GuideOption.fromJson(Map<String, dynamic> json) => _GuideOption(
-        text: json['optionText'] ?? '',
-        isCorrect: json['isCorrect'] == true,
-        index: (json['displayOrder'] as num?)?.toInt() ?? 0,
-      );
+class _GuideQuestion {
+  final int id;
+  final String text;
+  final String type;
+  final String? answerText;
+  final String? explanation;
+  final List<_GuideOption> options;
+
+  const _GuideQuestion({
+    required this.id,
+    required this.text,
+    required this.type,
+    this.answerText,
+    this.explanation,
+    this.options = const [],
+  });
+
+  bool get isCoding => type == 'CODING';
+  bool get isFillInBlank => type == 'FILL_IN_BLANK';
+  bool get isMultipleAnswer =>
+      type == 'MULTIPLE_ANSWER' ||
+      type == 'MULTI_CHOICE' ||
+      type == 'MULTIPLE_CHOICE_MULTI';
+  bool get isSingleChoice =>
+      type == 'SINGLE_CHOICE' ||
+      type == 'MULTIPLE_CHOICE' ||
+      type == 'TRUE_FALSE';
+  bool get isChoice => isSingleChoice || isMultipleAnswer;
+
+  String get typeLabel {
+    switch (type) {
+      case 'MULTIPLE_ANSWER':
+      case 'MULTI_CHOICE':
+      case 'MULTIPLE_CHOICE_MULTI':
+        return 'Multiple Answers';
+      case 'SINGLE_CHOICE':
+      case 'MULTIPLE_CHOICE':
+        return 'Multiple Choice';
+      case 'TRUE_FALSE':
+        return 'True / False';
+      case 'CODING':
+        return 'Coding';
+      case 'FILL_IN_BLANK':
+        return 'Fill in the Blank';
+      default:
+        return type;
+    }
+  }
+
+  Color get typeColor {
+    switch (type) {
+      case 'CODING':
+        return const Color(0xFF9B5CFF);
+      case 'MULTIPLE_ANSWER':
+      case 'MULTI_CHOICE':
+      case 'MULTIPLE_CHOICE_MULTI':
+        return const Color(0xFF10B981);
+      case 'TRUE_FALSE':
+        return const Color(0xFFEAB308);
+      case 'FILL_IN_BLANK':
+        return const Color(0xFFF97316);
+      default:
+        return const Color(0xFF27D9D3);
+    }
+  }
+
+  factory _GuideQuestion.fromJson(Map<String, dynamic> json) {
+    final rawOptions = json['options'];
+    final options = <_GuideOption>[];
+    if (rawOptions is List) {
+      for (var i = 0; i < rawOptions.length; i++) {
+        final opt = rawOptions[i];
+        if (opt is Map) {
+          options.add(
+              _GuideOption.fromJson(Map<String, dynamic>.from(opt), i));
+        }
+      }
+    }
+    final rawType = (json['questionType'] as String? ??
+            json['type'] as String? ??
+            'SINGLE_CHOICE')
+        .toUpperCase();
+    return _GuideQuestion(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      text: json['questionText'] as String? ??
+          json['text'] as String? ??
+          '',
+      type: rawType,
+      answerText: json['answerText'] as String? ??
+          json['correctAnswer'] as String? ??
+          json['modelAnswer'] as String?,
+      explanation: json['explanation'] as String?,
+      options: options,
+    );
+  }
 }

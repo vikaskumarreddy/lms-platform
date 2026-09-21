@@ -1,0 +1,120 @@
+<div class="page-head">
+  <div>
+    <h1>Theme</h1>
+    <p class="intro">
+      Customize {{ orgName || 'your organization' }}'s admin-portal colors. Pick a color (or paste a hex
+      code) for each element below — the preview on the right updates live as you edit, so you can see
+      exactly how the dashboard will look before saving.
+    </p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-secondary" type="button" (click)="resetToDefaults()">Reset to defaults</button>
+    <button class="btn btn-secondary" type="button" [disabled]="!hasChanges" (click)="cancel()">Cancel changes</button>
+    <button class="btn btn-primary" type="button" [disabled]="saving || !hasChanges" (click)="save()">
+      {{ saving ? 'Saving…' : 'Save theme' }}
+    </button>
+  </div>
+</div>
+
+<div class="alert alert-ok" *ngIf="successMessage">{{ successMessage }}</div>
+<div class="alert alert-error" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+<div class="note" *ngIf="!loading">
+  <strong>Note:</strong> Saving applies your changes immediately in this browser tab. Every other signed-in
+  session — this device next time you log in, teammates, and the <strong>student mobile app</strong> — picks up
+  the new theme the next time they log out and log back in (the app also re-applies the theme automatically the
+  next time it restores a saved login).
+</div>
+
+<div class="theme-layout" *ngIf="!loading">
+  <div class="theme-form">
+    <div class="group-card" *ngFor="let group of groups">
+      <h3>{{ group.title }}</h3>
+      <div class="color-row" *ngFor="let field of group.fields">
+        <label [for]="'color-' + field.key">{{ field.label }}</label>
+        <div class="color-input">
+          <input type="color" [id]="'color-' + field.key" [(ngModel)]="form[field.key]"
+                 [name]="'picker-' + field.key" (input)="previewLive()">
+          <input type="text" [(ngModel)]="form[field.key]" [name]="'hex-' + field.key"
+                 (ngModelChange)="previewLive()" class="hex-field" spellcheck="false">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="theme-preview-pane">
+    <div class="preview-label">Live preview</div>
+    <div class="mock-app"
+         [style.--p-primary]="form.primary" [style.--p-primary-hover]="form.primaryHover"
+         [style.--p-secondary]="form.secondary" [style.--p-accent]="form.accent"
+         [style.--p-bg]="form.bg" [style.--p-surface]="form.surface" [style.--p-surface-alt]="form.surfaceAlt"
+         [style.--p-text]="form.text" [style.--p-text-secondary]="form.textSecondary" [style.--p-text-muted]="form.textMuted"
+         [style.--p-border]="form.borderLight" [style.--p-success]="form.success" [style.--p-warning]="form.warning"
+         [style.--p-danger]="form.danger" [style.--p-info]="form.info"
+         [style.--p-sidebar-start]="form.sidebarGradientStart" [style.--p-sidebar-mid]="form.sidebarGradientMid"
+         [style.--p-sidebar-end]="form.sidebarGradientEnd">
+      <div class="mock-sidebar">
+        <div class="mock-logo">🎓</div>
+        <div class="mock-nav-item active">📊</div>
+        <div class="mock-nav-item">🎓</div>
+        <div class="mock-nav-item">📚</div>
+        <div class="mock-nav-item">💼</div>
+        <div class="mock-nav-item">⚙️</div>
+      </div>
+      <div class="mock-content">
+        <div class="mock-h1">Dashboard</div>
+        <div class="mock-cards">
+          <div class="mock-card">
+            <div class="mock-icon" [style.background]="form.primary">🎓</div>
+            <div><div class="mock-stat">312</div><div class="mock-stat-label">Total Students</div></div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-icon" [style.background]="form.success">💼</div>
+            <div><div class="mock-stat">76%</div><div class="mock-stat-label">Placement Rate</div></div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-icon" [style.background]="form.warning">🗓️</div>
+            <div><div class="mock-stat">92%</div><div class="mock-stat-label">Attendance</div></div>
+          </div>
+        </div>
+        <div class="mock-panel">
+          <div class="mock-panel-title">Batch Placement Breakdown</div>
+          <div class="mock-bar"><div class="mock-bar-fill" [style.background]="form.success" style="width:70%"></div></div>
+          <div class="mock-bar"><div class="mock-bar-fill" [style.background]="form.accent" style="width:45%"></div></div>
+        </div>
+        <div class="mock-badges">
+          <span class="mock-badge" [style.background]="form.success + '33'" [style.color]="form.success">Success</span>
+          <span class="mock-badge" [style.background]="form.warning + '33'" [style.color]="form.warning">Warning</span>
+          <span class="mock-badge" [style.background]="form.danger + '33'" [style.color]="form.danger">Danger</span>
+          <span class="mock-badge" [style.background]="form.info + '33'" [style.color]="form.info">Info</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-label" style="margin-top:20px;">Mobile app preview</div>
+    <div class="mock-phone" [style.background]="form.appBackground">
+      <div class="mock-phone-header" [style.background]="form.appPrimary">
+        <span class="mock-phone-title" style="color:#fff;">Home</span>
+        <span class="mock-phone-icon" [style.background]="form.appAccent">🔔</span>
+      </div>
+      <div class="mock-phone-body">
+        <div class="mock-phone-card" [style.background]="form.appSurface">
+          <div class="mock-phone-card-title" [style.color]="form.appText">Welcome back 👋</div>
+          <div class="mock-phone-card-sub" [style.color]="form.appTextSecondary">Keep up the great progress</div>
+        </div>
+        <div class="mock-phone-card" [style.background]="form.appSurface">
+          <div class="mock-phone-card-title" [style.color]="form.appText">76% Placement Rate</div>
+        </div>
+      </div>
+      <div class="mock-phone-navbar">
+        <div class="mock-phone-nav-pill" [style.background]="form.appPrimary">
+          <span class="mock-phone-nav-icon">🏠</span>
+          <span class="mock-phone-nav-icon">📚</span>
+          <span class="mock-phone-nav-bubble" [style.background]="form.appAccent">💼</span>
+          <span class="mock-phone-nav-icon">🗓️</span>
+          <span class="mock-phone-nav-icon">👤</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

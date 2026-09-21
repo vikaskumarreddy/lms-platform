@@ -267,6 +267,49 @@ public class OrganizationController {
         }
     }
 
+    /**
+     * The org's effective theme: {@link com.institute.lms.util.ThemeDefaults#defaults()}
+     * with any customized keys from {@code settings.theme} layered on top.
+     *
+     * <p>This is what makes theming backward compatible — an org (e.g. Axisora) that has
+     * never called the theme endpoint has no {@code theme} key in its settings JSON at all,
+     * so every key here falls back to the original teal palette baked into styles.css.
+     */
+    private Map<String, String> resolveTheme(Organization org) {
+        Map<String, String> resolved = new LinkedHashMap<>(com.institute.lms.util.ThemeDefaults.defaults());
+        Map<String, Object> settings = com.institute.lms.util.JsonUtils.readMap(org.getSettings());
+        Object rawTheme = settings.get("theme");
+        if (rawTheme instanceof Map<?, ?> overrides) {
+            overrides.forEach((k, v) -> {
+                if (k != null && v != null) {
+                    resolved.put(String.valueOf(k), String.valueOf(v));
+                }
+            });
+        }
+        return resolved;
+    }
+
+    /**
+     * Replaces the org's custom theme overrides (CSS variable name -> color value).
+     * Only org admins (super admin or the tenant's own INSTITUTE_ADMIN/ADMIN) can change it,
+     * same audience as {@link #updateSettings}. An empty body resets the org back to the
+     * built-in default palette.
+     */
+    @PutMapping("/{id}/theme")
+    public ResponseEntity<Map<String, Object>> updateTheme(@PathVariable Long id,
+                                                            @RequestBody Map<String, String> body) {
+        userContext.requireOrgAdmin();
+        Organization org = organizationRepository.findById(id).orElse(null);
+        if (org == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> updates = new LinkedHashMap<>();
+        updates.put("theme", body == null ? Map.of() : body);
+        organizationService.updateOrgSettings(id, updates);
+        Organization saved = organizationRepository.findById(id).orElse(org);
+        return ResponseEntity.ok(toOrgMap(saved));
+    }
+
     /** Updates organization settings as key-value pairs. */
     @PutMapping("/{id}/settings")
     public ResponseEntity<Map<String, Object>> updateSettings(@PathVariable Long id,
@@ -321,6 +364,7 @@ public class OrganizationController {
         map.put("expiryDate", org.getExpiryDate());
         map.put("renewalCount", org.getRenewalCount());
         map.put("settings", org.getSettings());
+        map.put("theme", resolveTheme(org));
         map.put("createdAt", org.getCreatedAt());
         map.put("updatedAt", org.getUpdatedAt());
 

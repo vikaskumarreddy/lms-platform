@@ -74,7 +74,7 @@ const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 
     .upload-zone { border:2px dashed #CBD5E1;border-radius:12px;padding:32px;text-align:center;transition:all .15s;background:#FAFAF9; }
     .upload-zone.dragover { border-color:#0D9488;background:#F0FDFA; }
     .modal-backdrop { position:fixed;inset:0;background:rgba(2,6,23,.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px; }
-    .modal-content { background:#fff;border-radius:12px;padding:20px;max-width:900px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(2,6,23,.4); }
+    .modal-content { background:var(--surface);color:var(--text);border-radius:12px;padding:20px;max-width:900px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(2,6,23,.4); }
   `]
 })
 export class MediaHubComponent implements OnInit {

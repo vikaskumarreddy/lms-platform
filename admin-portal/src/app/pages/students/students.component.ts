@@ -283,12 +283,18 @@ interface Batch {
       z-index: 1000;
     }
     .modal-content {
-      background: white;
+      background: var(--surface);
+      color: var(--text);
       border-radius: 16px;
       padding: 32px;
       box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
       max-height: 90vh;
       overflow-y: auto;
+    }
+    .modal-content select {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border-light);
     }
   `]
 })

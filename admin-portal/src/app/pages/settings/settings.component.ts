@@ -251,23 +251,23 @@ interface FeatureToggleDef {
   styles: [`
     .page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}
     .page-head h1{font-size:24px;font-weight:700;margin:0 0 8px}
-    .intro{color:#64748B;margin:0;max-width:640px;line-height:1.6}
+    .intro{color:var(--text-secondary);margin:0;max-width:640px;line-height:1.6}
 
     .accordion{display:flex;flex-direction:column;gap:12px;max-width:860px}
 
-    .panel{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden}
-    .panel.open{border-color:#5EEAD4;box-shadow:0 1px 3px rgba(13,148,136,.08)}
+    .panel{background:var(--surface);color:var(--text);border:1px solid var(--border-light);border-radius:14px;overflow:hidden}
+    .panel.open{border-color:var(--border);box-shadow:0 1px 3px rgba(13,148,136,.08)}
 
     .panel-head{
       width:100%;display:flex;align-items:center;gap:12px;
       padding:16px 18px;background:transparent;border:0;cursor:pointer;
-      font-family:inherit;font-size:15px;text-align:left;color:#134E4A;
+      font-family:inherit;font-size:15px;text-align:left;color:var(--text);
     }
-    .panel-head:hover{background:#F8FAFC}
-    .panel.open .panel-head{background:#F0FDFA}
+    .panel-head:hover{background:var(--surface-alt)}
+    .panel.open .panel-head{background:var(--bg)}
 
     .chevron{
-      display:inline-block;font-size:20px;line-height:1;color:#0D9488;
+      display:inline-block;font-size:20px;line-height:1;color:var(--primary);
       transition:transform .18s ease;transform:rotate(0deg);
     }
     .chevron.rotated{transform:rotate(90deg)}
@@ -282,26 +282,26 @@ interface FeatureToggleDef {
     .pill-empty{background:#F1F5F9;color:#64748B}
     .pill-secret{background:#FEF3C7;color:#92400E}
 
-    .panel-body{padding:4px 18px 18px;display:flex;flex-direction:column;gap:18px;border-top:1px solid #E2E8F0}
+    .panel-body{padding:4px 18px 18px;display:flex;flex-direction:column;gap:18px;border-top:1px solid var(--border-light)}
 
     .field{display:flex;flex-direction:column}
     .field label{
       display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-      font-weight:600;font-size:13px;color:#134E4A;margin-bottom:6px;
+      font-weight:600;font-size:13px;color:var(--text);margin-bottom:6px;
     }
-    .secret-tag{font-size:11px;font-weight:600;color:#B45309}
+    .secret-tag{font-size:11px;font-weight:600;color:var(--warning-text)}
 
     .input-row{display:flex;gap:8px;align-items:stretch}
-    .field input,.field textarea{
+    .field input,.field textarea,.field select{
       flex:1;width:100%;box-sizing:border-box;padding:10px 14px;
-      border:1px solid #CBD5E1;border-radius:8px;
-      font-size:14px;font-family:inherit;color:#134E4A;background:#fff;
+      border:1px solid var(--border-light);border-radius:8px;
+      font-size:14px;font-family:inherit;color:var(--text);background:var(--surface);
     }
     .field textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;resize:vertical}
-    .field input:focus,.field textarea:focus{
-      outline:none;border-color:#0D9488;box-shadow:0 0 0 3px rgba(13,148,136,.12);
+    .field input:focus,.field textarea:focus,.field select:focus{
+      outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,148,136,.12);
     }
-    .field input::placeholder,.field textarea::placeholder{color:#94A3B8}
+    .field input::placeholder,.field textarea::placeholder{color:var(--text-muted)}
     .reveal{padding:0 14px;white-space:nowrap}
 
     .key-hint{margin-top:6px;font-size:11px;color:#94A3B8;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -316,12 +316,12 @@ interface FeatureToggleDef {
     .empty{color:#64748B;text-align:center;padding:32px}
 
     .messaging-section{max-width:860px;margin-top:32px}
-    .section-title{font-size:18px;font-weight:700;margin:0 0 8px;color:#134E4A}
+    .section-title{font-size:18px;font-weight:700;margin:0 0 8px;color:var(--text)}
 
-    .toggle-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:4px}
-    .toggle-group-title{font-size:13px;font-weight:700;color:#0D9488;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+    .toggle-card{background:var(--surface);color:var(--text);border:1px solid var(--border-light);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:4px}
+    .toggle-group-title{font-size:13px;font-weight:700;color:var(--primary);margin:14px 0 4px;text-transform:uppercase;letter-spacing:.04em}
     .toggle-group-title:first-child{margin-top:0}
-    .toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#134E4A}
+    .toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-light);font-size:14px;color:var(--text)}
     .toggle-row:last-of-type{border-bottom:0}
     .toggle-row input[type="checkbox"]{width:18px;height:18px;flex-shrink:0}
 

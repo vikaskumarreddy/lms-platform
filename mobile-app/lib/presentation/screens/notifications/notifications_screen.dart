@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/providers/notifications_provider.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/models/notification_item.dart';
+import 'package:lms_student_app/data/models/notification_item.dart';
 import '../../../data/services/api_client.dart';
 import '../../../core/widgets/common_header.dart';
 
@@ -121,7 +121,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             label: Text(type[0].toUpperCase() + type.substring(1)),
             selected: selected,
             onSelected: (_) => setState(() => _selectedFilter = type),
-            selectedColor: AppTheme.accentColor,
+            selectedColor: Theme.of(context).colorScheme.secondary,
             checkmarkColor: Colors.black,
             labelStyle: GoogleFonts.inter(
               fontSize: 12,
@@ -129,7 +129,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               color: selected ? Colors.black : AppTheme.textSecondary,
             ),
             backgroundColor: Colors.white,
-            side: BorderSide(color: selected ? AppTheme.accentColor : AppTheme.dividerColor),
+            side: BorderSide(color: selected ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.outline),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           );
         },
@@ -147,7 +147,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: n.isRead ? AppTheme.dividerColor : typeColor.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: n.isRead ? Theme.of(context).colorScheme.outline : typeColor.withOpacity(0.4), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -164,7 +164,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -172,7 +172,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
             child: Row(
               children: [
-                Icon(typeIcon, color: AppTheme.accentColor, size: 16),
+                Icon(typeIcon, color: Theme.of(context).colorScheme.secondary, size: 16),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -188,7 +188,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentColor,
+                      color: Theme.of(context).colorScheme.secondary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -233,9 +233,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppTheme.backgroundColor,
+                      color: Theme.of(context).scaffoldBackgroundColor,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.dividerColor),
+                      border: Border.all(color: Theme.of(context).colorScheme.outline),
                     ),
                     child: Column(
                       children: details.entries.map((entry) {
@@ -308,7 +308,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           // Navigate to action URL
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: AppTheme.accentColor,
+                          backgroundColor: Theme.of(context).colorScheme.secondary,
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           minimumSize: Size.zero,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -392,7 +392,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       case 'success': return Colors.green;
       case 'warning': return Colors.orange;
       case 'error': return Colors.red;
-      default: return AppTheme.primaryColor;
+      default: return Theme.of(context).colorScheme.primary;
     }
   }
 }

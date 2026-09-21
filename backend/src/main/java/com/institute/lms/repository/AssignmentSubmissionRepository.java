@@ -14,4 +14,6 @@ public interface AssignmentSubmissionRepository extends JpaRepository<Assignment
     Optional<AssignmentSubmission> findByUserIdAndAssignmentId(Long userId, Long assignmentId);
     long countByAssignmentId(Long assignmentId);
     long countByAssignmentIdAndIsGradedTrue(Long assignmentId);
+    long countByIsGradedFalse();
+    long countByIsGradedTrue();
 }

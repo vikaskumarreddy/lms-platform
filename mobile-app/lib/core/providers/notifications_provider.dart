@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/api_client.dart';
-import '../../data/models/notification_item.dart';
+import 'package:lms_student_app/data/models/notification_item.dart';
 
 /// Fetches all notifications for the current user from the backend.
 final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async {

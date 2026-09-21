@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../../core/widgets/common_header.dart';
+import '../../../../core/providers/org_theme_provider.dart';
+import '../../../../core/widgets/dashboard_glass.dart';
 import '../../../../data/models/assignment_model.dart';
 import '../browser/in_app_browser_screen.dart';
 import '../assessment/assessment_paper_screen.dart';
+import '../courses/learning_collection.dart';
 
 enum _AssignFilter { pending, graded, upcoming }
 
@@ -129,86 +132,90 @@ Future<void> _submitAssignment(AssignmentModel assignment) async {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CommonHeader(showBackButton: true, title: 'Assignments'),
+    return CommonHeaderScaffold(
+      subtitle: 'Assignments',
+      backgroundColor: const Color(0xFF071D43),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text('Error: $_error'))
-              : Column(
-                  children: [
-                    _buildOverview(),
-                    _buildTabs(),
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _load,
-                        child: _filtered.isEmpty
-                            ? ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: const [
-                                  SizedBox(height: 120),
-                                  Center(child: Text('No assignments in this category', style: TextStyle(color: Colors.grey))),
-                                ],
-                              )
-                            : ListView.builder(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                                itemCount: _filtered.length,
-                                itemBuilder: (context, i) {
-                                  final a = _filtered[i];
-                                  return _AssignmentCard(
-                                    assignment: a,
-                                    isGraded: _isGraded(a),
-                                    isSubmitted: _isSubmitted(a),
-                                    onViewDetails: () => _viewDetails(a),
-                                    onSubmit: () => _submitAssignment(a),
-                                    onOpenPaper: () => _openPaper(a),
-                                  );
-                                },
-                              ),
-                      ),
-                    ),
-                  ],
+              ? Center(
+                  child: TextButton(
+                    onPressed: _load,
+                    child: const Text('Failed to load assignments. Retry'),
+                  ),
+                )
+              : LearningCollection(
+                  title: 'My\\nassignments',
+                  noun: 'Assignments',
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onRefresh: _load,
+                  entries: _all.map((assignment) {
+                    final graded = _isGraded(assignment);
+                    final submitted = _isSubmitted(assignment);
+                    return LearningEntry(
+                      id: assignment.id,
+                      title: assignment.title,
+                      label: 'Assignment',
+                      completed: graded,
+                      progress: graded ? 1 : submitted ? .65 : 0,
+                      detail: graded
+                          ? 'Graded · ${assignment.marksObtained ?? 0}/${assignment.totalMarks ?? 0} marks'
+                          : submitted
+                              ? 'Submitted · awaiting grade'
+                              : assignment.isOverdue
+                                  ? 'Overdue · ${assignment.totalMarks ?? 0} marks'
+                                  : 'Due ${assignment.formattedDueDate} · ${assignment.totalMarks ?? 0} marks',
+                      onOpen: () {
+                        if (assignment.isInApp) {
+                          _openPaper(assignment);
+                        } else if (submitted) {
+                          _viewDetails(assignment);
+                        } else {
+                          _submitAssignment(assignment);
+                        }
+                      },
+                    );
+                  }).toList(),
                 ),
     );
   }
-Widget _buildOverview() {
-    return Padding(
+Widget _buildOverview(dynamic theme) {
+  return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
         children: [
-          _OverviewCard(label: 'Pending', count: _pendingCount, color: const Color(0xFFF59E0B), icon: Icons.hourglass_top),
+          _OverviewCard(label: 'Pending', count: _pendingCount, color: theme.secondary, icon: Icons.hourglass_top),
           const SizedBox(width: 10),
-          _OverviewCard(label: 'Graded', count: _gradedCount, color: const Color(0xFF10B981), icon: Icons.check_circle_outline),
+          _OverviewCard(label: 'Graded', count: _gradedCount, color: theme.tertiary, icon: Icons.check_circle_outline),
           const SizedBox(width: 10),
-          _OverviewCard(label: 'Upcoming', count: _upcomingCount, color: const Color(0xFF3B82F6), icon: Icons.event),
+          _OverviewCard(label: 'Upcoming', count: _upcomingCount, color: theme.primary, icon: Icons.event),
         ],
       ),
     );
   }
 
-  Widget _buildTabs() {
+  Widget _buildTabs(dynamic theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
         height: 38,
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: theme.surface.withOpacity(.82),
           borderRadius: BorderRadius.circular(10),
         ),
         padding: const EdgeInsets.all(3),
         child: Row(
           children: [
-            _buildTab(_AssignFilter.upcoming, 'Upcoming ($_upcomingCount)'),
-            _buildTab(_AssignFilter.pending, 'Pending ($_pendingCount)'),
-            _buildTab(_AssignFilter.graded, 'Graded ($_gradedCount)'),
+            _buildTab(_AssignFilter.upcoming, 'Upcoming ($_upcomingCount)', theme),
+            _buildTab(_AssignFilter.pending, 'Pending ($_pendingCount)', theme),
+            _buildTab(_AssignFilter.graded, 'Graded ($_gradedCount)', theme),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTab(_AssignFilter target, String label) {
+  Widget _buildTab(_AssignFilter target, String label, ColorScheme theme) {
     final selected = _filter == target;
     return Expanded(
       child: GestureDetector(
@@ -226,7 +233,7 @@ Widget _buildOverview() {
             style: TextStyle(
               fontSize: 12,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? const Color(0xFF0F172A) : Colors.grey.shade600,
+              color: selected ? theme.primary : theme.onSurfaceVariant,
             ),
           ),
         ),
@@ -302,8 +309,6 @@ class _AssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondaryColor = const Color(0xFFEAB308);
-
     String statusLabel;
     Color statusColor;
     if (isGraded) {
@@ -373,7 +378,7 @@ class _AssignmentCard extends StatelessWidget {
                   icon: Icon(isSubmitted ? Icons.fact_check_outlined : Icons.edit_note, size: 19),
                   label: Text(isSubmitted ? 'View Answers' : 'Start Paper'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isSubmitted ? const Color(0xFF0F172A) : secondaryColor,
+                    backgroundColor: isSubmitted ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary,
                     foregroundColor: isSubmitted ? Colors.white : Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -385,8 +390,8 @@ class _AssignmentCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: onViewDetails,
-                      icon: Icon(Icons.link, size: 18, color: secondaryColor),
-                      label: Text('View Details', style: TextStyle(color: secondaryColor)),
+                      icon: Icon(Icons.link, size: 18, color: Theme.of(context).colorScheme.secondary),
+                      label: Text('View Details', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -395,7 +400,7 @@ class _AssignmentCard extends StatelessWidget {
                       onPressed: onSubmit,
                       icon: const Icon(Icons.upload, size: 18),
                       label: const Text('Submit'),
-                      style: ElevatedButton.styleFrom(backgroundColor: secondaryColor, foregroundColor: Colors.black),
+                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.secondary, foregroundColor: Colors.black),
                     ),
                 ],
               ),
@@ -405,3 +410,5 @@ class _AssignmentCard extends StatelessWidget {
     );
   }
 }
+
+

@@ -10,4 +10,5 @@ import java.util.List;
 public interface NoteRepository extends JpaRepository<Note, Long> {
     List<Note> findByUserIdOrderByUpdatedAtDesc(Long userId);
     List<Note> findByUserIdAndLessonId(Long userId, Long lessonId);
+    List<Note> findByUserIdAndTopicId(Long userId, Long topicId);
 }

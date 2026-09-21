@@ -12,7 +12,7 @@ class OnboardingScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.school, size: 64, color: Color(0xFFEAB308)),
+            Icon(Icons.school, size: 64, color: Theme.of(context).colorScheme.secondary),
             const SizedBox(height: 16),
             Text('OnboardingScreen', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),

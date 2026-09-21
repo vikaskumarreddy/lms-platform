@@ -221,14 +221,14 @@ interface PlanFormData {
         <div>
           <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Student</label>
           <select [(ngModel)]="assignForm.studentId" (ngModelChange)="onStudentSelected($event)"
-                  style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+                  style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option [ngValue]="null">Select Student</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.name }} ({{ s.email }})</option>
           </select>
         </div>
         <div>
           <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Plan</label>
-          <select [(ngModel)]="assignForm.planId" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:white;">
+          <select [(ngModel)]="assignForm.planId" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
             <option [ngValue]="null">Select Plan</option>
             <option *ngFor="let p of plans" [ngValue]="p.id">{{ p.name }} - ₹{{ p.price }}{{ p.period }}</option>
           </select>

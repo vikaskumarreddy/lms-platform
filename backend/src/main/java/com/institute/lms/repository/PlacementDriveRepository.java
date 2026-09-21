@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface PlacementDriveRepository extends JpaRepository<PlacementDrive, Long> {
     List<PlacementDrive> findByIsActiveTrue();
+    List<PlacementDrive> findByIsActiveTrueOrderByDeadlineAsc();
 }

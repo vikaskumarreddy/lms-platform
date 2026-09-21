@@ -1,4 +1,6 @@
-﻿import 'dart:io';
+import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/utils/lesson_media.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,19 +9,21 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../data/models/lesson.dart';
 import '../../../core/services/api_service.dart';
 
-class LessonPlayerScreen extends StatefulWidget {
+class LessonPlayerScreen extends ConsumerStatefulWidget {
   final int lessonId;
   const LessonPlayerScreen({super.key, required this.lessonId});
 
   @override
-  State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
+  ConsumerState<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
 }
 
-class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
+class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   final ApiService _api = ApiService();
   Lesson? _lesson;
   bool _loading = true;
@@ -29,6 +33,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   bool _togglingBookmark = false;
   bool _videoLoadFailed = false;
   int _videoRetryKey = 0;
+  String? _mediaToken;
+
+  /// The open study-time session for this lesson. Recorded so the dashboard's
+  /// "Time Spending" trend reflects real time in the player rather than nothing.
+  int? _studyLogId;
 
   // ── Floating (YouTube-style PiP) video ──────────────────────────────────
   // The video is NOT pinned to the top of the page. Instead it renders as a
@@ -55,14 +64,41 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   void initState() {
     super.initState();
     _loadLesson();
+    _startStudySession();
+  }
+
+  /// Opens a study-time session for this lesson.
+  ///
+  /// Deliberately not awaited in a setState: the player must render immediately,
+  /// and a failed call simply means no time is recorded for this visit.
+  Future<void> _startStudySession() async {
+    final logId = await _api.startStudySession(lessonId: widget.lessonId);
+    if (!mounted) {
+      // Screen already gone (quick back-out) — close whatever the server opened.
+      if (logId != null) await _api.endStudySession(logId: logId);
+      return;
+    }
+    _studyLogId = logId;
+  }
+
+  @override
+  void dispose() {
+    // Closes the session opened on entry. Even if this call never lands (the OS
+    // can kill the process first), the backend caps the session and closes any
+    // still-open row on the student's next visit, so time can't run on forever.
+    _api.endStudySession(logId: _studyLogId);
+    super.dispose();
   }
 
   Future<void> _loadLesson() async {
     setState(() => _loading = true);
+    final prefs = await SharedPreferences.getInstance();
+    _mediaToken = prefs.getString('access_token');
     final results = await Future.wait([
       _api.getLesson(widget.lessonId),
       _api.getLessonStatus(widget.lessonId),
     ]);
+    if (!mounted) return;
     setState(() {
       _lesson = results[0] as Lesson?;
       final status = results[1] as Map<String, dynamic>;
@@ -105,10 +141,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Future<void> _loadPdfInline() async {
     final pdfUrl = _lesson?.pdfNotesUrl;
     if (pdfUrl == null || pdfUrl.isEmpty) return;
-    setState(() { _pdfLoading = true; _pdfError = null; _pdfLocalPath = null; });
+    setState(() {
+      _pdfLoading = true;
+      _pdfError = null;
+      _pdfLocalPath = null;
+    });
     try {
       final url = _absoluteMediaUrl(pdfUrl);
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
       if (response.statusCode != 200) {
         setState(() => _pdfError = 'Could not load the notes for this lesson.');
         return;
@@ -123,7 +164,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       await file.writeAsBytes(bytes, flush: true);
       if (mounted) setState(() => _pdfLocalPath = file.path);
     } catch (_) {
-      if (mounted) setState(() => _pdfError = 'Could not load the notes. Check your connection and try again.');
+      if (mounted)
+        setState(() => _pdfError =
+            'Could not load the notes. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _pdfLoading = false);
     }
@@ -138,7 +181,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     if (pdfUrl == null || pdfUrl.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No PDF notes available for this lesson')),
+          const SnackBar(
+              content: Text('No PDF notes available for this lesson')),
         );
       }
       return;
@@ -148,7 +192,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       String? path = _pdfLocalPath;
       if (path == null) {
         final url = _absoluteMediaUrl(pdfUrl);
-        final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+        final response =
+            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
         if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
           throw Exception('download failed');
         }
@@ -157,15 +202,22 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         await file.writeAsBytes(response.bodyBytes, flush: true);
         path = file.path;
       }
-      final safeName = (_lesson?.title ?? 'Lesson Notes').replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '').trim();
+      final safeName = (_lesson?.title ?? 'Lesson Notes')
+          .replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '')
+          .trim();
       await Share.shareXFiles(
-        [XFile(path, name: '${safeName.isEmpty ? 'lesson_notes' : safeName}.pdf')],
+        [
+          XFile(path,
+              name: '${safeName.isEmpty ? 'lesson_notes' : safeName}.pdf')
+        ],
         text: _lesson?.title ?? 'Lesson Notes',
       );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not download this PDF. Check your connection and try again.')),
+          const SnackBar(
+              content: Text(
+                  'Could not download this PDF. Check your connection and try again.')),
         );
       }
     } finally {
@@ -173,273 +225,217 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     }
   }
 
-  /// Builds an embeddable YouTube iframe URL from the video URL.
-  String _youtubeEmbedUrl(String videoUrl) {
-    final videoId = _extractYouTubeVideoId(videoUrl);
-    return 'https://www.youtube.com/embed/$videoId?rel=0&modestbranding=1&playsinline=1';
-  }
-
-  /// Self-hosted notes/videos resolve to a relative backend path
-  /// (/api/media/{id}/serve or the legacy /api/pdf-notes/{id}/file).
-  /// ApiService.baseUrl already ends in "/api", so naively concatenating
-  /// produced ".../api/api/media/..." (404/403 from the server) — strip the
-  /// duplicated "/api" prefix from the relative path before joining.
-  ///
-  /// Also appends ngrok-skip-browser-warning=true when the API is tunnelled
-  /// through ngrok's free tier: without it, the *first* request from a given
-  /// client gets ngrok's own HTML interstitial page back instead of the real
-  /// response — fatal for a <video src>/<iframe src> fetch, which has no way
-  /// to click through a warning page.
-  String _absoluteMediaUrl(String url) {
-    if (!url.startsWith('/')) return url;
-    var path = url;
-    if (path.startsWith('/api/')) path = path.substring(4); // drop leading "/api"
-    final full = '${ApiService.baseUrl}$path';
-    if (full.contains('ngrok-free.dev') || full.contains('ngrok.io') || full.contains('ngrok.app')) {
-      final sep = full.contains('?') ? '&' : '?';
-      return '$full${sep}ngrok-skip-browser-warning=true';
-    }
-    return full;
-  }
-
-  /// A minimal HTML5 <video> page for self-hosted files (uploaded through
-  /// Media & Files). Loaded via loadData() so no separate hosting/CORS setup
-  /// is needed — the video byte URL is fetched directly by the <video> tag.
-  /// The <video> tag's own onerror reports back through a JS handler because
-  /// InAppWebView's onReceivedError only fires for main-frame navigation
-  /// failures — it never fires for a sub-resource (the video src) failing
-  /// inside a successfully-loaded data: page, which is why a missing/expired
-  /// file previously just sat at a silent, un-erroring 0:00.
-  String _selfHostedVideoHtml(String videoUrl) {
-    return '''
-<!DOCTYPE html>
-<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  html, body { margin:0; padding:0; background:#000; height:100%; }
-  video { width:100%; height:100%; object-fit:contain; background:#000; }
-</style></head>
-<body>
-  <video controls autoplay playsinline src="$videoUrl"
-    onerror="window.flutter_inappwebview.callHandler('videoError', this.error ? this.error.code : -1)"></video>
-</body></html>
-''';
-  }
-
-  /// Extracts the YouTube video ID from various URL formats.
-  String _extractYouTubeVideoId(String videoUrl) {
-    if (videoUrl.isEmpty) return '6XwD57dwZew';
-    final uri = Uri.tryParse(videoUrl);
-    if (uri == null) return '6XwD57dwZew';
-    final watchId = uri.queryParameters['v'];
-    if (watchId != null && watchId.isNotEmpty) return watchId;
-    final pathSegments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (pathSegments.isNotEmpty) {
-      final last = pathSegments.last;
-      if (last.length == 11) return last;
-    }
-    return '6XwD57dwZew';
-  }
+  String _absoluteMediaUrl(String url) =>
+      lessonMediaUrl(url, ApiService.baseUrl, token: _mediaToken);
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        appBar: CommonHeader(showBackButton: true, title: 'Lesson'),
-        body: Center(child: CircularProgressIndicator()),
+      return const CommonHeaderScaffold(
+        subtitle: 'Lesson',
+        showBackButton: true,
+        backgroundColor: Color(0xFF071D43),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF27D9D3)),
+        ),
       );
     }
 
     final lesson = _lesson;
     if (lesson == null) {
-      return Scaffold(
-        appBar: const CommonHeader(showBackButton: true, title: 'Lesson'),
-        body: const Center(child: Text('Lesson not found')),
+      return const CommonHeaderScaffold(
+        subtitle: 'Lesson',
+        showBackButton: true,
+        backgroundColor: Color(0xFF071D43),
+        body: Center(
+          child: Text('Lesson not found',
+              style: TextStyle(color: Colors.white70, fontSize: 16)),
+        ),
       );
     }
 
-    final primaryColor = const Color(0xFF0F172A);
-    final secondaryColor = const Color(0xFFEAB308);
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final secondaryColor = Theme.of(context).colorScheme.secondary;
+    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
 
     final hasVideo = lesson.videoUrl.trim().isNotEmpty;
 
     if (lesson.isLocked) {
-      return _buildLockedLessonBody(lesson, primaryColor, secondaryColor);
+      return _buildLockedLessonBody(lesson, primaryColor, secondaryColor, isNavBarHidden);
     }
 
-    return Scaffold(
-      appBar: CommonHeader(showBackButton: true, title: lesson.title),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // ── Base layer: the PDF notes occupy the ENTIRE page ──
-            // Students read a full-height document; the video no longer
-            // reserves a fixed strip at the top.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lesson.heading,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: primaryColor),
+    return CommonHeaderScaffold(
+      subtitle: 'Lesson',
+      showBackButton: true,
+      backgroundColor: const Color(0xFF071D43),
+      body: Stack(
+        children: [
+          // ── Base layer: heading, duration, PDF notes, and action buttons ──
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        lesson.heading,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: secondaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.schedule, size: 14, color: Color(0xFFEAB308)),
-                            const SizedBox(width: 4),
-                            Text(lesson.duration, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF27D9D3).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: const Color(0xFF27D9D3).withOpacity(0.3)),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.schedule,
+                              size: 14, color: Color(0xFF27D9D3)),
+                          const SizedBox(width: 4),
+                          Text(
+                            lesson.duration,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(child: _buildPdfNotesSection(primaryColor, fill: true)),
-                _buildActionButtons(lesson, primaryColor, secondaryColor),
-              ],
-            ),
-            // ── Floating draggable video (YouTube-style picture-in-picture) ──
-            if (hasVideo && !_videoHidden) _buildFloatingVideo(lesson),
-            if (hasVideo && _videoHidden) _buildRestoreVideoChip(),
-          ],
-        ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildPdfNotesSection(primaryColor, fill: true, isNavBarHidden: isNavBarHidden),
+                ),
+              ),
+              _buildActionButtons(lesson, primaryColor, secondaryColor, isNavBarHidden: isNavBarHidden),
+            ],
+          ),
+          // ── Floating draggable video (YouTube-style picture-in-picture) ──
+          if (hasVideo && !_videoHidden) _buildFloatingVideo(lesson, isNavBarHidden),
+          if (hasVideo && _videoHidden) _buildRestoreVideoChip(isNavBarHidden),
+        ],
       ),
     );
   }
 
   /// Locked lessons keep the classic stacked layout — the video frame (locked)
   /// followed by the locked-notes notice and the action buttons.
-  Widget _buildLockedLessonBody(Lesson lesson, Color primaryColor, Color secondaryColor) {
-    return Scaffold(
-      appBar: CommonHeader(showBackButton: true, title: lesson.title),
+  Widget _buildLockedLessonBody(
+      Lesson lesson, Color primaryColor, Color secondaryColor, bool isNavBarHidden) {
+    return CommonHeaderScaffold(
+      subtitle: 'Lesson',
+      showBackButton: true,
+      backgroundColor: const Color(0xFF071D43),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, isNavBarHidden ? 24 : 96),
         children: [
           // ── Video player (locked for this subscription tier) ──
           if (lesson.videoUrl.trim().isNotEmpty)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              height: 220,
-              color: Colors.black,
-              child: lesson.isLocked
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock, color: Colors.grey.shade400, size: 48),
-                          const SizedBox(height: 12),
-                          Text('Upgrade to unlock', style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
-                        ],
-                      ),
-                    )
-                  : _videoLoadFailed
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.error_outline, color: Colors.grey.shade400, size: 48),
-                              const SizedBox(height: 12),
-                              Text('Video failed to load', style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
-                              const SizedBox(height: 12),
-                              TextButton.icon(
-                                onPressed: () => setState(() {
-                                  _videoLoadFailed = false;
-                                  _videoRetryKey++;
-                                }),
-                                icon: const Icon(Icons.refresh, color: Colors.white),
-                                label: const Text('Retry', style: TextStyle(color: Colors.white)),
-                              ),
-                            ],
-                          ),
-                        )
-                      : lesson.videoSource == 'SELF'
-                          // Self-hosted upload (Media & Files): play the raw
-                          // video file natively via an HTML5 <video> tag instead
-                          // of forcing it through YouTube-embed logic, which
-                          // silently fell back to an unrelated dummy video.
-                          ? InAppWebView(
-                              key: ValueKey(_videoRetryKey),
-                              initialData: InAppWebViewInitialData(
-                                data: _selfHostedVideoHtml(_absoluteMediaUrl(lesson.videoUrl)),
-                                mimeType: 'text/html',
-                                encoding: 'utf-8',
-                              ),
-                              initialSettings: InAppWebViewSettings(
-                                javaScriptEnabled: true,
-                                allowsInlineMediaPlayback: true,
-                                mediaPlaybackRequiresUserGesture: false,
- useHybridComposition: true,
-                                transparentBackground: false,
-                              ),
-                              onWebViewCreated: (controller) {
-                                controller.addJavaScriptHandler(
-                                  handlerName: 'videoError',
-                                  callback: (args) {
-                                    if (mounted) setState(() => _videoLoadFailed = true);
-                                  },
-                                );
-                              },
-                              onReceivedError: (controller, request, error) {
-                                if (request.isForMainFrame ?? true) {
-                                  setState(() => _videoLoadFailed = true);
-                                }
-                              },
-                            )
-                          : InAppWebView(
-                              key: ValueKey(_videoRetryKey),
-                              initialUrlRequest: URLRequest(
-                                url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
-                              ),
-                              initialSettings: InAppWebViewSettings(
-                                javaScriptEnabled: true,
-                                allowsInlineMediaPlayback: true,
-                                mediaPlaybackRequiresUserGesture: false,
- useHybridComposition: true,
-                                transparentBackground: false,
-                              ),
-                              onReceivedError: (controller, request, error) {
-                                if (request.isForMainFrame ?? true) {
-                                  setState(() => _videoLoadFailed = true);
-                                }
-                              },
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                height: 220,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C2B64).withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: const Color(0xFF1E4E8C).withOpacity(0.5)),
+                ),
+                child: lesson.isLocked
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock,
+                                color: Color(0xFFFFCF35), size: 48),
+                            SizedBox(height: 12),
+                            Text('Upgrade to unlock',
+                                style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      )
+                    : _videoLoadFailed
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline,
+                                    color: Colors.white54, size: 48),
+                                const SizedBox(height: 12),
+                                const Text('Video failed to load',
+                                    style: TextStyle(
+                                        color: Colors.white70, fontSize: 16)),
+                                const SizedBox(height: 12),
+                                TextButton.icon(
+                                  onPressed: () => setState(() {
+                                    _videoLoadFailed = false;
+                                    _videoRetryKey++;
+                                  }),
+                                  icon: const Icon(Icons.refresh,
+                                      color: Color(0xFF27D9D3)),
+                                  label: const Text('Retry',
+                                      style:
+                                          TextStyle(color: Color(0xFF27D9D3))),
+                                ),
+                              ],
                             ),
+                          )
+                        : _buildVideoPlayer(lesson),
+              ),
             ),
-          ),
           if (lesson.videoUrl.trim().isNotEmpty) const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: Text(
                   lesson.heading,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: primaryColor),
+                  style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
               ),
               if (!lesson.isLocked)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: secondaryColor.withOpacity(0.1),
+                    color: const Color(0xFF27D9D3).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF27D9D3).withOpacity(0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.schedule, size: 14, color: Color(0xFFEAB308)),
+                      const Icon(Icons.schedule,
+                          size: 14, color: Color(0xFF27D9D3)),
                       const SizedBox(width: 4),
-                      Text(lesson.duration, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      Text(lesson.duration,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white)),
                     ],
                   ),
                 ),
@@ -447,62 +443,68 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           ),
           const SizedBox(height: 16),
 
-          // ── Lesson Notes (the lesson's PDF, rendered natively in place) ──
+          // ── Lesson Notes (locked notice) ──
           if (lesson.isLocked)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                color: const Color(0xFF0C2B64).withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: const Color(0xFF1E4E8C).withOpacity(0.5)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(Icons.lock, color: Color(0xFFEAB308)),
-                  const SizedBox(width: 12),
+                  Icon(Icons.lock, color: Color(0xFFFFCF35)),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Notes are locked. Upgrade your subscription to access the study material for this lesson.',
-                      style: TextStyle(color: Colors.grey.shade700, height: 1.5),
+                      style: TextStyle(color: Colors.white70, height: 1.5),
                     ),
                   ),
                 ],
               ),
             )
           else
-            _buildPdfNotesSection(primaryColor),
+            _buildPdfNotesSection(primaryColor, isNavBarHidden: isNavBarHidden),
           const SizedBox(height: 20),
 
-          // ── Action buttons (shared with the floating-video layout) ──
-          _buildActionButtons(lesson, primaryColor, secondaryColor),
+          // ── Action buttons ──
+          _buildActionButtons(lesson, primaryColor, secondaryColor,
+              isNavBarHidden: isNavBarHidden),
         ],
       ),
     );
   }
+
   /// Renders the lesson's PDF inline, right where free-text "Lesson Notes"
   /// used to appear — real native PDF pages instead of an HTML rewrite, so
   /// the original document's structure/formatting is preserved exactly.
   ///
   /// When [fill] is true (floating-video layout) the PDF stretches to fill
   /// all remaining vertical space instead of using a fixed 520px window.
-  Widget _buildPdfNotesSection(Color primaryColor, {bool fill = false}) {
+  /// When [isNavBarHidden] is true, the fixed window expands dynamically so the student
+  /// has a large distraction-free viewing area.
+  Widget _buildPdfNotesSection(Color primaryColor,
+      {bool fill = false, required bool isNavBarHidden}) {
     final hasPdf = (_lesson?.pdfNotesUrl ?? '').isNotEmpty;
     if (!hasPdf) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          color: const Color(0xFF0C2B64).withOpacity(0.65),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.5)),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            Icon(Icons.description_outlined, color: Colors.grey.shade400),
-            const SizedBox(width: 12),
+            Icon(Icons.description_outlined, color: Colors.white38),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 'No notes have been added for this lesson yet.',
-                style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+                style: TextStyle(color: Colors.white60, height: 1.5),
               ),
             ),
           ],
@@ -512,9 +514,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: const Color(0xFF0C2B64).withOpacity(0.65),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.5)),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -522,20 +524,27 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         children: [
           Row(
             children: [
-              Text(
+              const Text(
                 'Lesson Notes',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: primaryColor),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white),
               ),
               const Spacer(),
               if (_pdfLoading)
                 const Padding(
                   padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF27D9D3))),
                 ),
               if (_pdfLocalPath != null && _pdfError == null)
                 IconButton(
                   onPressed: _openFullscreenPdf,
-                  icon: const Icon(Icons.fullscreen),
+                  icon: const Icon(Icons.fullscreen, color: Colors.white),
                   tooltip: 'Expand',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -549,14 +558,18 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  const Icon(Icons.error_outline, size: 40, color: Colors.grey),
+                  const Icon(Icons.error_outline,
+                      size: 40, color: Colors.white54),
                   const SizedBox(height: 12),
-                  Text(_pdfError!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+                  Text(_pdfError!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 12),
                   TextButton.icon(
                     onPressed: _loadPdfInline,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
+                    icon: const Icon(Icons.refresh, color: Color(0xFF27D9D3)),
+                    label: const Text('Retry',
+                        style: TextStyle(color: Color(0xFF27D9D3))),
                   ),
                 ],
               ),
@@ -564,21 +577,27 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           else if (_pdfLocalPath == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF27D9D3))),
             )
           else ...[
             if (fill)
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   child: _buildPdfView(_pdfLocalPath!),
                 ),
               )
             else
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  height: 520,
+                borderRadius: BorderRadius.circular(10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  height: isNavBarHidden
+                      ? (MediaQuery.of(context).size.height * 0.75)
+                          .clamp(650.0, 950.0)
+                      : 520.0,
                   child: _buildPdfView(_pdfLocalPath!),
                 ),
               ),
@@ -594,25 +613,41 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   /// Download / Bookmark / Mark-complete buttons — shared by the locked
   /// (stacked) layout and the unlocked (floating-video) layout.
-  Widget _buildActionButtons(Lesson lesson, Color primaryColor, Color secondaryColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+  Widget _buildActionButtons(
+      Lesson lesson, Color primaryColor, Color secondaryColor,
+      {required bool isNavBarHidden}) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      padding: EdgeInsets.fromLTRB(16, 12, 16, isNavBarHidden ? 16 : 96),
       child: Column(
         children: [
           Row(
             children: [
-              // Download PDF button — saves the notes to the device instead
-              // of opening a viewer (the notes render inline above already).
+              // Download PDF button
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: (lesson.isLocked || _pdfSaving || (lesson.pdfNotesUrl.isEmpty)) ? null : _downloadPdf,
+                  onPressed: (lesson.isLocked ||
+                          _pdfSaving ||
+                          (lesson.pdfNotesUrl.isEmpty))
+                      ? null
+                      : _downloadPdf,
                   icon: _pdfSaving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.download, size: 18),
                   label: Text(_pdfSaving ? 'Saving...' : 'Download PDF'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade50,
-                    foregroundColor: Colors.red.shade700,
+                    backgroundColor: const Color(0xFFEF4444).withOpacity(0.18),
+                    foregroundColor: const Color(0xFFF87171),
+                    side: BorderSide(
+                        color: const Color(0xFFEF4444).withOpacity(0.4)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
@@ -624,37 +659,54 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                   icon: Icon(
                     _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                     size: 18,
+                    color: _isBookmarked ? const Color(0xFFF59E0B) : Colors.white,
                   ),
                   label: Text(_isBookmarked ? 'Bookmarked' : 'Bookmark'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade100,
-                    foregroundColor: primaryColor,
+                    backgroundColor: const Color(0xFF0C2B64).withOpacity(0.8),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                        color: const Color(0xFF1E4E8C).withOpacity(0.6)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           // Mark Complete button (full width)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: (lesson.isLocked || _togglingComplete) ? null : _toggleComplete,
+              onPressed: (lesson.isLocked || _togglingComplete)
+                  ? null
+                  : _toggleComplete,
               icon: _togglingComplete
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : Icon(
-                      _isCompleted ? Icons.check_circle : Icons.check_circle_outline,
+                      _isCompleted
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
                       size: 20,
                     ),
               label: Text(_isCompleted ? 'Completed' : 'Mark as Complete'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isCompleted ? Colors.green : secondaryColor,
-                foregroundColor: _isCompleted ? Colors.white : Colors.black,
+                backgroundColor: _isCompleted
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFF27D9D3),
+                foregroundColor:
+                    _isCompleted ? Colors.white : const Color(0xFF071D43),
                 padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
               ),
             ),
           ),
@@ -669,14 +721,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   /// after which a restore chip brings it back. The [KeyedSubtree] with
   /// [_videoKey] keeps the WebView Element alive across drags/resizes so
   /// playback is never interrupted.
-  Widget _buildFloatingVideo(Lesson lesson) {
+  Widget _buildFloatingVideo(Lesson lesson, bool isNavBarHidden) {
     final size = MediaQuery.of(context).size;
     final double w = _videoExpanded ? size.width - 24 : 224.0;
     final double h = _videoExpanded ? w * 9 / 16 : 132.0;
     // Default position: lower half of the screen (above the action buttons).
-    _videoOffset ??= Offset(size.width - w - 16, size.height * 0.55);
-    final double dx = _videoOffset!.dx.clamp(0.0, (size.width - w).clamp(0.0, double.infinity));
-    final double dy = _videoOffset!.dy.clamp(0.0, (size.height - h).clamp(0.0, double.infinity));
+    _videoOffset ??= Offset(size.width - w - 16, size.height * 0.45);
+    final double dx = _videoOffset!.dx
+        .clamp(0.0, (size.width - w).clamp(0.0, double.infinity));
+    final double bottomInset = isNavBarHidden ? 30.0 : 110.0;
+    final double dy = _videoOffset!.dy
+        .clamp(0.0, (size.height - h - bottomInset).clamp(0.0, double.infinity));
     return Positioned(
       left: dx,
       top: dy,
@@ -714,7 +769,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     _pipButton(
                       _videoExpanded ? Icons.compress : Icons.open_in_full,
                       tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
-                      onTap: () => setState(() => _videoExpanded = !_videoExpanded),
+                      onTap: () =>
+                          setState(() => _videoExpanded = !_videoExpanded),
                     ),
                     const SizedBox(width: 4),
                     _pipButton(
@@ -733,7 +789,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   /// Small round translucent button used on the floating video popup.
-  Widget _pipButton(IconData icon, {required String tooltip, required VoidCallback onTap}) {
+  Widget _pipButton(IconData icon,
+      {required String tooltip, required VoidCallback onTap}) {
     return Material(
       color: Colors.black.withOpacity(0.55),
       shape: const CircleBorder(),
@@ -752,13 +809,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   /// Shown after the popup is closed — restores the floating video.
-  Widget _buildRestoreVideoChip() {
+  Widget _buildRestoreVideoChip(bool isNavBarHidden) {
     return Positioned(
       right: 16,
-      bottom: 96,
+      bottom: isNavBarHidden ? 76 : 110,
       child: FloatingActionButton(
         heroTag: 'restoreLessonVideo',
         tooltip: 'Show video',
+        backgroundColor: const Color(0xFF27D9D3),
+        foregroundColor: const Color(0xFF071D43),
         onPressed: () => setState(() {
           _videoHidden = false;
           _videoOffset = null; // snap back to the default position
@@ -778,7 +837,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           children: [
             Icon(Icons.error_outline, color: Colors.grey.shade400, size: 36),
             const SizedBox(height: 8),
-            Text('Video failed to load', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+            Text('Video failed to load',
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: () => setState(() {
@@ -792,53 +852,36 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ),
       );
     }
-    if (lesson.videoSource == 'SELF') {
-      // Self-hosted upload (Media & Files): play the raw video file natively
-      // via an HTML5 <video> tag instead of forcing it through YouTube-embed
-      // logic, which silently fell back to an unrelated dummy video.
-      return InAppWebView(
-        key: ValueKey('self_$_videoRetryKey'),
-        initialData: InAppWebViewInitialData(
-          data: _selfHostedVideoHtml(_absoluteMediaUrl(lesson.videoUrl)),
-          mimeType: 'text/html',
-          encoding: 'utf-8',
-        ),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowsInlineMediaPlayback: true,
-          mediaPlaybackRequiresUserGesture: false,
- useHybridComposition: true,
-          transparentBackground: false,
-        ),
-        onWebViewCreated: (controller) {
-          controller.addJavaScriptHandler(
-            handlerName: 'videoError',
-            callback: (args) {
-              if (mounted) setState(() => _videoLoadFailed = true);
-            },
-          );
-        },
-        onReceivedError: (controller, request, error) {
-          if (request.isForMainFrame ?? true) {
-            setState(() => _videoLoadFailed = true);
-          }
-        },
-      );
-    }
+    final video = resolveLessonVideoSource(lesson, ApiService.baseUrl,
+        token: _mediaToken);
+    final youtube = video.youtube;
+    final origin = video.origin;
+    final url = video.url;
     return InAppWebView(
-      key: ValueKey('yt_$_videoRetryKey'),
-      initialUrlRequest: URLRequest(
-        url: WebUri(_youtubeEmbedUrl(lesson.videoUrl)),
+      key: ValueKey('video_$_videoRetryKey'),
+      initialData: InAppWebViewInitialData(
+        data: videoDocument(url, youtube: youtube),
+        baseUrl: WebUri('$origin/'),
+        mimeType: 'text/html',
+        encoding: 'utf-8',
       ),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         allowsInlineMediaPlayback: true,
         mediaPlaybackRequiresUserGesture: false,
- useHybridComposition: true,
-        transparentBackground: false,
+        useHybridComposition: true,
+        // Non-browser agent prevents ngrok warning HTML on media range requests.
+        userAgent: youtube ? null : 'LMSStudentMedia/1.0',
       ),
+      onWebViewCreated: (controller) {
+        controller.addJavaScriptHandler(
+            handlerName: 'videoError',
+            callback: (args) {
+              if (mounted) setState(() => _videoLoadFailed = true);
+            });
+      },
       onReceivedError: (controller, request, error) {
-        if (request.isForMainFrame ?? true) {
+        if (mounted && request.isForMainFrame == true) {
           setState(() => _videoLoadFailed = true);
         }
       },
@@ -866,7 +909,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
       },
       onError: (error) {
-        if (mounted) setState(() => _pdfError = 'Could not display these notes.');
+        if (mounted)
+          setState(() => _pdfError = 'Could not display these notes.');
       },
       onRender: (pages) {
         if (mounted) setState(() => _pdfTotalPages = pages ?? 0);
@@ -893,17 +937,26 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: canPrev ? () => _pdfViewController?.setPage(_pdfCurrentPage - 1) : null,
-          icon: const Icon(Icons.chevron_left),
+          onPressed: canPrev
+              ? () => _pdfViewController?.setPage(_pdfCurrentPage - 1)
+              : null,
+          icon: Icon(Icons.chevron_left,
+              color: canPrev ? Colors.white : Colors.white24),
           tooltip: 'Previous page',
         ),
         Text(
           'Page ${_pdfCurrentPage + 1} of $_pdfTotalPages',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+              fontSize: 12,
+              color: Colors.white70,
+              fontWeight: FontWeight.w600),
         ),
         IconButton(
-          onPressed: canNext ? () => _pdfViewController?.setPage(_pdfCurrentPage + 1) : null,
-          icon: const Icon(Icons.chevron_right),
+          onPressed: canNext
+              ? () => _pdfViewController?.setPage(_pdfCurrentPage + 1)
+              : null,
+          icon: Icon(Icons.chevron_right,
+              color: canNext ? Colors.white : Colors.white24),
           tooltip: 'Next page',
         ),
       ],
@@ -935,7 +988,8 @@ class _FullscreenPdfScreen extends StatefulWidget {
   final String title;
   final int initialPage;
 
-  const _FullscreenPdfScreen({required this.path, required this.title, this.initialPage = 0});
+  const _FullscreenPdfScreen(
+      {required this.path, required this.title, this.initialPage = 0});
 
   @override
   State<_FullscreenPdfScreen> createState() => _FullscreenPdfScreenState();
@@ -951,9 +1005,9 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
     final canPrev = _currentPage > 0;
     final canNext = _currentPage < _totalPages - 1;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF071D43),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: const Color(0xFF0C2B64),
         foregroundColor: Colors.white,
         title: Text(widget.title, overflow: TextOverflow.ellipsis),
         leading: IconButton(
@@ -991,22 +1045,31 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
       ),
       bottomNavigationBar: _totalPages > 0
           ? Container(
-              color: const Color(0xFF0F172A),
+              color: const Color(0xFF0C2B64),
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    onPressed: canPrev ? () => _controller?.setPage(_currentPage - 1) : null,
-                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                    onPressed: canPrev
+                        ? () => _controller?.setPage(_currentPage - 1)
+                        : null,
+                    icon: Icon(Icons.chevron_left,
+                        color: canPrev ? Colors.white : Colors.white24),
                   ),
                   Text(
                     'Page ${_currentPage + 1} of $_totalPages',
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600),
                   ),
                   IconButton(
-                    onPressed: canNext ? () => _controller?.setPage(_currentPage + 1) : null,
-                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                    onPressed: canNext
+                        ? () => _controller?.setPage(_currentPage + 1)
+                        : null,
+                    icon: Icon(Icons.chevron_right,
+                        color: canNext ? Colors.white : Colors.white24),
                   ),
                 ],
               ),
@@ -1015,4 +1078,3 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
     );
   }
 }
-
