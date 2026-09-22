@@ -902,6 +902,7 @@ class _QuickLinksGrid extends StatelessWidget {
       ('Assignments', Icons.assignment_rounded, AppRoutes.assignments),
       ('Exams', Icons.quiz_rounded, AppRoutes.exams),
       ('Q&A', Icons.forum_rounded, AppRoutes.qa),
+      ('Batch Chat', Icons.chat_bubble_rounded, AppRoutes.chat),
       ('Certificates', Icons.workspace_premium_rounded, AppRoutes.certificates),
       ('Attendance', Icons.fact_check_rounded, AppRoutes.attendance),
       ('Notes', Icons.notes_rounded, AppRoutes.notes.replaceAll(':lessonId', '101')),
@@ -2292,16 +2293,16 @@ class _ReferenceQuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
+      ('AI Challenge', Icons.psychology_rounded, AppRoutes.dailyChallenge),
       ('Open Roles', Icons.work_outline, AppRoutes.placementDrives),
       ('Applications', Icons.description_outlined, AppRoutes.assignments),
       ('Interviews', Icons.calendar_month_outlined, AppRoutes.calendar),
       ('Offers', Icons.track_changes, AppRoutes.placementDrives),
       ('Courses', Icons.menu_book_outlined, AppRoutes.courses),
-      ('Progress', Icons.analytics_outlined, AppRoutes.home),
-      ('Mentors', Icons.groups_outlined, AppRoutes.qa),
-      ('Schedule', Icons.calendar_today_outlined, AppRoutes.calendar),
+      ('Batch Chat', Icons.chat_bubble_outline, AppRoutes.chat),
+      ('Q&A Doubts', Icons.forum_outlined, AppRoutes.qa),
     ];
-    const iconColors = [Color(0xFF23D5D2), Color(0xFFFF8A54), Color(0xFFA66AFF), Color(0xFF25D29D)];
+    const iconColors = [Color(0xFF23D5D2), Color(0xFFFF8A54), Color(0xFFA66AFF), Color(0xFF25D29D), Color(0xFF38BDF8), Color(0xFFEC4899), Color(0xFF10B981), Color(0xFFF59E0B)];
     return _ReferenceCard(
       theme: theme,
       child: Column(

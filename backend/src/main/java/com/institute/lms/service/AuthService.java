@@ -133,15 +133,10 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
 
-        // Default role is STUDENT unless specified
-        String roleStr = request.getRole() != null ? request.getRole().toUpperCase() : "STUDENT";
-        User.UserRole role;
-        try {
-            role = User.UserRole.valueOf(roleStr);
-        } catch (IllegalArgumentException e) {
-            role = User.UserRole.STUDENT;
-        }
-        user.setRole(role);
+        // Public self-registration can only ever create STUDENT accounts.
+        // Administrative roles (ADMIN, INSTITUTE_ADMIN, INSTRUCTOR) must be provisioned
+        // by authorized administrators via the admin portal.
+        user.setRole(User.UserRole.STUDENT);
         user.setIsActive(true);
         user.setIsEmailVerified(false);
         user.setOrganizationId(targetOrgId);

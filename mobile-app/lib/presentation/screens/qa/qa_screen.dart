@@ -21,6 +21,8 @@ class _QaScreenState extends ConsumerState<QaScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   List<QuestionModel> _questions = [];
+  int _dailyRemaining = 10;
+  bool _canAsk = true;
 
   final List<String> _filters = ['All', 'Java', 'SQL', 'DSA', 'Web', 'Coding'];
 
@@ -34,6 +36,19 @@ class _QaScreenState extends ConsumerState<QaScreen> {
   void initState() {
     super.initState();
     _loadQuestions();
+    _loadDailyStatus();
+  }
+
+  Future<void> _loadDailyStatus() async {
+    try {
+      final res = await ApiService().get('/api/questions/daily-status');
+      if (res != null && mounted) {
+        setState(() {
+          _dailyRemaining = res['remaining'] ?? 10;
+          _canAsk = res['canAsk'] ?? true;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadQuestions() async {
@@ -102,6 +117,16 @@ class _QaScreenState extends ConsumerState<QaScreen> {
   }
 
   Future<void> _submitQuestion() async {
+    if (!_canAsk) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Daily limit of 10 doubts reached. Try again tomorrow or escalate existing questions!'),
+          backgroundColor: Color(0xFFF59E0B),
+        ),
+      );
+      return;
+    }
+
     final text = _questionController.text.trim();
     final title = _titleController.text.trim();
     final category = _categoryController.text.trim().isEmpty
@@ -124,9 +149,10 @@ class _QaScreenState extends ConsumerState<QaScreen> {
       _categoryController.clear();
       setState(() => _showAskForm = false);
       _loadQuestions();
+      _loadDailyStatus();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Question posted successfully!'),
+          content: Text('Doubt posted! AI Assistant is reviewing your question.'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
@@ -153,186 +179,451 @@ class _QaScreenState extends ConsumerState<QaScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
-        final systemBottom = MediaQuery.of(ctx).padding.bottom;
-        final isHidden = ref.read(shellNavBarHiddenProvider);
-        final safeBottom = bottomInset > 0
-            ? bottomInset + 16
-            : math.max(systemBottom + 20, isHidden ? 28.0 : 110.0);
+        List<AnswerModel> answers = [];
+        bool loadingAnswers = true;
+        bool submittingAnswer = false;
+        bool hasFetched = false;
+        bool isEscalated = qa.isEscalated;
+        bool isEscalating = false;
 
-        return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom),
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: authorColor.withOpacity(0.25),
-                    child: Text(
-                      _authorInitial(qa.authorName),
-                      style: TextStyle(
-                        color: authorColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            // Fetch answers only once on first build
+            if (!hasFetched) {
+              hasFetched = true;
+              ApiService().getAnswersByQuestion(qa.id).then((fetched) {
+                setSheetState(() {
+                  answers = fetched;
+                  loadingAnswers = false;
+                });
+              });
+            }
+
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            final systemBottom = MediaQuery.of(ctx).padding.bottom;
+            final isHidden = ref.read(shellNavBarHiddenProvider);
+            final safeBottom = bottomInset > 0
+                ? bottomInset + 16
+                : math.max(systemBottom + 20, isHidden ? 28.0 : 110.0);
+
+            return SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4.5,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
+                    const SizedBox(height: 16),
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          qa.authorName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: authorColor.withOpacity(0.25),
+                          child: Text(
+                            _authorInitial(qa.authorName),
+                            style: TextStyle(
+                              color: authorColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _formatTimeAgo(qa.createdAt),
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 11,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                qa.authorName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatTimeAgo(qa.createdAt),
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: authorColor.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: authorColor.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            qa.category,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: authorColor,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: authorColor.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: authorColor.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      qa.category,
-                      style: TextStyle(
-                        fontSize: 11,
+                    const SizedBox(height: 14),
+                    Text(
+                      qa.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
-                        color: authorColor,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                qa.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (qa.content.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  qa.content,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13.5,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-              const Divider(color: Colors.white12, height: 28),
-              Row(
-                children: [
-                  Icon(
-                    qa.isAnswered ? Icons.check_circle : Icons.hourglass_empty,
-                    size: 15,
-                    color: qa.isAnswered ? _green : _amber,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${qa.answerCount} Answers',
-                    style: TextStyle(
-                      color: qa.isAnswered ? _green : _amber,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Answer input
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF104476).withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.15)),
-                ),
-                child: TextField(
-                  controller: answerCtrl,
-                  cursorColor: _cyan,
-                  maxLines: 2,
-                  style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                  decoration: const InputDecoration(
-                    filled: true,
-                    fillColor: Colors.transparent,
-                    hintText: 'Write your answer or response...',
-                    hintStyle: TextStyle(color: Colors.white54, fontSize: 13),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.all(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (answerCtrl.text.trim().isNotEmpty) {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Answer submitted!'),
-                          backgroundColor: _green,
+                    if (qa.content.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        qa.content,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13.5,
+                          height: 1.45,
                         ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.send_rounded, size: 15),
-                  label: const Text('Submit Answer'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _cyan,
-                    foregroundColor: const Color(0xFF041838),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      ),
+                    ],
+                    const Divider(color: Colors.white12, height: 28),
+                    Row(
+                      children: [
+                        Icon(
+                          qa.isAnswered ? Icons.check_circle : Icons.hourglass_empty,
+                          size: 15,
+                          color: qa.isAnswered ? _green : _amber,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${answers.length} ${answers.length == 1 ? "Answer" : "Answers"}',
+                          style: TextStyle(
+                            color: qa.isAnswered ? _green : _amber,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    // Answer list
+                    if (loadingAnswers)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF27D9D3),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (answers.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Center(
+                          child: Text(
+                            'No answers yet. Be the first to answer!',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.45),
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ...answers.map((answer) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0C2B64).withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: answer.isAccepted
+                                ? _green.withOpacity(0.5)
+                                : Colors.white.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 13,
+                                  backgroundColor: _cyan.withOpacity(0.2),
+                                  child: Text(
+                                    _authorInitial(answer.authorName),
+                                    style: const TextStyle(
+                                      color: Color(0xFF27D9D3),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    answer.authorName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (answer.isAiGenerated)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF6366F1).withOpacity(0.22),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFF818CF8).withOpacity(0.4)),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text('🤖 ', style: TextStyle(fontSize: 10)),
+                                        Text(
+                                          'AI Assistant',
+                                          style: TextStyle(
+                                            color: Color(0xFF818CF8),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (answer.isAccepted)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _green.withOpacity(0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.check_circle, size: 11, color: Color(0xFF10B981)),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          'Accepted',
+                                          style: TextStyle(
+                                            color: Color(0xFF10B981),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (answer.createdAt != null) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatTimeAgo(answer.createdAt),
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              answer.content,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                    if (isEscalated)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6, bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFF59E0B)),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '⚠️ Escalated to Faculty Mentor. Your assigned instructor will review this doubt.',
+                                style: TextStyle(color: Color(0xFFF59E0B), fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (answers.isNotEmpty || qa.isAnswered)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 10),
+                        child: OutlinedButton.icon(
+                          onPressed: isEscalating
+                              ? null
+                              : () async {
+                                  setSheetState(() => isEscalating = true);
+                                  try {
+                                    final res = await ApiService().post('/api/questions/${qa.id}/escalate', {});
+                                    if (res != null) {
+                                      setSheetState(() {
+                                        isEscalated = true;
+                                        isEscalating = false;
+                                      });
+                                      _loadQuestions();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('⚠️ Doubt escalated to batch faculty mentor!'),
+                                            backgroundColor: Color(0xFFF59E0B),
+                                          ),
+                                        );
+                                      }
+                                    } else {
+                                      setSheetState(() => isEscalating = false);
+                                    }
+                                  } catch (_) {
+                                    setSheetState(() => isEscalating = false);
+                                  }
+                                },
+                          icon: isEscalating
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF59E0B)))
+                              : const Icon(Icons.warning_amber_rounded, size: 15, color: Color(0xFFF59E0B)),
+                          label: Text(
+                            isEscalating ? 'Escalating...' : 'Not satisfied? Escalate to Faculty Mentor',
+                            style: const TextStyle(color: Color(0xFFF59E0B), fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFF59E0B)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    // Answer input
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF104476).withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withOpacity(0.15)),
+                      ),
+                      child: TextField(
+                        controller: answerCtrl,
+                        cursorColor: _cyan,
+                        maxLines: 2,
+                        style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        decoration: const InputDecoration(
+                          filled: true,
+                          fillColor: Colors.transparent,
+                          hintText: 'Write your answer or response...',
+                          hintStyle: TextStyle(color: Colors.white54, fontSize: 13),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: submittingAnswer
+                            ? null
+                            : () async {
+                                if (answerCtrl.text.trim().isEmpty) return;
+                                setSheetState(() => submittingAnswer = true);
+                                final result = await ApiService()
+                                    .postQuestionAnswer(qa.id, answerCtrl.text.trim());
+                                if (result != null) {
+                                  answerCtrl.clear();
+                                  // Refresh answers in the sheet
+                                  final refreshed =
+                                      await ApiService().getAnswersByQuestion(qa.id);
+                                  setSheetState(() {
+                                    answers = refreshed;
+                                    submittingAnswer = false;
+                                  });
+                                  // Refresh the main question list so counts update
+                                  _loadQuestions();
+                                } else {
+                                  setSheetState(() => submittingAnswer = false);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Failed to submit answer'),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        icon: submittingAnswer
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF041838),
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded, size: 15),
+                        label: Text(submittingAnswer ? 'Submitting...' : 'Submit Answer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _cyan,
+                          foregroundColor: const Color(0xFF041838),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      );
-    },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -832,6 +1123,39 @@ class _QuestionCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (qa.isEscalated)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _amber.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: _amber.withOpacity(0.4)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 11, color: Color(0xFFF59E0B)),
+                            SizedBox(width: 3),
+                            Text('Escalated', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
+                          ],
+                        ),
+                      ),
+                    if (qa.isAiAnswered && !qa.isEscalated)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1).withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF818CF8).withOpacity(0.4)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Text('🤖 ', style: TextStyle(fontSize: 9)),
+                            Text('AI Answered', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF818CF8))),
+                          ],
+                        ),
+                      ),
                     const SizedBox(width: 12),
                     const Icon(Icons.thumb_up_alt_outlined,
                         size: 14, color: Colors.white60),

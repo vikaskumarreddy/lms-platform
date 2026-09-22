@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -46,8 +46,12 @@ interface PaperQuestion {
           <span style="margin-left:10px;">{{questions.length}} question{{questions.length === 1 ? '' : 's'}}</span>
           <span style="margin-left:10px;">{{totalMarks}} mark{{totalMarks === 1 ? '' : 's'}} total</span>
         </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-accent" *ngIf="tab === 'paper'" (click)="openAiModal()" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg, #6366F1, #8B5CF6);color:#FFF;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;">
+          ✨ Auto-Generate with AI
+        </button>
+        <button class="btn btn-primary" *ngIf="tab === 'paper'" (click)="openAddQuestion()">+ Add Question</button>
       </div>
-      <button class="btn btn-primary" *ngIf="tab === 'paper'" (click)="openAddQuestion()">+ Add Question</button>
     </div>
 
     <!-- Page-level tabs: build the paper / read the results -->
@@ -289,6 +293,119 @@ interface PaperQuestion {
         </div>
       </div>
     </div>
+
+    <!-- AI Auto-Quiz Generator Modal -->
+    <div class="modal-overlay" *ngIf="showAiModal" (click)="closeAiModal($event)">
+      <div class="modal-content" style="width:92%;max-width:760px;max-height:88vh;display:flex;flex-direction:column;" (click)="$event.stopPropagation()">
+        <!-- Modal Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #E2E8F0;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:24px;">✨</span>
+            <div>
+              <h2 style="font-size:18px;font-weight:700;margin:0;color:#0F172A;">Auto-Generate Quiz with Gemini AI</h2>
+              <div style="font-size:12px;color:#64748B;margin-top:2px;">
+                Instant 20-MCQ question paper generation indexed to curriculum lectures or custom notes
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" (click)="closeAiModal()">✕</button>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:16px 0;">
+          <!-- Course -> Module -> Lesson selector -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">1. Select Course</label>
+              <select [(ngModel)]="aiSelectedCourseId" (change)="onAiCourseChange()" style="width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:13.5px;background:#FFF;">
+                <option [ngValue]="null">-- Choose Course --</option>
+                <option *ngFor="let c of aiCourses" [ngValue]="c.id">{{ c.title }}</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">2. Select Lesson (grouped by Module)</label>
+              <select [(ngModel)]="aiSelectedLessonId" [disabled]="!aiSelectedCourseId || loadingAiLessons" style="width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:13.5px;background:#FFF;">
+                <option [ngValue]="null">-- {{ loadingAiLessons ? 'Loading modules...' : 'All Course Content / Choose Lesson' }} --</option>
+                <optgroup *ngFor="let m of aiModules" [label]="'📁 ' + m.title">
+                  <option *ngFor="let l of m.lessons" [ngValue]="l.id">📄 {{ l.title }}</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          <!-- Custom Notes / Topic Prompt -->
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">
+              Or Paste Lecture Notes / Custom Topics (Optional)
+            </label>
+            <textarea [(ngModel)]="aiCustomTopic" rows="3" placeholder="e.g. Object-Oriented Programming in Java: Polymorphism, Method Overriding vs Overloading, abstract classes and interfaces..." style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea>
+          </div>
+
+          <!-- Question Count & Marks -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Question Count</label>
+              <select [(ngModel)]="aiQuestionCount" style="width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:13.5px;background:#FFF;">
+                <option [ngValue]="5">5 MCQs (Quick quiz)</option>
+                <option [ngValue]="10">10 MCQs (Standard quiz)</option>
+                <option [ngValue]="15">15 MCQs</option>
+                <option [ngValue]="20">20 MCQs (Recommended exam paper)</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px;">Marks Per Question</label>
+              <input type="number" [(ngModel)]="aiMarksPerQuestion" min="1" max="10" style="width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:13.5px;box-sizing:border-box;">
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+            <button class="btn btn-accent" (click)="generateAiQuiz()" [disabled]="generatingAiQuiz" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg, #6366F1, #8B5CF6);color:#FFF;border:none;padding:10px 20px;font-weight:600;cursor:pointer;border-radius:8px;">
+              <span *ngIf="!generatingAiQuiz">⚡ Generate {{ aiQuestionCount }} MCQs in 5 Seconds</span>
+              <span *ngIf="generatingAiQuiz">⏳ Generating MCQs with Gemini AI...</span>
+            </button>
+          </div>
+
+          <!-- AI Error Banner -->
+          <div *ngIf="aiGenError" style="background:#FEE2E2;color:#991B1B;padding:12px;border-radius:8px;font-size:13.5px;margin-bottom:14px;">
+            {{ aiGenError }}
+          </div>
+
+          <!-- Generated Questions Preview List -->
+          <div *ngIf="generatedQuestions.length > 0" style="margin-top:16px;border-top:1px solid #E2E8F0;padding-top:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:15px;font-weight:700;margin:0;color:#0F172A;">
+                Generated MCQs ({{ generatedQuestions.length }})
+              </h3>
+              <button class="btn btn-primary" (click)="importGeneratedQuestions()" [disabled]="importingQuestions" style="padding:8px 18px;font-weight:600;">
+                {{ importingQuestions ? 'Importing...' : '📥 Import All ' + generatedQuestions.length + ' Questions to Paper' }}
+              </button>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div *ngFor="let gq of generatedQuestions; let qi = index" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;">
+                <div style="font-weight:700;font-size:14px;color:#1E293B;margin-bottom:8px;">
+                  Q{{ qi + 1 }}. {{ gq.question }}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div *ngFor="let opt of gq.options; let oi = index"
+                       [style.background]="oi === gq.correctIndex ? '#ECFDF5' : '#FFFFFF'"
+                       [style.border-color]="oi === gq.correctIndex ? '#10B981' : '#E2E8F0'"
+                       [style.color]="oi === gq.correctIndex ? '#065F46' : '#334155'"
+                       style="border:1px solid;border-radius:6px;padding:6px 10px;font-size:12.5px;display:flex;align-items:center;gap:6px;">
+                    <span style="font-weight:700;">{{ letters[oi] }}.</span>
+                    <span>{{ opt }}</span>
+                    <span *ngIf="oi === gq.correctIndex" style="margin-left:auto;color:#10B981;font-weight:700;">✓ Correct</span>
+                  </div>
+                </div>
+                <div *ngIf="gq.explanation" style="font-size:12px;color:#64748B;font-style:italic;">
+                  💡 <strong>Explanation:</strong> {{ gq.explanation }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   `
 })
 export class AssessmentPaperComponent implements OnInit {
@@ -320,6 +437,26 @@ export class AssessmentPaperComponent implements OnInit {
   savingQuestion = false;
   modalError = '';
   qForm: { questionText: string; questionType: QuestionType; marks: number; explanation: string; answerText: string; options: PaperOption[] } = this.blankForm();
+
+  // AI Modal properties
+  showAiModal = false;
+  aiCourses: any[] = [];
+  aiSelectedCourseId: number | null = null;
+  aiModules: any[] = [];
+  loadingAiLessons = false;
+  aiSelectedLessonId: number | null = null;
+  aiCustomTopic = '';
+  aiQuestionCount = 20;
+  aiMarksPerQuestion = 1;
+  generatingAiQuiz = false;
+  aiGenError = '';
+  generatedQuestions: Array<{
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation?: string;
+  }> = [];
+  importingQuestions = false;
 
   get typeLabel(): string {
     if (this.type === 'exams') return 'Exam';
@@ -550,6 +687,109 @@ export class AssessmentPaperComponent implements OnInit {
       { questionIds: reordered.map(q => q.id) }).subscribe({
       next: () => {},
       error: () => { this.pageError = 'Failed to save the new order.'; this.loadQuestions(); }
+    });
+  }
+
+  openAiModal() {
+    this.showAiModal = true;
+    this.aiGenError = '';
+    this.generatedQuestions = [];
+    if (this.aiCourses.length === 0) {
+      this.api.get<any[]>('/api/courses').subscribe({
+        next: (courses) => {
+          this.aiCourses = courses || [];
+        },
+        error: (err) => console.error('Failed to load courses for AI quiz', err)
+      });
+    }
+  }
+
+  closeAiModal(event?: Event) {
+    if (event && event.target !== event.currentTarget) return;
+    this.showAiModal = false;
+  }
+
+  onAiCourseChange() {
+    this.aiSelectedLessonId = null;
+    this.aiModules = [];
+    if (!this.aiSelectedCourseId) return;
+
+    this.loadingAiLessons = true;
+    this.api.get<any>(`/api/courses/${this.aiSelectedCourseId}`).subscribe({
+      next: (course) => {
+        this.aiModules = course?.modules || [];
+        this.loadingAiLessons = false;
+      },
+      error: (err) => {
+        console.error('Failed to load course modules', err);
+        this.loadingAiLessons = false;
+      }
+    });
+  }
+
+  generateAiQuiz() {
+    this.aiGenError = '';
+    this.generatingAiQuiz = true;
+
+    const payload = {
+      lessonId: this.aiSelectedLessonId,
+      topicOrNotes: this.aiCustomTopic,
+      count: this.aiQuestionCount
+    };
+
+    this.api.post<any>('/api/ai/generate-quiz', payload).subscribe({
+      next: (res) => {
+        this.generatedQuestions = res?.questions || [];
+        this.generatingAiQuiz = false;
+        if (this.generatedQuestions.length === 0) {
+          this.aiGenError = 'No questions generated. Please verify your prompt or API key in Settings.';
+        }
+      },
+      error: (err) => {
+        this.generatingAiQuiz = false;
+        this.aiGenError = err?.error?.error || 'Failed to generate quiz with AI. Please ensure AI configuration is enabled in Settings.';
+      }
+    });
+  }
+
+  importGeneratedQuestions() {
+    if (this.generatedQuestions.length === 0 || this.importingQuestions) return;
+
+    this.importingQuestions = true;
+    const base = `/api/assessments/${this.type}/${this.assessmentId}/questions`;
+    let remaining = this.generatedQuestions.length;
+
+    this.generatedQuestions.forEach(gq => {
+      const payload = {
+        questionText: gq.question,
+        questionType: 'SINGLE_CHOICE',
+        explanation: gq.explanation || null,
+        marks: Number(this.aiMarksPerQuestion) || 1,
+        options: gq.options.map((opt, idx) => ({
+          optionText: opt,
+          isCorrect: idx === gq.correctIndex
+        }))
+      };
+
+      this.api.post(base, payload).subscribe({
+        next: () => {
+          remaining--;
+          if (remaining === 0) {
+            this.importingQuestions = false;
+            this.showAiModal = false;
+            this.loadQuestions();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to import question', err);
+          remaining--;
+          if (remaining === 0) {
+            this.importingQuestions = false;
+            this.showAiModal = false;
+            this.loadQuestions();
+          }
+        }
+      });
     });
   }
 }

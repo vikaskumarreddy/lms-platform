@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -33,7 +33,7 @@ interface Certificate {
       <button class="btn btn-primary" (click)="openIssueModal()">+ Issue Certificate</button>
     </div>
 
-    <!-- Issue Certificate Modal: single fieldset (only four fields, no tabs needed) -->
+    <!-- Issue Certificate Modal -->
     <div class="modal-overlay" *ngIf="showForm" (click)="closeModal($event)">
       <div class="modal-content" style="width:90%;max-width:560px;" (click)="$event.stopPropagation()">
         <div style="display:none;justify-content:flex-end;margin-bottom:0;">
@@ -51,17 +51,21 @@ interface Certificate {
                   <option *ngFor="let s of students" [ngValue]="s.id">{{ s.name }} ({{ s.email }})</option>
                 </select>
               </div>
-              <div>
+              <div class="full-width">
                 <label>Institute Name *</label>
                 <input type="text" [(ngModel)]="formData.instituteName" name="instituteName" required placeholder="Enter institute name">
               </div>
               <div>
-                <label>Course Name *</label>
-                <input type="text" [(ngModel)]="formData.courseName" name="courseName" required placeholder="e.g. Java Full Stack">
+                <label>Course *</label>
+                <select (change)="onCourseSelect($event)" style="margin-bottom:6px;">
+                  <option value="">-- Choose from courses --</option>
+                  <option *ngFor="let crs of courses" [value]="crs.title">{{ crs.title }}</option>
+                </select>
+                <input type="text" [(ngModel)]="formData.courseName" name="courseName" required placeholder="Or enter custom course title">
               </div>
               <div>
                 <label>Duration</label>
-                <input type="text" [(ngModel)]="formData.duration" name="duration" placeholder="e.g. 6 Months">
+                <input type="text" [(ngModel)]="formData.duration" name="duration" placeholder="e.g. 6 Months / 120 Hours">
               </div>
             </div>
           </fieldset>
@@ -79,6 +83,52 @@ interface Certificate {
       </div>
     </div>
 
+    <!-- Certificate Preview Modal -->
+    <div class="modal-overlay" *ngIf="previewCert" (click)="previewCert = null">
+      <div class="modal-content" style="width:90%;max-width:720px;padding:24px;" (click)="$event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="font-size:18px;font-weight:700;">Certificate Preview</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" (click)="printCertificate()">🖨️ Print / Save PDF</button>
+            <button class="btn btn-secondary btn-sm" (click)="previewCert = null">✕</button>
+          </div>
+        </div>
+
+        <!-- Printable Certificate Card -->
+        <div id="print-certificate-area" style="border:8px double #1E3A8A;padding:32px;text-align:center;background:#FFFDF7;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);position:relative;">
+          <div style="font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#64748B;margin-bottom:8px;">Certificate of Completion</div>
+          <h1 style="font-size:26px;color:#1E3A8A;font-weight:800;margin-bottom:16px;">{{ previewCert.instituteName }}</h1>
+          <p style="font-size:14px;color:#475569;margin-bottom:12px;">This is proudly presented to</p>
+          <h2 style="font-size:28px;font-family:serif;font-weight:700;color:#0F172A;border-bottom:2px solid #CBD5E1;display:inline-block;padding-bottom:4px;margin-bottom:16px;">
+            {{ previewCert.studentName || previewCert.studentEmail }}
+          </h2>
+          <p style="font-size:14px;color:#475569;max-width:500px;margin:0 auto 20px auto;line-height:1.6;">
+            for successfully completing the specialized professional curriculum in
+            <strong style="color:#1E3A8A;">{{ previewCert.courseName }}</strong>
+            <span *ngIf="previewCert.duration"> over a duration of {{ previewCert.duration }}</span>.
+          </p>
+
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #E2E8F0;">
+            <div style="text-align:left;">
+              <div style="font-size:11px;color:#64748B;">ISSUED ON</div>
+              <div style="font-size:13px;font-weight:600;color:#1E293B;">{{ previewCert.issueDate }}</div>
+              <div style="font-size:11px;color:#64748B;margin-top:4px;">CREDENTIAL ID</div>
+              <div style="font-family:monospace;font-size:12px;font-weight:700;color:#2563EB;">{{ previewCert.credentialId }}</div>
+            </div>
+            <div>
+              <img [src]="'https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=' + getVerifyUrl(previewCert)" alt="QR" style="width:80px;height:80px;border-radius:4px;border:1px solid #CBD5E1;">
+              <div style="font-size:10px;color:#64748B;margin-top:2px;">Scan to Verify</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:#64748B;">Public URL: <a [href]="getVerifyUrl(previewCert)" target="_blank">{{ getVerifyUrl(previewCert) }}</a></span>
+          <button class="btn btn-secondary btn-sm" (click)="copyVerifyLink(previewCert)">📋 Copy Link</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <table>
         <thead>
@@ -90,10 +140,14 @@ interface Certificate {
             <td>{{ c.instituteName }}</td>
             <td>{{ c.courseName }}</td>
             <td>{{ c.duration || '—' }}</td>
-            <td style="font-size:12px;">{{ c.credentialId }}</td>
+            <td style="font-size:12px;">
+              <span style="font-family:monospace;color:#2563EB;font-weight:600;">{{ c.credentialId }}</span>
+            </td>
             <td style="font-size:13px;">{{ c.issueDate }}</td>
             <td>
-              <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="deleteCertificate(c)">Revoke</button>
+              <button class="btn btn-primary" style="padding:4px 10px;font-size:12px;margin-right:6px;" (click)="previewCertificate(c)">Preview</button>
+              <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;margin-right:6px;" (click)="copyVerifyLink(c)" title="Copy public verification link">🔗 Link</button>
+              <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" (click)="deleteCertificate(c)">Revoke</button>
             </td>
           </tr>
           <tr *ngIf="certificates.length === 0">
@@ -107,6 +161,8 @@ interface Certificate {
 export class CertificatesAdminComponent implements OnInit {
   students: Student[] = [];
   certificates: Certificate[] = [];
+  courses: any[] = [];
+  previewCert: Certificate | null = null;
   showForm = false;
   saving = false;
   errorMsg = '';
@@ -125,11 +181,17 @@ export class CertificatesAdminComponent implements OnInit {
     this.loadOrgName();
     this.loadStudents();
     this.loadCertificates();
+    this.loadCourses();
   }
 
   loadOrgName() {
     this.apiService.get<any>('/api/organizations/current').subscribe({
-      next: (org) => { this.orgName = org?.name || ''; },
+      next: (org) => {
+        this.orgName = org?.name || '';
+        if (!this.formData.instituteName) {
+          this.formData.instituteName = this.orgName;
+        }
+      },
       error: () => { this.orgName = ''; }
     });
   }
@@ -141,11 +203,25 @@ export class CertificatesAdminComponent implements OnInit {
     });
   }
 
+  loadCourses() {
+    this.apiService.get<any[]>('/api/courses').subscribe({
+      next: (data) => { this.courses = data || []; },
+      error: () => { this.courses = []; }
+    });
+  }
+
   loadCertificates() {
     this.apiService.get<Certificate[]>('/api/certificates').subscribe({
       next: (data) => { this.certificates = data; },
       error: () => { this.certificates = []; }
     });
+  }
+
+  onCourseSelect(event: any) {
+    const val = event.target.value;
+    if (val) {
+      this.formData.courseName = val;
+    }
   }
 
   openIssueModal() {
@@ -157,6 +233,32 @@ export class CertificatesAdminComponent implements OnInit {
   closeModal(event?: Event) {
     if (event && event.target !== event.currentTarget) return;
     this.resetForm();
+  }
+
+  previewCertificate(c: Certificate) {
+    this.previewCert = c;
+  }
+
+  getVerifyUrl(c?: Certificate | null): string {
+    if (!c || !c.credentialId) return '';
+    return `${window.location.origin}/verify/${c.credentialId}`;
+  }
+
+  copyVerifyLink(c: Certificate) {
+    const url = this.getVerifyUrl(c);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.errors.success('Verification link copied to clipboard!');
+      }).catch(() => {
+        prompt('Copy verification URL:', url);
+      });
+    } else {
+      prompt('Copy verification URL:', url);
+    }
+  }
+
+  printCertificate() {
+    window.print();
   }
 
   issue() {
@@ -187,7 +289,7 @@ export class CertificatesAdminComponent implements OnInit {
   }
 
   private resetFormData() {
-    this.formData = { userId: null, instituteName: this.orgName, courseName: '', duration: '' };
+    this.formData = { userId: null, instituteName: this.orgName || '', courseName: '', duration: '' };
   }
 
   resetForm() {

@@ -12,11 +12,17 @@ class CertificatePdfGenerator {
     required String courseName,
     String? duration,
     required String credentialId,
-    required String issueDate, int accentColor = 0xFFEAB308, int primaryColor = 0xFF0F172A,
+    String? issueDate,
+    String? verifyUrl,
+    int accentColor = 0xFFEAB308, int primaryColor = 0xFF0F172A,
   }) async {
     final doc = pw.Document();
     final gold = PdfColor.fromInt(accentColor);
     final navy = PdfColor.fromInt(primaryColor);
+    final String publicUrl = verifyUrl ?? 'https://lms-platform.com/verify/$credentialId';
+    final String formattedIssueDate = (issueDate != null && issueDate.isNotEmpty)
+        ? issueDate
+        : DateTime.now().toString().split(' ')[0];
 
     doc.addPage(
       pw.Page(
@@ -53,22 +59,32 @@ class CertificatePdfGenerator {
                   pw.SizedBox(height: 8),
                   pw.Text('Duration: $duration', style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
                 ],
-                pw.SizedBox(height: 36),
+                pw.SizedBox(height: 28),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                       pw.Text('Credential ID', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
                       pw.Text(credentialId, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Issue Date', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+                      pw.Text(formattedIssueDate, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                     ]),
                     pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
                       pw.Text(instituteName, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: navy)),
                       pw.SizedBox(height: 2),
                       pw.Text('Issuing Institute', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
                     ]),
-                    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                      pw.Text('Issue Date', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
-                      pw.Text(issueDate, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+                      pw.BarcodeWidget(
+                        barcode: pw.Barcode.qrCode(),
+                        data: publicUrl,
+                        width: 52,
+                        height: 52,
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text('Scan to Verify', style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
                     ]),
                   ],
                 ),

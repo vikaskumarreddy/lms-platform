@@ -70,4 +70,7 @@ public class PlacementDrive extends BaseEntity {
 
     @Column(name = "min_exam_avg_percent")
     private Double minExamAvgPercent;
+
+    @Column(name = "recruiter_token")
+    private String recruiterToken;
 }

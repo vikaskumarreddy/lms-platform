@@ -35,6 +35,7 @@ import '../../presentation/screens/notes/notes_screen.dart';
 import '../../presentation/screens/onboarding/onboarding_screen.dart';
 import '../../presentation/screens/bookmarks/bookmarks_screen.dart';
 import '../../presentation/screens/leaderboard/leaderboard_screen.dart';
+import '../../presentation/screens/ai_challenge/daily_challenge_screen.dart';
 import '../../presentation/screens/qa/qa_screen.dart';
 import '../../presentation/screens/company_questions/company_questions_screen.dart';
 import '../../presentation/screens/placement/support_request_screen.dart';
@@ -146,11 +147,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.interviewHistory, builder: (context, state) => const InterviewHistoryScreen()),
           GoRoute(path: AppRoutes.bookmarks, builder: (context, state) => const BookmarksScreen()),
           GoRoute(path: AppRoutes.leaderboard, builder: (context, state) => const LeaderboardScreen()),
+          GoRoute(path: AppRoutes.dailyChallenge, builder: (context, state) => const DailyChallengeScreen()),
           GoRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
           GoRoute(path: AppRoutes.companyQuestions, builder: (context, state) => const CompanyQuestionsScreen()),
           GoRoute(path: AppRoutes.supportRequest, builder: (context, state) => const SupportRequestScreen()),
           GoRoute(path: AppRoutes.sectionLessons, builder: (context, state) => CourseSectionLessonsScreen(sectionId: int.tryParse(state.pathParameters['sectionId'] ?? '') ?? 0)),
           GoRoute(path: AppRoutes.lesson, builder: (context, state) => LessonPlayerScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
+          GoRoute(path: AppRoutes.chat, builder: (context, state) => const ChatScreen()),
+          GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
         ],
       ),
       GoRoute(path: AppRoutes.inAppBrowser, builder: (context, state) => InAppBrowserScreen(

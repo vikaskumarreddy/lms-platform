@@ -53,7 +53,7 @@ class AssessmentPaperScreen extends StatefulWidget {
   State<AssessmentPaperScreen> createState() => _AssessmentPaperScreenState();
 }
 
-class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
+class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with WidgetsBindingObserver {
   Color get _kInk => Theme.of(context).colorScheme.primary;
   Color get _kAccent => Theme.of(context).colorScheme.secondary;
   final ApiService _api = ApiService();
@@ -89,20 +89,119 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
   /// Non-null once the attempt has been graded - the screen then renders the review.
   Map<String, dynamic>? _result;
 
+  /// Anti-cheat Proctoring State
+  int _proctorViolations = 0;
+  bool _proctorDialogShown = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _pages.dispose();
     for (final controller in _textControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Proctoring is active only during a live unsubmitted graded assessment/exam
+    if (widget.practiceMode || _result != null || _loading || _submitting) return;
+
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _proctorViolations++;
+      if (_proctorViolations >= 3) {
+        if (mounted) {
+          _handleProctorDisqualification();
+        }
+      } else {
+        if (mounted) {
+          _showProctorWarning();
+        }
+      }
+    }
+  }
+
+  void _showProctorWarning() {
+    if (_proctorDialogShown || !mounted) return;
+    _proctorDialogShown = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0C2B64),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFF59E0B), width: 2),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 28),
+            const SizedBox(width: 8),
+            Text('Proctor Alert ($_proctorViolations/3)', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Warning $_proctorViolations of 3: Leaving the app or switching browser tabs is strictly prohibited during an exam.\n\nFurther violations will automatically auto-submit your exam.',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: const Color(0xFF071D43)),
+            onPressed: () {
+              _proctorDialogShown = false;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Return to Exam', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleProctorDisqualification() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0C2B64),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFEF4444), width: 2),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.gavel_rounded, color: Color(0xFFEF4444), size: 28),
+            SizedBox(width: 8),
+            Text('Exam Auto-Submitted', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Proctoring integrity threshold exceeded (3 app switches). Your exam has been terminated and auto-submitted.',
+          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _submit(auto: true);
+            },
+            child: const Text('View Results', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ------------------------------------------------------------------ loading
@@ -161,6 +260,14 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> {
               : 'No questions have been added to this paper yet.';
         });
         return;
+      }
+
+      // Proctoring & Anti-Cheat: Randomize Question and MCQ Option ordering per attempt
+      if (!widget.practiceMode) {
+        questions.shuffle();
+        for (final q in questions) {
+          q.options.shuffle();
+        }
       }
 
       setState(() {

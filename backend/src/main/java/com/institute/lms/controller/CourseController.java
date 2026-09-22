@@ -59,6 +59,7 @@ public class CourseController {
 
     @PostMapping
     public Course createCourse(@RequestBody CourseRequest request) {
+        userContext.requireOrgAdminOrFaculty();
         // Instructors can only create courses for themselves; the instructorId
         // field is forced to the current user regardless of the request body.
         if (userContext.isFaculty()) {
@@ -72,6 +73,7 @@ public class CourseController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Course> updateCourse(@PathVariable Long id, @RequestBody CourseRequest request) {
+        userContext.requireOrgAdminOrFaculty();
         // Instructors can only update their own courses.
         if (userContext.isFaculty()) {
             return courseService.findById(id)
@@ -96,6 +98,7 @@ public class CourseController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCourse(@PathVariable Long id) {
+        userContext.requireOrgAdminOrFaculty();
         // Instructors can only delete their own courses.
         if (userContext.isFaculty()) {
             boolean allowed = courseService.findById(id)

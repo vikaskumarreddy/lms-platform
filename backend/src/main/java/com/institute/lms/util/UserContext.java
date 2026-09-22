@@ -167,4 +167,26 @@ public class UserContext {
 
         return null;
     }
+
+    /**
+     * All batch IDs a Faculty user is associated with (either directly via batchId,
+     * or as mentor on one or more batches).
+     */
+    public List<Long> facultyBatchIds() {
+        User u = currentUser();
+        if (u == null || u.getRole() != User.UserRole.INSTRUCTOR) {
+            return List.of();
+        }
+        java.util.Set<Long> ids = new java.util.LinkedHashSet<>();
+        if (u.getBatchId() != null) {
+            ids.add(u.getBatchId());
+        }
+        List<Batch> mentoredBatches = batchRepository.findByMentorId(u.getId());
+        for (Batch b : mentoredBatches) {
+            if (b.getId() != null) {
+                ids.add(b.getId());
+            }
+        }
+        return new java.util.ArrayList<>(ids);
+    }
 }

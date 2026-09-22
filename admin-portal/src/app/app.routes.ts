@@ -20,6 +20,7 @@ import { SubscriptionsAdminComponent } from './pages/subscriptions-admin/subscri
 import { EventsAdminComponent } from './pages/events-admin/events-admin.component';
 import { BookmarksAdminComponent } from './pages/bookmarks-admin/bookmarks-admin.component';
 import { BatchesComponent } from './pages/batches/batches.component';
+import { BatchCommunityComponent } from './pages/batch-community/batch-community.component';
 import { GradingAdminComponent } from './pages/grading-admin/grading-admin.component';
 import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
@@ -33,10 +34,12 @@ import { AccountComponent } from './pages/account/account.component';
 import { PlatformAddonsComponent } from './pages/platform-addons/platform-addons.component';
 import { PlatformBillingComponent } from './pages/platform-billing/platform-billing.component';
 import { LeaderboardAdminComponent } from './pages/leaderboard-admin/leaderboard-admin.component';
+import { PublicVerifyComponent } from './pages/public-verify/public-verify.component';
 import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  { path: 'verify/:credentialId', component: PublicVerifyComponent },
   {
     path: '',
     component: AdminLayoutComponent,
@@ -74,6 +77,7 @@ export const routes: Routes = [
       { path: 'events-admin', component: EventsAdminComponent },
       { path: 'bookmarks-admin', component: BookmarksAdminComponent },
       { path: 'batches', component: BatchesComponent },
+      { path: 'batch-community', component: BatchCommunityComponent },
       { path: 'payments', component: PaymentsComponent },
       // The tenant's own Razorpay credentials — fees are collected into the
       // institute's account, so the keys are per-organization, not per-deployment.

@@ -6,6 +6,7 @@ import { CurrentOrgService } from '../services/current-org.service';
 import { ThemeService } from '../services/theme.service';
 import { ToastHostComponent } from '../components/toast-host.component';
 import { ConfirmDialogComponent } from '../components/confirm-dialog.component';
+import { AdminNotificationsComponent } from '../components/admin-notifications.component';
 import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_SECTIONS } from './admin-layout-menu';
 
 /** Maps a menu item id to the single emoji shown when the sidebar is collapsed to icon-only. */
@@ -23,7 +24,7 @@ const COLLAPSED_ICONS: Record<string, string> = {
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent, AdminNotificationsComponent],
   template: `
     <div class="sidebar" [class.collapsed]="collapsed">
       <div class="logo">
@@ -61,6 +62,19 @@ const COLLAPSED_ICONS: Record<string, string> = {
       </a>
     </div>
     <div class="main-content" [class.sidebar-collapsed]="collapsed">
+      <!-- Top header bar with Organization title, user role, and notification bell -->
+      <div class="admin-top-bar">
+        <div class="admin-top-left">
+          <span class="admin-top-org">{{ orgName || 'Axisora LMS' }}</span>
+          <span class="role-pill">
+            {{ auth.isInstructor ? '👨‍🏫 Faculty Portal' : (isPlatform ? '🛡️ Platform Admin' : '🏛️ Academy Admin') }}
+          </span>
+        </div>
+        <div class="admin-top-right">
+          <app-admin-notifications></app-admin-notifications>
+        </div>
+      </div>
+
       <!-- Read-only / expired banner, shown above every page so a lapsed tenant is not
            left guessing why their changes are refused. -->
       @if (subscriptionNotice) {
@@ -78,6 +92,38 @@ const COLLAPSED_ICONS: Record<string, string> = {
     <app-confirm-dialog></app-confirm-dialog>
   `,
   styles: [`
+    .admin-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 16px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border-light, #E2E8F0);
+    }
+    .admin-top-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .admin-top-org {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text, #0F172A);
+    }
+    .role-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--surface-alt, #F1F5F9);
+      color: var(--primary, #4F46E5);
+      border: 1px solid var(--border-light, #CBD5E1);
+    }
+    .admin-top-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     .nav-group {
       padding: 16px 20px 6px;
       font-size: 11px;

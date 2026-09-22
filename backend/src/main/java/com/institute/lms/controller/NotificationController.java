@@ -15,21 +15,39 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import java.time.LocalDateTime;
+import org.springframework.scheduling.annotation.Scheduled;
+
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final com.institute.lms.repository.CourseRepository courseRepository;
     private final FcmService fcmService;
     private final UserContext userContext;
 
-    public NotificationController(NotificationRepository notificationRepository, UserRepository userRepository,
-                                   FcmService fcmService, UserContext userContext) {
+    public NotificationController(NotificationRepository notificationRepository,
+                                  UserRepository userRepository,
+                                  com.institute.lms.repository.CourseRepository courseRepository,
+                                  FcmService fcmService,
+                                  UserContext userContext) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.courseRepository = courseRepository;
         this.fcmService = fcmService;
         this.userContext = userContext;
+    }
+
+    /** Hourly background job to delete notifications older than 48 hours. */
+    @Scheduled(cron = "0 0 * * * *")
+    public void purgeStaleNotifications() {
+        try {
+            notificationRepository.deleteByCreatedAtBefore(LocalDateTime.now().minusHours(48));
+        } catch (Exception e) {
+            System.err.println("Failed to purge stale notifications: " + e.getMessage());
+        }
     }
 
     /** Pushes a notification to a student's device (no-op if push isn't configured/enabled). */
@@ -41,11 +59,21 @@ public class NotificationController {
 
     @GetMapping
     public List<Notification> getAllNotifications() {
-        List<Notification> all = notificationRepository.findAll();
+        // Enforce 48-hour retention on read
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(48);
+        try {
+            notificationRepository.deleteByCreatedAtBefore(cutoff);
+        } catch (Exception ignored) {}
+
+        List<Notification> all = notificationRepository.findAll().stream()
+                .filter(n -> n.getCreatedAt() == null || !n.getCreatedAt().isBefore(cutoff))
+                .collect(Collectors.toList());
+
         User current = userContext.currentUser();
+        if (current == null) return List.of();
 
         // Students only see notifications targeted at them directly, broadcasts, or their batch/plan
-        if (current != null && current.getRole() == User.UserRole.STUDENT) {
+        if (current.getRole() == User.UserRole.STUDENT) {
             Long studentId = current.getId();
             Long batchId = current.getBatchId();
             Long planId = current.getPlanId();
@@ -57,17 +85,40 @@ public class NotificationController {
                     .collect(Collectors.toList());
         }
 
-        // Faculty only see notifications broadcast to everyone, or targeted at their own batch/students.
+        // Faculty only see notifications for students belonging to their assigned batches or courses they teach
         if (userContext.isFaculty()) {
-            Long batchId = userContext.facultyBatchId();
-            Set<Long> batchStudentIds = batchId != null
-                    ? userRepository.findByRoleAndBatchId(User.UserRole.STUDENT, batchId)
-                            .stream().map(User::getId).collect(Collectors.toSet())
-                    : Set.of();
+            List<Long> batchIds = userContext.facultyBatchIds();
+            Set<Long> belongingStudentIds = new java.util.HashSet<>();
+
+            // 1. Students in batches mentored/assigned
+            for (Long bId : batchIds) {
+                userRepository.findByRoleAndBatchId(User.UserRole.STUDENT, bId)
+                        .forEach(u -> belongingStudentIds.add(u.getId()));
+            }
+
+            // 2. Students in courses taught by this faculty
+            List<com.institute.lms.entity.Course> myCourses = courseRepository.findByInstructorId(current.getId());
+            for (com.institute.lms.entity.Course c : myCourses) {
+                if (c.getEnrollments() != null) {
+                    c.getEnrollments().forEach(e -> {
+                        if (e.getUser() != null) belongingStudentIds.add(e.getUser().getId());
+                    });
+                }
+            }
+
+            Set<String> RELEVANT_TYPES = Set.of("chat", "qa", "support", "placement", "exam", "assignment");
+
             return all.stream()
-                    .filter(n -> "ALL".equals(n.getTargetType())
-                            || (batchId != null && "BATCH".equals(n.getTargetType()) && batchId.equals(n.getTargetId()))
-                            || (n.getUserId() != null && batchStudentIds.contains(n.getUserId())))
+                    .filter(n -> {
+                        String type = n.getType() != null ? n.getType().toLowerCase() : "";
+                        if (!RELEVANT_TYPES.contains(type)) return false;
+
+                        boolean isMyBatch = batchIds.contains(n.getTargetId()) && "BATCH".equals(n.getTargetType());
+                        boolean isMyStudent = n.getUserId() != null && belongingStudentIds.contains(n.getUserId());
+                        boolean isDirectToFaculty = n.getUserId() != null && n.getUserId().equals(current.getId());
+
+                        return isMyBatch || isMyStudent || isDirectToFaculty;
+                    })
                     .collect(Collectors.toList());
         }
 
@@ -197,10 +248,10 @@ public class NotificationController {
 
     @PutMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable Long id) {
-        notificationRepository.findById(id).ifPresent(n -> {
-            n.setIsRead(true);
-            notificationRepository.save(n);
-        });
+        // As requested: mark as read immediately deletes it from database
+        try {
+            notificationRepository.deleteById(id);
+        } catch (Exception ignored) {}
         return ResponseEntity.ok().build();
     }
 
@@ -219,12 +270,22 @@ public class NotificationController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/read-all")
+    public ResponseEntity<Void> markAllAsRead() {
+        // Deletes all visible notifications for this user from database
+        List<Notification> visible = getAllNotifications();
+        try {
+            notificationRepository.deleteAll(visible);
+        } catch (Exception ignored) {}
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Object>> getUnreadCount() {
         User current = userContext.currentUser();
         if (current == null) return ResponseEntity.status(401).build();
-        long count = notificationRepository.findByUserIdOrderByCreatedAtDesc(current.getId())
-                .stream().filter(n -> !n.getIsRead()).count();
+        long count = getAllNotifications()
+                .stream().filter(n -> !Boolean.TRUE.equals(n.getIsRead())).count();
         return ResponseEntity.ok(Map.of("count", count));
     }
 }

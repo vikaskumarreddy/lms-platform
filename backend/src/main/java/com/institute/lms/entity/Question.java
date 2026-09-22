@@ -47,6 +47,13 @@ public class Question extends BaseEntity {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "is_escalated")
+    private Boolean isEscalated = false;
+
+    @Column(name = "is_ai_answered")
+    private Boolean isAiAnswered = false;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<Answer> answers;
 }

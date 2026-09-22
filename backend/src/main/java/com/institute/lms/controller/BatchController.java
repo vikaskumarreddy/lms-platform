@@ -40,11 +40,11 @@ public class BatchController {
 
     @GetMapping
     public List<Batch> getAllBatches() {
-        // Faculty only see their own batch.
+        // Faculty only see batches they mentor or are assigned to.
         if (userContext.isFaculty()) {
-            Long batchId = userContext.facultyBatchId();
-            if (batchId == null) return List.of();
-            return batchRepository.findById(batchId).map(List::of).orElse(List.of());
+            List<Long> batchIds = userContext.facultyBatchIds();
+            if (batchIds.isEmpty()) return List.of();
+            return batchRepository.findAllById(batchIds);
         }
         return batchRepository.findAll();
     }

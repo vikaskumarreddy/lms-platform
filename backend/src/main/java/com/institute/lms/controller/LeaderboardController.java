@@ -33,35 +33,33 @@ public class LeaderboardController {
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final ExamSubmissionRepository examSubmissionRepository;
     private final AttendanceRepository attendanceRepository;
+    private final com.institute.lms.repository.DailyChallengeAttemptRepository challengeRepository;
     private final UserContext userContext;
 
     public LeaderboardController(UserRepository userRepository,
                                   AssignmentSubmissionRepository assignmentSubmissionRepository,
                                   ExamSubmissionRepository examSubmissionRepository,
                                   AttendanceRepository attendanceRepository,
+                                  com.institute.lms.repository.DailyChallengeAttemptRepository challengeRepository,
                                   UserContext userContext) {
         this.userRepository = userRepository;
         this.assignmentSubmissionRepository = assignmentSubmissionRepository;
         this.examSubmissionRepository = examSubmissionRepository;
         this.attendanceRepository = attendanceRepository;
+        this.challengeRepository = challengeRepository;
         this.userContext = userContext;
     }
 
     /**
      * Weekly leaderboard, optionally scoped to a single batch for a fair
      * same-cohort comparison. Score = (assignments submitted this week * 10)
-     * + (exams submitted this week * 10) + (attendance percentage this week).
+     * + (exams submitted this week * 10) + (attendance percentage this week)
+     * + (daily challenge points this week).
      * Returns the requesting student's own rank alongside the top entries.
      */
     @GetMapping
     public Map<String, Object> getWeeklyLeaderboard(@RequestParam(required = false) Long batchId,
                                                       @RequestParam(required = false) Long studentId) {
-        // Scope batchId/studentId to what the caller is actually allowed to see. A
-        // STUDENT can only ever see their own rank and their own batch's ranking
-        // (params are silently overridden rather than rejected, so well-behaved
-        // clients that already send the right values are unaffected). Faculty
-        // default to their own batch when none is specified. Admins are trusted
-        // with arbitrary values (needed for the admin-portal cross-batch dashboard).
         User caller = userContext.currentUser();
         if (caller != null && caller.getRole() == User.UserRole.STUDENT) {
             studentId = caller.getId();
@@ -97,7 +95,11 @@ public class LeaderboardController {
             long presentCount = attendanceThisWeek.stream().filter(a -> Boolean.TRUE.equals(a.getPresent())).count();
             double attendancePercent = totalMarked > 0 ? (presentCount * 100.0 / totalMarked) : 0.0;
 
-            double score = (assignmentsThisWeek * 10.0) + (examsThisWeek * 10.0) + attendancePercent;
+            double challengePointsThisWeek = challengeRepository.findByUserIdSince(student.getId(), weekStart).stream()
+                    .mapToDouble(com.institute.lms.entity.DailyChallengeAttempt::getPointsAwarded)
+                    .sum();
+
+            double score = (assignmentsThisWeek * 10.0) + (examsThisWeek * 10.0) + attendancePercent + challengePointsThisWeek;
 
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("userId", student.getId());
@@ -105,6 +107,7 @@ public class LeaderboardController {
             entry.put("assignmentsSubmitted", assignmentsThisWeek);
             entry.put("examsSubmitted", examsThisWeek);
             entry.put("attendancePercent", Math.round(attendancePercent * 100.0) / 100.0);
+            entry.put("challengePoints", Math.round(challengePointsThisWeek * 100.0) / 100.0);
             entry.put("score", Math.round(score * 100.0) / 100.0);
             entries.add(entry);
         }

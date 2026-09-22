@@ -43,6 +43,7 @@ export const INSTRUCTOR_SECTIONS: MenuSection[] = [
     items: [
       { id: 'dashboard', label: '📊 Dashboard', route: '/', exact: true },
       { id: 'students', label: '🎓 Students', route: '/students' },
+      { id: 'batch-community', label: '💬 Batch Community', route: '/batch-community' },
       { id: 'courses', label: '📚 Courses', route: '/courses' },
       { id: 'placements', label: '💼 Placements', route: '/placements' },
       { id: 'notifications-admin', label: '🔔 Notifications', route: '/notifications-admin' },
@@ -69,6 +70,7 @@ export const TENANT_SECTIONS: MenuSection[] = [
       { id: 'students', label: '🎓 Students', route: '/students' },
       { id: 'daily-attendance', label: '🗓️ Daily Attendance', route: '/attendance-admin', categories: ['SCHOOL'] },
       { id: 'batches', label: '👥 Batches', route: '/batches' },
+      { id: 'batch-community', label: '💬 Batch Community', route: '/batch-community' },
       { id: 'courses', label: '📚 Courses', route: '/courses' },
       { id: 'faculty', label: '👨🏫 Faculty', route: '/faculty' },
       { id: 'placements', label: '💼 Placements', route: '/placements' },

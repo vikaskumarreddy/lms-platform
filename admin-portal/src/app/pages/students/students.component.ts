@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -61,6 +61,43 @@ interface Batch {
       <button class="btn btn-primary" (click)="openAddModal()">+ Add Student</button>
     </div>
 
+    <!-- Search & Filter Controls -->
+    <div class="card" style="margin-bottom:16px;padding:16px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <div style="flex:1;min-width:220px;">
+          <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()" placeholder="🔍 Search name, email, phone..." style="width:100%;padding:8px 12px;border:1px solid #CBD5E1;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="min-width:140px;">
+          <select [(ngModel)]="selectedBatchId" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
+            <option [ngValue]="null">👥 All Batches</option>
+            <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
+          </select>
+        </div>
+        <div style="min-width:140px;">
+          <select [(ngModel)]="selectedPlanId" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
+            <option [ngValue]="null">⭐ All Plans</option>
+            <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
+          </select>
+        </div>
+        <div style="min-width:130px;">
+          <select [(ngModel)]="selectedFeeStatus" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
+            <option value="ALL">💳 All Fees</option>
+            <option value="PAID">Paid (Online)</option>
+            <option value="DUE">Due (Online)</option>
+            <option value="CASH">Cash / Offline</option>
+          </select>
+        </div>
+        <div style="min-width:120px;">
+          <select [(ngModel)]="selectedActiveStatus" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
+            <option value="ALL">Status: All</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" style="padding:8px 14px;font-size:13px;" (click)="resetFilters()">Reset</button>
+      </div>
+    </div>
+
     <div class="card">
       <table>
         <thead>
@@ -77,9 +114,9 @@ interface Batch {
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let s of students">
+          <tr *ngFor="let s of paginatedStudents">
             <td>{{s.id}}</td>
-            <td>{{s.name}}</td>
+            <td><strong>{{s.name}}</strong></td>
             <td>{{s.email}}</td>
             <td>{{s.phone || '-'}}</td>
             <td>
@@ -103,17 +140,35 @@ interface Batch {
                 {{s.isActive ? 'Active' : 'Inactive'}}
               </span>
             </td>
-                        <td>
+            <td>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="viewStudent(s)">View</button>
               <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="openEditModal(s)">Edit</button>
               <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="deleteStudent(s)">Delete</button>
             </td>
           </tr>
-          <tr *ngIf="students.length === 0">
-            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No students found. Click "+ Add Student" to create one.</td>
+          <tr *ngIf="filteredStudents.length === 0">
+            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No students match the current filters.</td>
           </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Footer -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-top:1px solid #E2E8F0;flex-wrap:wrap;gap:12px;" *ngIf="filteredStudents.length > 0">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748B;">
+          <span>Rows per page:</span>
+          <select [(ngModel)]="pageSize" (change)="onFilterChange()" style="padding:4px 8px;border:1px solid #CBD5E1;border-radius:4px;font-size:13px;">
+            <option *ngFor="let size of pageSizeOptions" [ngValue]="size">{{size}}</option>
+          </select>
+          <span style="margin-left:8px;">
+            Showing {{startIndex + 1}} to {{endIndex}} of {{filteredStudents.length}} students
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" [disabled]="currentPage === 1" (click)="currentPage = currentPage - 1">‹ Prev</button>
+          <span style="font-size:13px;color:#334155;font-weight:600;">Page {{currentPage}} of {{totalPages}}</span>
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" [disabled]="currentPage >= totalPages" (click)="currentPage = currentPage + 1">Next ›</button>
+        </div>
+      </div>
     </div>
 
     <!-- Student Modal (Fieldset + Legend with Tabbed content) -->
@@ -307,6 +362,71 @@ export class StudentsComponent implements OnInit {
   loading = false;
   errorMessage = '';
   studentTab: 'basic' | 'details' = 'basic';
+
+  searchTerm = '';
+  selectedBatchId: number | null = null;
+  selectedPlanId: number | null = null;
+  selectedFeeStatus = 'ALL';
+  selectedActiveStatus = 'ALL';
+
+  currentPage = 1;
+  pageSize = 10;
+  pageSizeOptions = [10, 25, 50, 100];
+
+  get filteredStudents(): Student[] {
+    return this.students.filter(s => {
+      if (this.searchTerm.trim()) {
+        const term = this.searchTerm.toLowerCase().trim();
+        const matchName = s.name?.toLowerCase().includes(term);
+        const matchEmail = s.email?.toLowerCase().includes(term);
+        const matchPhone = s.phone?.toLowerCase().includes(term);
+        if (!matchName && !matchEmail && !matchPhone) return false;
+      }
+      if (this.selectedBatchId !== null && s.batchId !== this.selectedBatchId) {
+        return false;
+      }
+      if (this.selectedPlanId !== null && s.planId !== this.selectedPlanId) {
+        return false;
+      }
+      if (this.selectedFeeStatus !== 'ALL') {
+        if (this.selectedFeeStatus === 'CASH' && s.paymentMethod === 'ONLINE') return false;
+        if (this.selectedFeeStatus === 'PAID' && (s.paymentMethod !== 'ONLINE' || s.paymentStatus !== 'COMPLETED')) return false;
+        if (this.selectedFeeStatus === 'DUE' && (s.paymentMethod !== 'ONLINE' || s.paymentStatus === 'COMPLETED')) return false;
+      }
+      if (this.selectedActiveStatus === 'ACTIVE' && !s.isActive) return false;
+      if (this.selectedActiveStatus === 'INACTIVE' && s.isActive) return false;
+      return true;
+    });
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.filteredStudents.length / this.pageSize) || 1;
+  }
+
+  get startIndex(): number {
+    return (this.currentPage - 1) * this.pageSize;
+  }
+
+  get endIndex(): number {
+    return Math.min(this.startIndex + this.pageSize, this.filteredStudents.length);
+  }
+
+  get paginatedStudents(): Student[] {
+    return this.filteredStudents.slice(this.startIndex, this.endIndex);
+  }
+
+  onFilterChange() {
+    this.currentPage = 1;
+  }
+
+  resetFilters() {
+    this.searchTerm = '';
+    this.selectedBatchId = null;
+    this.selectedPlanId = null;
+    this.selectedFeeStatus = 'ALL';
+    this.selectedActiveStatus = 'ALL';
+    this.currentPage = 1;
+  }
 
   razorpayConfig: RazorpayConfig | null = null;
 

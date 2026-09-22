@@ -28,6 +28,7 @@ class AppRoutes {
   static const String interviewHistory = '/interview-history';
   static const String bookmarks = '/bookmarks';
   static const String leaderboard = '/leaderboard';
+  static const String dailyChallenge = '/daily-challenge';
   static const String qa = '/qa';
   static const String companyQuestions = '/company-questions';
   static const String supportRequest = '/support-request';
@@ -35,6 +36,7 @@ class AppRoutes {
   /// In-app question paper; :type is 'assignments' or 'exams'.
   static const String assessmentPaper = '/assessment-paper/:type/:id';
   static const String mentorChat = '/chat/:mentorId';
+  static const String chat = '/chat';
   static const String notes = '/notes/:lessonId';
   static const String payment = '/payment/:planId';
   /// The payment route with its plan-id parameter filled in — use this to

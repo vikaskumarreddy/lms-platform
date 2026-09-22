@@ -40,6 +40,9 @@ public class PlacementDriveController {
         userContext.requireOrgAdmin();
         if (drive.getIsActive() == null) drive.setIsActive(true);
         if (drive.getDriveType() == null || drive.getDriveType().isBlank()) drive.setDriveType("EXTERNAL");
+        if (drive.getRecruiterToken() == null || drive.getRecruiterToken().isBlank()) {
+            drive.setRecruiterToken(java.util.UUID.randomUUID().toString());
+        }
         PlacementDrive saved = placementDriveRepository.save(drive);
 
         // Drives are gated by subscription plan; a null planId means open to all.
@@ -77,7 +80,11 @@ public class PlacementDriveController {
                     existing.setMinAttendancePercent(drive.getMinAttendancePercent());
                     existing.setMinCourseCompletionPercent(drive.getMinCourseCompletionPercent());
                     existing.setMinAssignmentAvgPercent(drive.getMinAssignmentAvgPercent());
-                    existing.setMinExamAvgPercent(drive.getMinExamAvgPercent());
+                    if (drive.getRecruiterToken() != null && !drive.getRecruiterToken().isBlank()) {
+                        existing.setRecruiterToken(drive.getRecruiterToken());
+                    } else if (existing.getRecruiterToken() == null || existing.getRecruiterToken().isBlank()) {
+                        existing.setRecruiterToken(java.util.UUID.randomUUID().toString());
+                    }
                     return ResponseEntity.ok(placementDriveRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

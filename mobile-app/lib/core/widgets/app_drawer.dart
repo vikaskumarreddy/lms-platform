@@ -140,6 +140,12 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                     route: AppRoutes.qa,
                   ),
                   _drawerItem(
+                    icon: Icons.chat_bubble_rounded,
+                    iconColor: const Color(0xFF27D9D3),
+                    title: 'Batch Community Chat',
+                    route: AppRoutes.chat,
+                  ),
+                  _drawerItem(
                     icon: Icons.help_center_rounded,
                     iconColor: const Color(0xFFEAB308),
                     title: 'Company Questions',
@@ -156,6 +162,12 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                     iconColor: const Color(0xFFF43F5E),
                     title: 'Bookmarks',
                     route: AppRoutes.bookmarks,
+                  ),
+                  _drawerItem(
+                    icon: Icons.psychology_rounded,
+                    iconColor: const Color(0xFF27D9D3),
+                    title: 'Daily AI Challenge',
+                    route: AppRoutes.dailyChallenge,
                   ),
                   _drawerItem(
                     icon: Icons.leaderboard_rounded,

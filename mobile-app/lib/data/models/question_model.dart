@@ -11,6 +11,8 @@ class QuestionModel {
   final int? planId;
   final int? batchId;
   final int? userId;
+  final bool isEscalated;
+  final bool isAiAnswered;
   final String? createdAt;
   final String? updatedAt;
 
@@ -27,6 +29,8 @@ class QuestionModel {
     this.planId,
     this.batchId,
     this.userId,
+    this.isEscalated = false,
+    this.isAiAnswered = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -45,6 +49,8 @@ class QuestionModel {
       planId: json['planId'] != null ? _safeInt(json['planId']) : null,
       batchId: json['batchId'] != null ? _safeInt(json['batchId']) : null,
       userId: json['userId'] != null ? _safeInt(json['userId']) : null,
+      isEscalated: json['isEscalated'] == true,
+      isAiAnswered: json['isAiAnswered'] == true,
       createdAt: json['createdAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
     );
@@ -64,6 +70,8 @@ class QuestionModel {
       'planId': planId,
       'batchId': batchId,
       'userId': userId,
+      'isEscalated': isEscalated,
+      'isAiAnswered': isAiAnswered,
     };
   }
 
@@ -116,6 +124,7 @@ class AnswerModel {
   final int voteCount;
   final int? userId;
   final int questionId;
+  final bool isAiGenerated;
   final String? createdAt;
   final String? updatedAt;
 
@@ -127,6 +136,7 @@ class AnswerModel {
     required this.voteCount,
     this.userId,
     required this.questionId,
+    this.isAiGenerated = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -140,6 +150,7 @@ class AnswerModel {
       voteCount: _safeInt(json['voteCount']),
       userId: json['userId'] != null ? _safeInt(json['userId']) : null,
       questionId: _safeInt(json['questionId'] ?? json['question_id']),
+      isAiGenerated: json['isAiGenerated'] == true || (json['authorName']?.toString() ?? '').contains('AI'),
       createdAt: json['createdAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
     );
@@ -154,6 +165,7 @@ class AnswerModel {
       'voteCount': voteCount,
       'userId': userId,
       'questionId': questionId,
+      'isAiGenerated': isAiGenerated,
     };
   }
 

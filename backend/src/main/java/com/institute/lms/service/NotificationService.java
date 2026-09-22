@@ -220,4 +220,23 @@ public class NotificationService {
         userRepository.findById(userId).ifPresent(user ->
                 safeNotify(List.of(user), title, message, type, actionUrl, "USER", userId));
     }
+
+    /**
+     * Records a notification for faculty and administrators (e.g. on new batch messages, student Q&A, exam submissions).
+     */
+    public void notifyFacultyAndAdmins(String title, String message, String type, String actionUrl, Long batchId) {
+        try {
+            Notification n = new Notification();
+            n.setTitle(title);
+            n.setMessage(message);
+            n.setType(type != null ? type : "info");
+            n.setActionUrl(actionUrl);
+            n.setTargetType(batchId != null ? "BATCH" : "FACULTY");
+            n.setTargetId(batchId);
+            n.setIsRead(false);
+            notificationRepository.save(n);
+        } catch (Exception e) {
+            System.err.println("Failed to notify faculty/admins: " + e.getMessage());
+        }
+    }
 }

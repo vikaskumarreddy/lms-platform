@@ -14,6 +14,7 @@ import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../data/models/lesson.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/offline_manager.dart';
 
 class LessonPlayerScreen extends ConsumerStatefulWidget {
   final int lessonId;
@@ -34,6 +35,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   bool _videoLoadFailed = false;
   int _videoRetryKey = 0;
   String? _mediaToken;
+  bool _isOfflineDownloaded = false;
+  bool _isDownloadingVideo = false;
+  double _downloadProgress = 0.0;
+  String? _offlineVideoPath;
 
   /// The open study-time session for this lesson. Recorded so the dashboard's
   /// "Time Spending" trend reflects real time in the player rather than nothing.
@@ -106,9 +111,82 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _isBookmarked = status['bookmarked'] ?? false;
       _loading = false;
     });
+
+    try {
+      final isDownloaded = await OfflineManager.instance.isLessonVideoDownloaded(widget.lessonId);
+      if (isDownloaded && mounted) {
+        final path = await OfflineManager.instance.getLocalVideoFilePath(widget.lessonId);
+        setState(() {
+          _isOfflineDownloaded = true;
+          _offlineVideoPath = path;
+        });
+      }
+    } catch (_) {}
+
     final pdfUrl = _lesson?.pdfNotesUrl;
     if (!(_lesson?.isLocked ?? true) && pdfUrl != null && pdfUrl.isNotEmpty) {
       _loadPdfInline();
+    }
+  }
+
+  Future<void> _downloadVideo() async {
+    final lesson = _lesson;
+    if (lesson == null || _isDownloadingVideo) return;
+    if (youtubeVideoId(lesson.videoUrl) != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('YouTube streams cannot be downloaded for offline playback.')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isDownloadingVideo = true;
+      _downloadProgress = 0.0;
+    });
+
+    final resolved = resolveLessonVideoSource(lesson, ApiService.baseUrl, token: _mediaToken);
+    final file = await OfflineManager.instance.downloadLessonVideo(
+      lesson.id,
+      resolved.url,
+      onProgress: (p) {
+        if (mounted) setState(() => _downloadProgress = p);
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isDownloadingVideo = false;
+        if (file != null) {
+          _isOfflineDownloaded = true;
+          _offlineVideoPath = file.path;
+          _videoRetryKey++;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(file != null
+              ? 'Video downloaded for offline playback!'
+              : 'Failed to download video. Check your connection.'),
+          backgroundColor: file != null ? const Color(0xFF10B981) : Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteDownloadedVideo() async {
+    await OfflineManager.instance.deleteDownloadedLessonVideo(widget.lessonId);
+    if (mounted) {
+      setState(() {
+        _isOfflineDownloaded = false;
+        _offlineVideoPath = null;
+        _videoRetryKey++;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Offline video removed.')),
+      );
     }
   }
 
@@ -616,12 +694,73 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget _buildActionButtons(
       Lesson lesson, Color primaryColor, Color secondaryColor,
       {required bool isNavBarHidden}) {
+    final hasVideo = lesson.videoUrl.trim().isNotEmpty;
     return AnimatedPadding(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
       padding: EdgeInsets.fromLTRB(16, 12, 16, isNavBarHidden ? 16 : 96),
       child: Column(
         children: [
+          if (hasVideo && !lesson.isLocked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isDownloadingVideo
+                      ? null
+                      : _isOfflineDownloaded
+                          ? _deleteDownloadedVideo
+                          : _downloadVideo,
+                  icon: _isDownloadingVideo
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            value: _downloadProgress > 0 ? _downloadProgress : null,
+                            strokeWidth: 2,
+                            color: const Color(0xFF27D9D3),
+                          ),
+                        )
+                      : Icon(
+                          _isOfflineDownloaded
+                              ? Icons.offline_pin
+                              : Icons.download_for_offline_outlined,
+                          size: 18,
+                          color: _isOfflineDownloaded
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF27D9D3),
+                        ),
+                  label: Text(
+                    _isDownloadingVideo
+                        ? 'Downloading video ${(_downloadProgress * 100).toInt()}%'
+                        : _isOfflineDownloaded
+                            ? 'Saved Offline (Tap to delete cache)'
+                            : 'Save Video for Offline',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _isOfflineDownloaded
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF27D9D3),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: _isOfflineDownloaded
+                        ? const Color(0xFF10B981).withOpacity(0.12)
+                        : const Color(0xFF27D9D3).withOpacity(0.12),
+                    side: BorderSide(
+                      color: _isOfflineDownloaded
+                          ? const Color(0xFF10B981).withOpacity(0.5)
+                          : const Color(0xFF27D9D3).withOpacity(0.5),
+                    ),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                ),
+              ),
+            ),
           Row(
             children: [
               // Download PDF button
@@ -759,6 +898,31 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                   child: _buildVideoPlayer(lesson),
                 ),
               ),
+              if (_isOfflineDownloaded)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.offline_pin, size: 10, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('OFFLINE',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
               // Popup controls (expand + close)
               Positioned(
                 top: 4,
@@ -852,16 +1016,31 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         ),
       );
     }
-    final video = resolveLessonVideoSource(lesson, ApiService.baseUrl,
-        token: _mediaToken);
-    final youtube = video.youtube;
-    final origin = video.origin;
-    final url = video.url;
+
+    final isOffline = _isOfflineDownloaded &&
+        _offlineVideoPath != null &&
+        File(_offlineVideoPath!).existsSync();
+    final String url;
+    final bool youtube;
+    final String origin;
+
+    if (isOffline) {
+      url = Uri.file(_offlineVideoPath!).toString();
+      youtube = false;
+      origin = 'file://';
+    } else {
+      final video = resolveLessonVideoSource(lesson, ApiService.baseUrl,
+          token: _mediaToken);
+      youtube = video.youtube;
+      origin = video.origin;
+      url = video.url;
+    }
+
     return InAppWebView(
-      key: ValueKey('video_$_videoRetryKey'),
+      key: ValueKey('video_${_videoRetryKey}_${isOffline ? 'offline' : 'online'}'),
       initialData: InAppWebViewInitialData(
         data: videoDocument(url, youtube: youtube),
-        baseUrl: WebUri('$origin/'),
+        baseUrl: isOffline ? WebUri('file:///') : WebUri('$origin/'),
         mimeType: 'text/html',
         encoding: 'utf-8',
       ),
@@ -870,6 +1049,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         allowsInlineMediaPlayback: true,
         mediaPlaybackRequiresUserGesture: false,
         useHybridComposition: true,
+        allowFileAccess: true,
+        allowFileAccessFromFileURLs: true,
+        allowUniversalAccessFromFileURLs: true,
         // Non-browser agent prevents ngrok warning HTML on media range requests.
         userAgent: youtube ? null : 'LMSStudentMedia/1.0',
       ),

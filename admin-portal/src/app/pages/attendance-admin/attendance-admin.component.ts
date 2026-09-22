@@ -63,24 +63,49 @@ interface AttendanceRow {
     </div>
 
     <div class="card" *ngIf="selectedEventId && rows.length > 0">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div style="font-weight:600;">{{ eventTitle }}</div>
-        <div style="display:flex;gap:8px;">
+      <!-- Attendance Statistics Badges -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0;">
+        <div style="font-size:13px;color:#475569;">
+          Total: <strong style="color:#0F172A;font-size:15px;">{{ rows.length }}</strong>
+        </div>
+        <div style="font-size:13px;color:#166534;">
+          Present: <strong style="font-size:15px;">{{ presentCount }}</strong>
+        </div>
+        <div style="font-size:13px;color:#991B1B;">
+          Absent: <strong style="font-size:15px;">{{ absentCount }}</strong>
+        </div>
+        <div>
+          <span class="badge" [style.background]="attendancePercentage >= 75 ? '#DCFCE7' : (attendancePercentage >= 50 ? '#FEF3C7' : '#FEE2E2')"
+                [style.color]="attendancePercentage >= 75 ? '#166534' : (attendancePercentage >= 50 ? '#92400E' : '#991B1B')"
+                style="font-size:13px;font-weight:700;padding:4px 10px;">
+            📊 {{ attendancePercentage }}% Attendance
+          </span>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <div style="font-weight:600;font-size:15px;">{{ eventTitle }}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" [(ngModel)]="studentSearchQuery" placeholder="🔍 Filter student name..." style="padding:4px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;min-width:180px;">
           <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="markAll(true)">Mark All Present</button>
           <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="markAll(false)">Mark All Absent</button>
+          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;background:#F1F5F9;" (click)="invertSelection()">🔄 Invert Selection</button>
         </div>
       </div>
       <table>
-        <thead><tr><th>Student</th><th>Present</th><th>Remarks</th></tr></thead>
+        <thead><tr><th>Student</th><th style="width:120px;">Present</th><th>Remarks</th></tr></thead>
         <tbody>
-          <tr *ngFor="let r of rows">
+          <tr *ngFor="let r of visibleRows">
             <td style="font-weight:600;">{{ r.userName }}</td>
             <td>
-              <input type="checkbox" [(ngModel)]="r.present" style="width:18px;height:18px;">
+              <input type="checkbox" [(ngModel)]="r.present" style="width:18px;height:18px;cursor:pointer;">
             </td>
             <td>
               <input type="text" [(ngModel)]="r.remarks" placeholder="Optional remarks" style="width:100%;padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
             </td>
+          </tr>
+          <tr *ngIf="visibleRows.length === 0">
+            <td colspan="3" style="text-align:center;color:#64748B;padding:16px;">No students match "{{ studentSearchQuery }}"</td>
           </tr>
         </tbody>
       </table>
@@ -102,6 +127,29 @@ export class AttendanceAdminComponent implements OnInit {
   rows: AttendanceRow[] = [];
   loadingRows = false;
   saving = false;
+  studentSearchQuery = '';
+
+  get presentCount(): number {
+    return this.rows.filter(r => r.present).length;
+  }
+
+  get absentCount(): number {
+    return this.rows.filter(r => !r.present).length;
+  }
+
+  get attendancePercentage(): number {
+    return this.rows.length > 0 ? Math.round((this.presentCount / this.rows.length) * 100) : 0;
+  }
+
+  get visibleRows(): AttendanceRow[] {
+    if (!this.studentSearchQuery.trim()) return this.rows;
+    const q = this.studentSearchQuery.toLowerCase().trim();
+    return this.rows.filter(r => r.userName?.toLowerCase().includes(q));
+  }
+
+  invertSelection() {
+    this.rows = this.rows.map(r => ({ ...r, present: !r.present }));
+  }
 
   mode: 'event' | 'daily' = 'event';
   selectedBatchId: number | null = null;

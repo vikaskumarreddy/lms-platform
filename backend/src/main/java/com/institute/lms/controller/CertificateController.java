@@ -55,8 +55,26 @@ public class CertificateController {
         return certificateRepository.findByUserId(userId).stream().map(this::toMap).collect(Collectors.toList());
     }
 
+    /**
+     * Public verification endpoint: returns the official verified certificate data
+     * for a given credentialId. Open without authentication so anyone scanning the
+     * QR code or viewing LinkedIn certification links can verify legitimacy.
+     */
+    @GetMapping("/verify/{credentialId}")
+    public ResponseEntity<Map<String, Object>> verifyCertificate(@PathVariable String credentialId) {
+        return certificateRepository.findByCredentialId(credentialId)
+                .map(cert -> {
+                    Map<String, Object> map = toMap(cert);
+                    map.put("status", "VERIFIED");
+                    map.put("verifiedAt", java.time.LocalDateTime.now().toString());
+                    return ResponseEntity.ok(map);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
+        userContext.requireOrgAdminOrFaculty();
         Long userId = body.get("userId") != null ? ((Number) body.get("userId")).longValue() : null;
         User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
         if (user == null) return ResponseEntity.badRequest().build();
@@ -82,6 +100,7 @@ public class CertificateController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+        userContext.requireOrgAdminOrFaculty();
         if (!certificateRepository.existsById(id)) return ResponseEntity.notFound().build();
         certificateRepository.deleteById(id);
         return ResponseEntity.ok().build();

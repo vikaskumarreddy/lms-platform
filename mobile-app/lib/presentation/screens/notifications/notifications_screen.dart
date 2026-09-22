@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/notifications_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:lms_student_app/data/models/notification_item.dart';
@@ -105,7 +106,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Widget _filterChips() {
-    final types = ['All', 'assignment', 'placement', 'exam', 'course', 'info'];
+    final types = ['All', 'chat', 'qa', 'assignment', 'placement', 'attendance', 'exam', 'course', 'info'];
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -305,7 +306,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     if (n.actionUrl != null && n.actionUrl!.isNotEmpty)
                       TextButton(
                         onPressed: () {
-                          // Navigate to action URL
+                          _markAsRead(n.id);
+                          ref.refresh(notificationsProvider.future);
+                          ref.refresh(unreadCountProvider.future);
+                          final url = n.actionUrl ?? '';
+                          if (url.isNotEmpty && url.startsWith('/')) {
+                            context.push(url);
+                          }
                         },
                         style: TextButton.styleFrom(
                           backgroundColor: Theme.of(context).colorScheme.secondary,
@@ -370,6 +377,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   IconData _getNotificationIcon(String type) {
     switch (type) {
+      case 'chat': return Icons.chat_bubble_outline;
+      case 'qa': return Icons.forum_outlined;
       case 'assignment': return Icons.assignment;
       case 'placement': return Icons.work;
       case 'attendance': return Icons.fact_check;
@@ -384,6 +393,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Color _getNotificationColor(String type) {
     switch (type) {
+      case 'chat': return const Color(0xFF27D9D3);
+      case 'qa': return const Color(0xFF6366F1);
       case 'assignment': return Colors.blue;
       case 'placement': return Colors.green;
       case 'attendance': return Colors.orange;

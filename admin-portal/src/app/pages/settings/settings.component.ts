@@ -245,6 +245,118 @@ interface FeatureToggleDef {
         </div>
       </div>
     </div>
+
+    <!-- AI Model & Intelligence Section -->
+    <div class="messaging-section" style="margin-top:28px;">
+      <h2 class="section-title">🤖 AI Model & Intelligence (Google Gemini)</h2>
+      <p class="intro">
+        Configure the generative AI engine for instant doubt resolution, MCQ auto-generation for faculty, and student daily challenges.
+      </p>
+
+      <div class="toggle-card" style="padding:20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <label style="font-size:13px;font-weight:600;">AI Model</label>
+              <button type="button" (click)="fetchAvailableModels()" [disabled]="fetchingModels"
+                      style="background:none;border:none;font-size:11px;color:#4F46E5;cursor:pointer;font-weight:600;padding:0;">
+                {{ fetchingModels ? 'Detecting models...' : '🔍 Auto-Detect Models' }}
+              </button>
+            </div>
+            <select [(ngModel)]="aiConfig.modelName" (ngModelChange)="onModelSelectChange($event)" name="aiModelName"
+                    style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;background:#FFF;">
+              <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Latest Active Model)</option>
+              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra-low latency)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep reasoning)</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy)</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro (Legacy)</option>
+              <option *ngFor="let m of availableModels" [value]="m.id">{{ m.name }}</option>
+              <option value="CUSTOM">Custom Model Name...</option>
+            </select>
+            <!-- Custom Model Input if selected -->
+            <div *ngIf="useCustomModel" style="margin-top:8px;">
+              <input type="text" [(ngModel)]="customModelInput" (ngModelChange)="onCustomModelChange($event)"
+                     placeholder="Enter model name e.g. gemini-3.6-flash"
+                     style="width:100%;padding:8px 12px;border:1px solid #6366F1;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            </div>
+            <!-- Clickable chips if detected -->
+            <div *ngIf="availableModels.length > 0" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:11px;color:#64748B;">Detected:</span>
+              <button type="button" *ngFor="let m of availableModels" (click)="selectModelChip(m.id)"
+                      [style.background]="aiConfig.modelName === m.id ? '#4F46E5' : '#EEF2FF'"
+                      [style.color]="aiConfig.modelName === m.id ? '#FFF' : '#4338CA'"
+                      style="border:none;border-radius:12px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;">
+                {{ m.id }}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Engine Status</label>
+            <select [(ngModel)]="aiConfig.enabled" name="aiEnabled" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;background:#FFF;">
+              <option [ngValue]="true">🟢 Enabled (Active in mobile app &amp; admin portal)</option>
+              <option [ngValue]="false">🔴 Disabled</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label style="font-size:13px;font-weight:600;">
+              Google Gemini API Key
+              <span class="secret-tag" *ngIf="aiConfigMaskedKey" style="background:#EEF2FF;color:#4338CA;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:8px;">
+                🔒 Saved: {{ aiConfigMaskedKey }}
+              </span>
+            </label>
+            <button type="button" (click)="showAiApiKey = !showAiApiKey" style="background:none;border:none;font-size:12px;color:#4F46E5;cursor:pointer;font-weight:600;">
+              {{ showAiApiKey ? 'Hide Key' : 'Show Key' }}
+            </button>
+          </div>
+          <input [type]="showAiApiKey ? 'text' : 'password'"
+                 [(ngModel)]="aiConfig.apiKey"
+                 name="aiApiKey"
+                 style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;"
+                 [placeholder]="aiConfigMaskedKey ? 'Leave blank to keep current saved key' : 'Paste AIzaSy... API key here'">
+          <div style="font-size:12px;color:#64748B;margin-top:4px;">
+            Obtain your API key from the <a href="https://aistudio.google.com" target="_blank" style="color:#4F46E5;text-decoration:underline;">Google AI Studio</a>.
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Doubt Resolution Limit (per student)</label>
+            <input type="number" [(ngModel)]="aiConfig.dailyQuestionLimit" name="aiDailyLimit" min="1" max="100" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Challenges Allowed (per student)</label>
+            <input type="number" [(ngModel)]="aiConfig.dailyChallengeLimit" name="aiChallengeLimit" min="1" max="10" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+        </div>
+
+        <!-- Connection Test Result -->
+        <div *ngIf="aiTestResult"
+             [style.background]="aiTestResult.success ? '#ECFDF5' : '#FEF2F2'"
+             [style.border-color]="aiTestResult.success ? '#10B981' : '#EF4444'"
+             [style.color]="aiTestResult.success ? '#065F46' : '#991B1B'"
+             style="border:1px solid;border-radius:8px;padding:12px 16px;font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <span>{{ aiTestResult.success ? '✅' : '❌' }}</span>
+          <span>{{ aiTestResult.message || aiTestResult.error }}</span>
+        </div>
+
+        <div *ngIf="aiSaveMessage" style="background:#ECFDF5;border:1px solid #10B981;border-radius:8px;padding:12px 16px;font-size:13px;color:#065F46;margin-bottom:16px;">
+          ✅ {{ aiSaveMessage }}
+        </div>
+
+        <div style="display:flex;gap:12px;justify-content:flex-end;">
+          <button type="button" class="btn btn-secondary" [disabled]="testingAiConnection" (click)="testAiConnection()">
+            {{ testingAiConnection ? 'Testing...' : '⚡ Test Connection' }}
+          </button>
+          <button type="button" class="btn btn-primary" [disabled]="savingAiConfig" (click)="saveAiConfig()">
+            {{ savingAiConfig ? 'Saving...' : 'Save AI Configuration' }}
+          </button>
+        </div>
+      </div>
+    </div>
   `,
   // The design system scopes its label/input rules to `.modal-overlay fieldset`, so a
   // routed page has to supply its own form styling rather than inherit it.
@@ -396,12 +508,33 @@ export class SettingsComponent implements OnInit {
   savingFeatureSettings = false;
   featureSettingsError = '';
 
+  // AI Configuration properties
+  aiConfig = {
+    modelName: 'gemini-3.6-flash',
+    apiKey: '',
+    enabled: true,
+    dailyQuestionLimit: 10,
+    dailyChallengeLimit: 1
+  };
+  aiConfigMaskedKey: string | null = null;
+  showAiApiKey = false;
+  loadingAiConfig = false;
+  testingAiConnection = false;
+  savingAiConfig = false;
+  fetchingModels = false;
+  useCustomModel = false;
+  customModelInput = '';
+  availableModels: { id: string; name: string }[] = [];
+  aiTestResult: { success: boolean; message?: string; error?: string; availableModels?: any[] } | null = null;
+  aiSaveMessage = '';
+
   constructor(private apiService: ApiService) {}
 
   ngOnInit() {
     this.loadConfigs();
     this.loadMessagingConfig();
     this.loadFeatureSettings();
+    this.loadAiConfig();
   }
 
   loadFeatureSettings() {
@@ -613,6 +746,125 @@ export class SettingsComponent implements OnInit {
           settle();
         }
       });
+    });
+  }
+
+  loadAiConfig() {
+    this.loadingAiConfig = true;
+    this.apiService.get<any>('/api/ai/config').subscribe({
+      next: (data) => {
+        if (data) {
+          const model = data.modelName || 'gemini-3.6-flash';
+          this.aiConfig.modelName = model;
+          const knownStandard = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+          if (!knownStandard.includes(model)) {
+            this.useCustomModel = true;
+            this.customModelInput = model;
+          }
+          this.aiConfig.enabled = data.enabled !== false;
+          this.aiConfig.dailyQuestionLimit = data.dailyQuestionLimit || 10;
+          this.aiConfig.dailyChallengeLimit = data.dailyChallengeLimit || 1;
+          if (data.isConfigured) {
+            this.aiConfigMaskedKey = data.apiKeyHint || data.maskedApiKey;
+          }
+        }
+        this.loadingAiConfig = false;
+        this.fetchAvailableModels();
+      },
+      error: () => {
+        this.loadingAiConfig = false;
+      }
+    });
+  }
+
+  fetchAvailableModels() {
+    this.fetchingModels = true;
+    const query = this.aiConfig.apiKey ? `?apiKey=${encodeURIComponent(this.aiConfig.apiKey)}` : '';
+    this.apiService.get<any>(`/api/ai/models${query}`).subscribe({
+      next: (res) => {
+        this.fetchingModels = false;
+        if (res && res.models && res.models.length > 0) {
+          this.availableModels = res.models;
+        }
+      },
+      error: () => {
+        this.fetchingModels = false;
+      }
+    });
+  }
+
+  onModelSelectChange(val: string) {
+    if (val === 'CUSTOM') {
+      this.useCustomModel = true;
+      this.customModelInput = this.aiConfig.modelName !== 'CUSTOM' ? this.aiConfig.modelName : '';
+    } else {
+      this.useCustomModel = false;
+    }
+  }
+
+  onCustomModelChange(val: string) {
+    if (val && val.trim()) {
+      this.aiConfig.modelName = val.trim();
+    }
+  }
+
+  selectModelChip(modelId: string) {
+    this.aiConfig.modelName = modelId;
+    this.useCustomModel = false;
+  }
+
+  testAiConnection() {
+    this.testingAiConnection = true;
+    this.aiTestResult = null;
+    const modelToTest = this.useCustomModel && this.customModelInput.trim()
+        ? this.customModelInput.trim()
+        : this.aiConfig.modelName;
+
+    this.apiService.post<any>('/api/ai/config/test', {
+      modelName: modelToTest,
+      apiKey: this.aiConfig.apiKey
+    }).subscribe({
+      next: (res) => {
+        this.aiTestResult = res;
+        if (res && res.availableModels && res.availableModels.length > 0) {
+          this.availableModels = res.availableModels;
+        }
+        this.testingAiConnection = false;
+      },
+      error: (err) => {
+        this.aiTestResult = {
+          success: false,
+          error: err?.error?.error || 'Connection failed. Please check your Gemini API key.'
+        };
+        this.testingAiConnection = false;
+      }
+    });
+  }
+
+  saveAiConfig() {
+    this.savingAiConfig = true;
+    this.aiSaveMessage = '';
+    this.aiTestResult = null;
+    if (this.useCustomModel && this.customModelInput.trim()) {
+      this.aiConfig.modelName = this.customModelInput.trim();
+    }
+    this.apiService.post<any>('/api/ai/config', this.aiConfig).subscribe({
+      next: (res) => {
+        this.savingAiConfig = false;
+        this.aiSaveMessage = 'AI configuration saved successfully!';
+        if (res && (res.apiKeyHint || res.maskedApiKey)) {
+          this.aiConfigMaskedKey = res.apiKeyHint || res.maskedApiKey;
+          this.aiConfig.apiKey = '';
+        }
+        setTimeout(() => this.aiSaveMessage = '', 4000);
+      },
+      error: (err) => {
+        this.savingAiConfig = false;
+        this.aiTestResult = {
+          success: false,
+          error: err?.error?.message || 'Failed to save AI configuration'
+        };
+      }
     });
   }
 }

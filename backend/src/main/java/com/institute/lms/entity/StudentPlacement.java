@@ -40,13 +40,22 @@ public class StudentPlacement extends BaseEntity {
     private Long driveId;
 
     /**
-     * Application status for this placement drive: OPEN, APPLIED, SELECTED, REJECTED.
+     * Application status for this placement drive: OPEN, APPLIED, SHORTLISTED, TECH_ROUND, SELECTED, REJECTED, OFFER_EXTENDED.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private Status status = Status.APPLIED;
 
+    @Column(name = "ats_score")
+    private Double atsScore = 0.0;
+
+    @Column(name = "hiring_stage")
+    private String hiringStage = "APPLIED";
+
+    @Column(name = "resume_url", length = 1000)
+    private String resumeUrl;
+
     public enum Status {
-        OPEN, APPLIED, SELECTED, REJECTED
+        OPEN, APPLIED, SHORTLISTED, TECH_ROUND, SELECTED, REJECTED, OFFER_EXTENDED
     }
 }

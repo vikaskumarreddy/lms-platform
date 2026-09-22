@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/utils/certificate_pdf_generator.dart';
 import '../../../core/widgets/common_header.dart';
@@ -100,6 +101,37 @@ class _CertificateCard extends StatelessWidget {
         builder: (_) => _CertificatePreviewScreen(pdfBytes: bytes),
       ),
     );
+  }
+
+  Future<void> _addToLinkedIn(BuildContext context) async {
+    final courseName = cert['courseName'] ?? 'Certification';
+    final instituteName = cert['instituteName'] ?? 'Institute';
+    final credentialId = cert['credentialId'] ?? '';
+    final verifyUrl = 'https://lms-platform.com/verify/$credentialId';
+    final uri = Uri.parse(
+      'https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME'
+      '&name=${Uri.encodeComponent(courseName)}'
+      '&organizationName=${Uri.encodeComponent(instituteName)}'
+      '&certUrl=${Uri.encodeComponent(verifyUrl)}'
+      '&certId=${Uri.encodeComponent(credentialId)}',
+    );
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open LinkedIn browser')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening LinkedIn: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _download(BuildContext context) async {
@@ -272,6 +304,23 @@ class _CertificateCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _addToLinkedIn(context),
+                icon: const Icon(Icons.share_rounded, size: 16),
+                label: const Text('Add to LinkedIn Profile'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0A66C2),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

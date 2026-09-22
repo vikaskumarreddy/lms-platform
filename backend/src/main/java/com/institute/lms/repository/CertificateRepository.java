@@ -10,4 +10,5 @@ import java.util.List;
 public interface CertificateRepository extends JpaRepository<Certificate, Long> {
     List<Certificate> findByUserId(Long userId);
     List<Certificate> findTop5ByOrderByIssueDateDesc();
+    java.util.Optional<Certificate> findByCredentialId(String credentialId);
 }

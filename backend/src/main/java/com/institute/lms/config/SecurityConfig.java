@@ -39,7 +39,9 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/courses/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()
+                        .requestMatchers("/api/certificates/verify/**").permitAll()
+                        .requestMatchers("/api/student-placements/recruiter/**").permitAll()
                         // PDF note file bytes are opened by the mobile in-app browser
                         // (webviews can't attach the JWT), so only the file is public.
                         .requestMatchers("/api/pdf-notes/*/file").permitAll()

@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -19,6 +19,7 @@ interface Drive {
   isActive: boolean;
   planId?: number;
   driveType?: 'INTERNAL' | 'EXTERNAL';
+  recruiterToken?: string;
   minAttendancePercent?: number | null;
   minCourseCompletionPercent?: number | null;
   minAssignmentAvgPercent?: number | null;
@@ -39,12 +40,16 @@ interface InterviewSlot {
 
 interface StudentApplication {
   id: number;
-  user: { id: number; name?: string; fullName?: string; email?: string };
+  user: { id: number; name?: string; fullName?: string; email?: string; phone?: string };
   companyName: string;
   role: string;
   driveId?: number;
-  status: 'OPEN' | 'APPLIED' | 'SELECTED' | 'REJECTED';
+  status: 'OPEN' | 'APPLIED' | 'SHORTLISTED' | 'TECH_ROUND' | 'OFFER_EXTENDED' | 'SELECTED' | 'REJECTED';
+  hiringStage?: string;
+  atsScore?: number;
+  resumeUrl?: string;
   placedDate?: string;
+  createdAt?: string;
 }
 
 interface SubscriptionPlan {
@@ -131,6 +136,9 @@ interface SupportRequest {
               <button class="icon-btn icon-btn-criteria" title="Set eligibility criteria" (click)="openCriteriaModal(d)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
               </button>
+              <button class="icon-btn" title="Copy Recruiter Review Link" (click)="copyRecruiterLink(d)" style="color:#4F46E5;">
+                🔗
+              </button>
               <button class="icon-btn icon-btn-danger" title="Delete drive" (click)="deleteDrive(d)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
@@ -148,33 +156,56 @@ interface SupportRequest {
     <div class="card">
       <table>
         <thead>
-          <tr><th>Student</th><th>Company</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+          <tr>
+            <th>Student</th>
+            <th>Company</th>
+            <th>Role</th>
+            <th>ATS Score</th>
+            <th>Hiring Stage</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody>
           <tr *ngFor="let a of applications">
-            <td>{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</td>
+            <td>
+              <div style="font-weight:600;">{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</div>
+              <a *ngIf="a.resumeUrl" [href]="a.resumeUrl" target="_blank" style="font-size:11px;color:#2563EB;display:inline-block;margin-top:2px;">📄 View Resume</a>
+            </td>
             <td>{{ a.companyName }}</td>
             <td>{{ a.role }}</td>
             <td>
+              <span class="badge" [style.background]="getAtsBg(a.atsScore)" [style.color]="getAtsFg(a.atsScore)" style="font-weight:700;">
+                🎯 {{ a.atsScore ? a.atsScore + '%' : 'Pending' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" [style.background]="getStageBg(a.hiringStage || a.status)" [style.color]="getStageFg(a.hiringStage || a.status)">
+                {{ a.hiringStage || a.status }}
+              </span>
+            </td>
+            <td>
               <span class="badge"
-                    [class.badge-success]="a.status === 'SELECTED'"
-                    [class.badge-warning]="a.status === 'APPLIED'"
+                    [class.badge-success]="a.status === 'SELECTED' || a.status === 'OFFER_EXTENDED'"
+                    [class.badge-warning]="a.status === 'APPLIED' || a.status === 'SHORTLISTED' || a.status === 'TECH_ROUND'"
                     [class.badge-danger]="a.status === 'REJECTED'">
                 {{ a.status }}
               </span>
             </td>
             <td>
-              <select [ngModel]="a.status" (ngModelChange)="updateApplicationStatus(a, $event)"
+              <select [ngModel]="a.hiringStage || a.status" (ngModelChange)="updateHiringStage(a, $event)"
                       style="padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
-                <option value="OPEN">Open</option>
                 <option value="APPLIED">Applied</option>
-                <option value="SELECTED">Selected</option>
+                <option value="SHORTLISTED">Shortlisted</option>
+                <option value="TECH_ROUND">Technical Round</option>
+                <option value="OFFER_EXTENDED">Offer Extended</option>
+                <option value="SELECTED">Selected / Placed</option>
                 <option value="REJECTED">Rejected</option>
               </select>
             </td>
           </tr>
           <tr *ngIf="applications.length === 0">
-            <td colspan="5" style="text-align:center;color:#64748B;padding:32px;">No student applications yet.</td>
+            <td colspan="7" style="text-align:center;color:#64748B;padding:32px;">No student applications yet.</td>
           </tr>
         </tbody>
       </table>
@@ -616,6 +647,76 @@ export class PlacementsComponent implements OnInit {
         this.errors.show(err, 'Could not update application status');
       }
     });
+  }
+
+  updateHiringStage(application: StudentApplication, stage: string) {
+    application.hiringStage = stage;
+    let status = 'APPLIED';
+    if (stage === 'SELECTED' || stage === 'OFFER_EXTENDED') status = 'SELECTED';
+    else if (stage === 'REJECTED') status = 'REJECTED';
+    else if (stage === 'SHORTLISTED') status = 'SHORTLISTED';
+    else if (stage === 'TECH_ROUND') status = 'TECH_ROUND';
+
+    this.apiService.put(`/api/student-placements/${application.id}/status`, { status }).subscribe({
+      next: () => {
+        application.status = status as StudentApplication['status'];
+        this.errors.success(`Application updated to ${stage}`);
+      },
+      error: (err) => {
+        console.error('Failed to update stage', err);
+        this.errors.show(err, 'Could not update application stage');
+      }
+    });
+  }
+
+  getAtsBg(score?: number): string {
+    if (!score) return '#F1F5F9';
+    if (score >= 80) return '#DCFCE7';
+    if (score >= 65) return '#FEF3C7';
+    return '#FEE2E2';
+  }
+
+  getAtsFg(score?: number): string {
+    if (!score) return '#64748B';
+    if (score >= 80) return '#166534';
+    if (score >= 65) return '#92400E';
+    return '#991B1B';
+  }
+
+  getStageBg(stage?: string): string {
+    switch (stage) {
+      case 'SELECTED':
+      case 'OFFER_EXTENDED': return '#DCFCE7';
+      case 'SHORTLISTED':
+      case 'TECH_ROUND': return '#E0E7FF';
+      case 'REJECTED': return '#FEE2E2';
+      default: return '#FEF3C7';
+    }
+  }
+
+  getStageFg(stage?: string): string {
+    switch (stage) {
+      case 'SELECTED':
+      case 'OFFER_EXTENDED': return '#166534';
+      case 'SHORTLISTED':
+      case 'TECH_ROUND': return '#3730A3';
+      case 'REJECTED': return '#991B1B';
+      default: return '#92400E';
+    }
+  }
+
+  copyRecruiterLink(d: Drive) {
+    const token = d.recruiterToken || d.id;
+    const url = `${window.location.origin}/api/student-placements/recruiter/${token}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.errors.success('Recruiter portal link copied to clipboard!');
+      }).catch(() => {
+        prompt('Recruiter Portal URL:', url);
+      });
+    } else {
+      prompt('Recruiter Portal URL:', url);
+    }
   }
 
   loadDrives() {

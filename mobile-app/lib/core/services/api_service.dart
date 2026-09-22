@@ -33,6 +33,48 @@ class ApiService {
     };
   }
 
+  Future<dynamic> get(String path) async {
+    try {
+      final headers = await _getHeaders();
+      String cleanPath = path.startsWith('/') ? path : '/$path';
+      if (cleanPath.startsWith('/api/')) {
+        cleanPath = cleanPath.substring(4);
+      }
+      final url = path.startsWith('http') ? Uri.parse(path) : Uri.parse('$baseUrl$cleanPath');
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 20));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return null;
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<dynamic> post(String path, [dynamic body]) async {
+    try {
+      final headers = await _getHeaders();
+      String cleanPath = path.startsWith('/') ? path : '/$path';
+      if (cleanPath.startsWith('/api/')) {
+        cleanPath = cleanPath.substring(4);
+      }
+      final url = path.startsWith('http') ? Uri.parse(path) : Uri.parse('$baseUrl$cleanPath');
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: body != null ? jsonEncode(body) : null,
+      ).timeout(const Duration(seconds: 25));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return true;
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getStudyTopics() async {
     final response = await http.get(Uri.parse('$baseUrl/study-topics'),
         headers: await _getHeaders()).timeout(const Duration(seconds: 20));
@@ -1007,6 +1049,31 @@ class ApiService {
     }
   }
 
+  Future<AnswerModel?> postQuestionAnswer(int questionId, String content) async {
+    try {
+      final headers = await _getHeaders();
+      final prefs = await SharedPreferences.getInstance();
+      final authorName = prefs.getString('studentName') ?? prefs.getString('userName') ?? 'Student';
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/questions/$questionId/answers'),
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: json.encode({
+          'content': content,
+          'authorName': authorName,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return AnswerModel.fromJson(json.decode(response.body));
+      }
+      return null;
+    } catch (e) {
+      print('Error posting answer: $e');
+      return null;
+    }
+  }
+
   Future<QuestionModel?> createQuestion({
     required String title,
     required String content,
@@ -1741,5 +1808,40 @@ class ApiService {
       print('Error fetching organization name: $e');
       return null;
     }
+  }
+
+  /// Load real-time batch community channel messages
+  Future<List<Map<String, dynamic>>> getBatchChatMessages(int batchId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat/batch/$batchId'),
+      headers: await _getHeaders(),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load batch chat messages');
+    }
+    return (jsonDecode(response.body) as List)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  /// Send a real-time message (TEXT, CODE, or ANNOUNCEMENT) in batch community channel
+  Future<Map<String, dynamic>> sendBatchChatMessage(
+    int batchId, {
+    required String content,
+    String messageType = 'TEXT',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat/batch/$batchId'),
+      headers: await _getHeaders(),
+      body: jsonEncode({
+        'content': content.trim(),
+        'messageType': messageType,
+        'senderRole': 'STUDENT',
+      }),
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to send message');
+    }
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 }

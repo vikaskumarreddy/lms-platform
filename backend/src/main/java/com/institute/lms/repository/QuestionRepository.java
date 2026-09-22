@@ -17,6 +17,7 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findGeneralQuestions();
 
     long countByIsAnsweredFalse();
+    long countByUserIdAndCreatedAtAfter(Long userId, java.time.LocalDateTime timestamp);
 
     // Questions with batchId == null ("All Batches" in the admin portal) must be visible
     // to every student, regardless of plan, in addition to batch-specific questions.
