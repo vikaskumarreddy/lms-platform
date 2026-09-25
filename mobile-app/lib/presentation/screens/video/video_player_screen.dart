@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/utils/lesson_media.dart';
 import 'package:flutter/foundation.dart';
@@ -7,14 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../data/models/lesson.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/offline_manager.dart';
+import 'widgets/lesson_ai_chat_sheet.dart';
 
 class LessonPlayerScreen extends ConsumerStatefulWidget {
   final int lessonId;
@@ -200,6 +200,65 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     });
   }
 
+  Future<void> _completeAndNavigateNext() async {
+    if (_togglingComplete) return;
+
+    if (!_isCompleted) {
+      await _toggleComplete();
+    }
+
+    if (!mounted) return;
+
+    final nextId = _lesson?.nextLessonId;
+    if (nextId != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Text('🎉 ', style: TextStyle(fontSize: 18)),
+              Expanded(
+                child: Text(
+                  'Lesson completed! Loading: ${_lesson?.nextLessonTitle ?? "Next Lesson"}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => LessonPlayerScreen(lessonId: nextId),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Text('🏆 ', style: TextStyle(fontSize: 18)),
+              Expanded(
+                child: Text(
+                  'Congratulations! You have completed all lessons in this course!',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleBookmark() async {
     if (_togglingBookmark) return;
     setState(() => _togglingBookmark = true);
@@ -224,6 +283,18 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       _pdfError = null;
       _pdfLocalPath = null;
     });
+
+    if (kIsWeb) {
+      final url = _absoluteMediaUrl(pdfUrl);
+      if (mounted) {
+        setState(() {
+          _pdfLocalPath = url;
+          _pdfLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
       final url = _absoluteMediaUrl(pdfUrl);
       final response =
@@ -237,10 +308,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         setState(() => _pdfError = 'Notes for this lesson are empty.');
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/lesson_notes_${widget.lessonId}.pdf');
-      await file.writeAsBytes(bytes, flush: true);
-      if (mounted) setState(() => _pdfLocalPath = file.path);
+      final path = await OfflineManager.instance.saveTempPdf(bytes, 'lesson_notes_${widget.lessonId}');
+      if (mounted) setState(() => _pdfLocalPath = path);
     } catch (_) {
       if (mounted)
         setState(() => _pdfError =
@@ -252,7 +321,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   /// Saves the lesson's PDF to the device via the OS share sheet (Save to
   /// Files / Downloads / Drive, etc.) — no storage-permission dance, works
-  /// identically on Android and iOS.
+  /// identically on Android and iOS. On Web, opens/downloads directly.
   Future<void> _downloadPdf() async {
     if (_pdfSaving) return;
     final pdfUrl = _lesson?.pdfNotesUrl;
@@ -265,6 +334,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       }
       return;
     }
+
+    if (kIsWeb) {
+      final url = _absoluteMediaUrl(pdfUrl);
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      return;
+    }
+
     setState(() => _pdfSaving = true);
     try {
       String? path = _pdfLocalPath;
@@ -275,10 +351,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
           throw Exception('download failed');
         }
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/lesson_notes_${widget.lessonId}.pdf');
-        await file.writeAsBytes(response.bodyBytes, flush: true);
-        path = file.path;
+        path = await OfflineManager.instance.saveTempPdf(response.bodyBytes, 'lesson_notes_${widget.lessonId}');
       }
       final safeName = (_lesson?.title ?? 'Lesson Notes')
           .replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '')
@@ -346,6 +419,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       subtitle: 'Lesson',
       showBackButton: true,
       backgroundColor: const Color(0xFF071D43),
+      actions: [
+        _buildAiHeaderButton(lesson),
+      ],
       body: Stack(
         children: [
           // ── Base layer: heading, duration, PDF notes, and action buttons ──
@@ -395,10 +471,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: _buildPdfNotesSection(primaryColor, fill: true, isNavBarHidden: isNavBarHidden),
                 ),
               ),
@@ -413,6 +489,57 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
+  Widget _buildAiHeaderButton(Lesson lesson) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF27D9D3), Color(0xFF6366F1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF27D9D3).withOpacity(0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => LessonAiChatSheet.show(
+            context,
+            lesson,
+            localPdfPath: _pdfLocalPath,
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.white, size: 14),
+                SizedBox(width: 4),
+                Text(
+                  'Ask AI',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Locked lessons keep the classic stacked layout — the video frame (locked)
   /// followed by the locked-notes notice and the action buttons.
   Widget _buildLockedLessonBody(
@@ -421,8 +548,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       subtitle: 'Lesson',
       showBackButton: true,
       backgroundColor: const Color(0xFF071D43),
+      actions: [
+        _buildAiHeaderButton(lesson),
+      ],
       body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, isNavBarHidden ? 24 : 96),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         children: [
           // ── Video player (locked for this subscription tier) ──
           if (lesson.videoUrl.trim().isNotEmpty)
@@ -571,9 +701,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF0C2B64).withOpacity(0.65),
+          color: const Color(0xFF0C2B64).withOpacity(0.4),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.5)),
+          border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.35)),
         ),
         child: const Row(
           children: [
@@ -590,107 +720,121 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       );
     }
 
+    Widget content;
+    if (_pdfError != null) {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 40, color: Colors.white54),
+            const SizedBox(height: 12),
+            Text(_pdfError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70)),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _loadPdfInline,
+              icon: const Icon(Icons.refresh, color: Color(0xFF27D9D3)),
+              label: const Text('Retry',
+                  style: TextStyle(color: Color(0xFF27D9D3))),
+            ),
+          ],
+        ),
+      );
+    } else if (_pdfLocalPath == null) {
+      content = const Center(
+        child: CircularProgressIndicator(color: Color(0xFF27D9D3)),
+      );
+    } else {
+      content = Stack(
+        children: [
+          // Native PDF View stretches to fill the entire container
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: _buildPdfView(_pdfLocalPath!),
+            ),
+          ),
+          // Transparent floating controls overlay at top-right
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_pdfLoading)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF27D9D3)),
+                    ),
+                  ),
+                Material(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _openFullscreenPdf,
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(Icons.fullscreen, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Transparent floating page navigation pill overlay at bottom
+          if (_pdfTotalPages > 0)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _buildPdfPageControls(primaryColor),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (fill) {
+      return Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0C2B64).withOpacity(0.35),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.35)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0C2B64).withOpacity(0.65),
+        color: const Color(0xFF0C2B64).withOpacity(0.35),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.5)),
+        border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.35)),
       ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Lesson Notes',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.white),
-              ),
-              const Spacer(),
-              if (_pdfLoading)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Color(0xFF27D9D3))),
-                ),
-              if (_pdfLocalPath != null && _pdfError == null)
-                IconButton(
-                  onPressed: _openFullscreenPdf,
-                  icon: const Icon(Icons.fullscreen, color: Colors.white),
-                  tooltip: 'Expand',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_pdfError != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  const Icon(Icons.error_outline,
-                      size: 40, color: Colors.white54),
-                  const SizedBox(height: 12),
-                  Text(_pdfError!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: _loadPdfInline,
-                    icon: const Icon(Icons.refresh, color: Color(0xFF27D9D3)),
-                    label: const Text('Retry',
-                        style: TextStyle(color: Color(0xFF27D9D3))),
-                  ),
-                ],
-              ),
-            )
-          else if (_pdfLocalPath == null)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF27D9D3))),
-            )
-          else ...[
-            if (fill)
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: _buildPdfView(_pdfLocalPath!),
-                ),
-              )
-            else
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  height: isNavBarHidden
-                      ? (MediaQuery.of(context).size.height * 0.75)
-                          .clamp(650.0, 950.0)
-                      : 520.0,
-                  child: _buildPdfView(_pdfLocalPath!),
-                ),
-              ),
-            if (_pdfTotalPages > 0) ...[
-              const SizedBox(height: 8),
-              _buildPdfPageControls(primaryColor),
-            ],
-          ],
-        ],
-      ),
+      clipBehavior: Clip.antiAlias,
+      height: isNavBarHidden
+          ? (MediaQuery.of(context).size.height * 0.78).clamp(650.0, 950.0)
+          : 540.0,
+      child: content,
     );
   }
 
-  /// Download / Bookmark / Mark-complete buttons — shared by the locked
-  /// (stacked) layout and the unlocked (floating-video) layout.
+  /// Download / Bookmark / Share / Mark-complete buttons matching the
+  /// 2-row design in the provided mockup.
   Widget _buildActionButtons(
       Lesson lesson, Color primaryColor, Color secondaryColor,
       {required bool isNavBarHidden}) {
@@ -698,154 +842,362 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     return AnimatedPadding(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
-      padding: EdgeInsets.fromLTRB(16, 12, 16, isNavBarHidden ? 16 : 96),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (hasVideo && !lesson.isLocked)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _isDownloadingVideo
-                      ? null
-                      : _isOfflineDownloaded
-                          ? _deleteDownloadedVideo
-                          : _downloadVideo,
-                  icon: _isDownloadingVideo
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            value: _downloadProgress > 0 ? _downloadProgress : null,
-                            strokeWidth: 2,
-                            color: const Color(0xFF27D9D3),
-                          ),
-                        )
-                      : Icon(
-                          _isOfflineDownloaded
-                              ? Icons.offline_pin
-                              : Icons.download_for_offline_outlined,
-                          size: 18,
-                          color: _isOfflineDownloaded
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFF27D9D3),
-                        ),
-                  label: Text(
-                    _isDownloadingVideo
-                        ? 'Downloading video ${(_downloadProgress * 100).toInt()}%'
-                        : _isOfflineDownloaded
-                            ? 'Saved Offline (Tap to delete cache)'
-                            : 'Save Video for Offline',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _isOfflineDownloaded
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF27D9D3),
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: _isOfflineDownloaded
-                        ? const Color(0xFF10B981).withOpacity(0.12)
-                        : const Color(0xFF27D9D3).withOpacity(0.12),
-                    side: BorderSide(
-                      color: _isOfflineDownloaded
-                          ? const Color(0xFF10B981).withOpacity(0.5)
-                          : const Color(0xFF27D9D3).withOpacity(0.5),
-                    ),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                  ),
-                ),
-              ),
-            ),
+
+          // ── Row 1: 3 cards (Download PDF, Add to Bookmarks, Save Offline) ──
           Row(
             children: [
-              // Download PDF button
+              // 1. Download PDF (Purple-to-Blue gradient)
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: (lesson.isLocked ||
-                          _pdfSaving ||
-                          (lesson.pdfNotesUrl.isEmpty))
-                      ? null
-                      : _downloadPdf,
-                  icon: _pdfSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.download, size: 18),
-                  label: Text(_pdfSaving ? 'Saving...' : 'Download PDF'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444).withOpacity(0.18),
-                    foregroundColor: const Color(0xFFF87171),
-                    side: BorderSide(
-                        color: const Color(0xFFEF4444).withOpacity(0.4)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                flex: 38,
+                child: Material(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Ink(
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7C3AED).withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: (lesson.isLocked || _pdfSaving || lesson.pdfNotesUrl.isEmpty)
+                          ? null
+                          : _downloadPdf,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        child: Row(
+                          children: [
+                            if (_pdfSaving)
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            else
+                              const Icon(Icons.file_download_outlined,
+                                  color: Colors.white, size: 20),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Download PDF',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      _pdfSaving ? 'Saving...' : 'Save to your device',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.85),
+                                        fontSize: 9.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              // Bookmark button
+              const SizedBox(width: 8),
+
+              // 2. Add to Bookmarks (White glassy card with subtle border)
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: lesson.isLocked ? null : _toggleBookmark,
-                  icon: Icon(
-                    _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                    size: 18,
-                    color: _isBookmarked ? const Color(0xFFF59E0B) : Colors.white,
-                  ),
-                  label: Text(_isBookmarked ? 'Bookmarked' : 'Bookmark'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0C2B64).withOpacity(0.8),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(
-                        color: const Color(0xFF1E4E8C).withOpacity(0.6)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                flex: 36,
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: lesson.isLocked ? null : _toggleBookmark,
+                    child: Container(
+                      height: 52,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFDBEAFE), width: 1.2),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                            color: const Color(0xFF2563EB),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    _isBookmarked ? 'Bookmarked' : 'Add to Bookmarks',
+                                    style: const TextStyle(
+                                      color: Color(0xFF1E293B),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Quick access later',
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 9.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+
+              // 3. Save Video Offline (White glassy card — only show if has video)
+              if (hasVideo && !lesson.isLocked)
+                Expanded(
+                  flex: 26,
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: _isDownloadingVideo
+                          ? null
+                          : _isOfflineDownloaded
+                              ? _deleteDownloadedVideo
+                              : _downloadVideo,
+                      child: Container(
+                        height: 52,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _isOfflineDownloaded
+                                ? const Color(0xFF10B981).withOpacity(0.4)
+                                : const Color(0xFFDBEAFE),
+                            width: 1.2,
+                          ),
+                          color: _isOfflineDownloaded
+                              ? const Color(0xFF10B981).withOpacity(0.08)
+                              : Colors.white,
+                        ),
+                        child: Row(
+                          children: [
+                            if (_isDownloadingVideo)
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  value: _downloadProgress > 0
+                                      ? _downloadProgress
+                                      : null,
+                                  strokeWidth: 2,
+                                  color: const Color(0xFF27D9D3),
+                                ),
+                              )
+                            else
+                              Icon(
+                                _isOfflineDownloaded
+                                    ? Icons.offline_pin
+                                    : Icons.download_for_offline_outlined,
+                                color: _isOfflineDownloaded
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF2563EB),
+                                size: 19,
+                              ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      _isDownloadingVideo
+                                          ? '${(_downloadProgress * 100).toInt()}%'
+                                          : _isOfflineDownloaded
+                                              ? 'Saved'
+                                              : 'Save Offline',
+                                      style: TextStyle(
+                                        color: _isOfflineDownloaded
+                                            ? const Color(0xFF10B981)
+                                            : const Color(0xFF1E293B),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      _isOfflineDownloaded
+                                          ? 'Tap to remove'
+                                          : 'Watch offline',
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 9.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 10),
-          // Mark Complete button (full width)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: (lesson.isLocked || _togglingComplete)
+
+          const SizedBox(height: 8),
+
+          // ── Row 2: Full-width Lesson Completed / Mark Complete card ──
+          Material(
+            color: const Color(0xFFECFDF5),
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: (lesson.isLocked || _togglingComplete)
                   ? null
-                  : _toggleComplete,
-              icon: _togglingComplete
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Icon(
-                      _isCompleted
-                          ? Icons.check_circle
-                          : Icons.check_circle_outline,
-                      size: 20,
+                  : _completeAndNavigateNext,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFA7F3D0), width: 1.2),
+                ),
+                child: Row(
+                  children: [
+                    // Circular check badge
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isCompleted
+                            ? const Color(0xFF059669)
+                            : Colors.transparent,
+                        border: _isCompleted
+                            ? null
+                            : Border.all(color: const Color(0xFF059669), width: 2),
+                      ),
+                      child: _togglingComplete
+                          ? const Center(
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              Icons.check_rounded,
+                              size: 18,
+                              color: _isCompleted
+                                  ? Colors.white
+                                  : const Color(0xFF059669),
+                            ),
                     ),
-              label: Text(_isCompleted ? 'Completed' : 'Mark as Complete'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isCompleted
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFF27D9D3),
-                foregroundColor:
-                    _isCompleted ? Colors.white : const Color(0xFF071D43),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
+                    const SizedBox(width: 10),
+
+                    // Title & Subtitle
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isCompleted ? 'Lesson Completed' : 'Complete Lesson',
+                            style: const TextStyle(
+                              color: Color(0xFF065F46),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isCompleted
+                                ? "Great job! You've completed this lesson."
+                                : "Tap to complete & continue to next lesson.",
+                            style: TextStyle(
+                              color: const Color(0xFF047857).withOpacity(0.9),
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Party popper + forward chevron
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text('🎉', style: TextStyle(fontSize: 18)),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFF059669),
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1017,9 +1369,10 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       );
     }
 
-    final isOffline = _isOfflineDownloaded &&
+    final isOffline = !kIsWeb &&
+        _isOfflineDownloaded &&
         _offlineVideoPath != null &&
-        File(_offlineVideoPath!).existsSync();
+        _offlineVideoPath!.isNotEmpty;
     final String url;
     final bool youtube;
     final String origin;
@@ -1079,6 +1432,15 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// hands them to the native renderer so in-page scrolling + pinch-to-zoom
   /// work as expected.
   Widget _buildPdfView(String path) {
+    if (kIsWeb) {
+      return InAppWebView(
+        initialUrlRequest: URLRequest(url: WebUri(path)),
+        initialSettings: InAppWebViewSettings(
+          supportMultipleWindows: false,
+          javaScriptEnabled: true,
+        ),
+      );
+    }
     return PDFView(
       filePath: path,
       enableSwipe: true,
@@ -1111,37 +1473,64 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
-  /// Prev/Next page buttons plus a "page X of Y" indicator.
+  /// Prev/Next page buttons plus a "page X of Y" indicator, rendered as a
+  /// transparent floating glass pill over the PDF view.
   Widget _buildPdfPageControls(Color primaryColor) {
     final canPrev = _pdfCurrentPage > 0;
     final canNext = _pdfCurrentPage < _pdfTotalPages - 1;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: canPrev
-              ? () => _pdfViewController?.setPage(_pdfCurrentPage - 1)
-              : null,
-          icon: Icon(Icons.chevron_left,
-              color: canPrev ? Colors.white : Colors.white24),
-          tooltip: 'Previous page',
-        ),
-        Text(
-          'Page ${_pdfCurrentPage + 1} of $_pdfTotalPages',
-          style: const TextStyle(
-              fontSize: 12,
-              color: Colors.white70,
-              fontWeight: FontWeight.w600),
-        ),
-        IconButton(
-          onPressed: canNext
-              ? () => _pdfViewController?.setPage(_pdfCurrentPage + 1)
-              : null,
-          icon: Icon(Icons.chevron_right,
-              color: canNext ? Colors.white : Colors.white24),
-          tooltip: 'Next page',
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.58),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: canPrev
+                ? () => _pdfViewController?.setPage(_pdfCurrentPage - 1)
+                : null,
+            icon: Icon(Icons.chevron_left_rounded,
+                size: 20, color: canPrev ? Colors.white : Colors.white24),
+            tooltip: 'Previous page',
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '${_pdfCurrentPage + 1} / $_pdfTotalPages',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: canNext
+                ? () => _pdfViewController?.setPage(_pdfCurrentPage + 1)
+                : null,
+            icon: Icon(Icons.chevron_right_rounded,
+                size: 20, color: canNext ? Colors.white : Colors.white24),
+            tooltip: 'Next page',
+          ),
+        ],
+      ),
     );
   }
 
@@ -1188,75 +1577,132 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
     final canNext = _currentPage < _totalPages - 1;
     return Scaffold(
       backgroundColor: const Color(0xFF071D43),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0C2B64),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         foregroundColor: Colors.white,
-        title: Text(widget.title, overflow: TextOverflow.ellipsis),
-        leading: IconButton(
-          icon: const Icon(Icons.fullscreen_exit),
-          tooltip: 'Minimize',
-          onPressed: () => Navigator.of(context).pop(),
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Text(
+            widget.title,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Material(
+            color: Colors.black.withOpacity(0.5),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.of(context).pop(),
+              child: const Icon(Icons.fullscreen_exit, color: Colors.white, size: 20),
+            ),
+          ),
         ),
       ),
-      body: PDFView(
-        filePath: widget.path,
-        enableSwipe: true,
-        swipeHorizontal: false,
-        autoSpacing: true,
-        pageFling: true,
-        pageSnap: false,
-        fitPolicy: FitPolicy.WIDTH,
-        defaultPage: widget.initialPage,
-        gestureRecognizers: {
-          Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-        },
-        onRender: (pages) {
-          if (mounted) setState(() => _totalPages = pages ?? 0);
-        },
-        onPageChanged: (page, total) {
-          if (mounted) {
-            setState(() {
-              _currentPage = page ?? 0;
-              if (total != null) _totalPages = total;
-            });
-          }
-        },
-        onViewCreated: (controller) {
-          _controller = controller;
-        },
-      ),
-      bottomNavigationBar: _totalPages > 0
-          ? Container(
-              color: const Color(0xFF0C2B64),
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: canPrev
-                        ? () => _controller?.setPage(_currentPage - 1)
-                        : null,
-                    icon: Icon(Icons.chevron_left,
-                        color: canPrev ? Colors.white : Colors.white24),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: kIsWeb
+                ? InAppWebView(
+                    initialUrlRequest: URLRequest(url: WebUri(widget.path)),
+                    initialSettings: InAppWebViewSettings(
+                      supportMultipleWindows: false,
+                      javaScriptEnabled: true,
+                    ),
+                  )
+                : PDFView(
+              filePath: widget.path,
+              enableSwipe: true,
+              swipeHorizontal: false,
+              autoSpacing: true,
+              pageFling: true,
+              pageSnap: false,
+              fitPolicy: FitPolicy.WIDTH,
+              defaultPage: widget.initialPage,
+              gestureRecognizers: {
+                Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+              },
+              onRender: (pages) {
+                if (mounted) setState(() => _totalPages = pages ?? 0);
+              },
+              onPageChanged: (page, total) {
+                if (mounted) {
+                  setState(() {
+                    _currentPage = page ?? 0;
+                    if (total != null) _totalPages = total;
+                  });
+                }
+              },
+              onViewCreated: (controller) {
+                _controller = controller;
+              },
+            ),
+          ),
+          if (_totalPages > 0)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Page ${_currentPage + 1} of $_totalPages',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: canPrev ? () => _controller?.setPage(_currentPage - 1) : null,
+                        icon: Icon(Icons.chevron_left_rounded, color: canPrev ? Colors.white : Colors.white24, size: 24),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          '${_currentPage + 1} / $_totalPages',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: canNext ? () => _controller?.setPage(_currentPage + 1) : null,
+                        icon: Icon(Icons.chevron_right_rounded, color: canNext ? Colors.white : Colors.white24, size: 24),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: canNext
-                        ? () => _controller?.setPage(_currentPage + 1)
-                        : null,
-                    icon: Icon(Icons.chevron_right,
-                        color: canNext ? Colors.white : Colors.white24),
-                  ),
-                ],
+                ),
               ),
-            )
-          : null,
+            ),
+        ],
+      ),
     );
   }
 }

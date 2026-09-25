@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/mobile_auth_service.dart';
 import '../services/api_service.dart';
@@ -17,16 +18,22 @@ class MobileAuthState {
   final bool isLoggedIn;
   final AuthUser? user;
   final bool isLoading;
+  final String? errorMessage;
 
-  MobileAuthState({this.isLoggedIn = false, this.user, this.isLoading = false});
+  MobileAuthState({this.isLoggedIn = false, this.user, this.isLoading = false, this.errorMessage});
 
-  MobileAuthState copyWith({bool? isLoggedIn, AuthUser? user, bool? isLoading, bool clearUser = false}) {
+  MobileAuthState copyWith({
+    bool? isLoggedIn,
+    AuthUser? user,
+    bool? isLoading,
+    String? errorMessage,
+    bool clearUser = false,
+  }) {
     return MobileAuthState(
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
-      // `clearUser` lets logout() actually null the cached user — a plain
-      // `user ?? this.user` fallback can never clear it.
       user: clearUser ? null : (user ?? this.user),
       isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
     );
   }
 }
@@ -44,63 +51,90 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     final loggedIn = await _auth.isLoggedIn();
     final user = loggedIn ? await _auth.getUser() : null;
     state = state.copyWith(isLoggedIn: loggedIn, user: user, isLoading: false);
-    // Re-sync the subscription plan from the backend whenever a persisted
-    // session is restored (e.g. app restart), otherwise the subscription
-    // state resets to Free and previously-unlocked courses appear locked.
     if (loggedIn) {
-      await _syncSubscription();
-      // Restoring a persisted session also re-applies the org's brand colors so a
-      // theme change an admin made since the last cold start is picked up on launch.
-      await _ref.read(orgThemeProvider.notifier).refresh();
+      try {
+        await _syncSubscription();
+      } catch (_) {}
+      try {
+        await _ref.read(orgThemeProvider.notifier).refresh();
+      } catch (_) {}
     }
   }
 
   Future<bool> login(String email, String password) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final response = await _auth.login(email, password);
-      state = state.copyWith(isLoggedIn: true, user: response.user);
+      state = state.copyWith(isLoggedIn: true, user: response.user, isLoading: false);
       invalidateAllUserData(_ref);
-      // Sync subscription from backend profile
-      await _syncSubscription();
-      await _registerPushToken();
-      // Applies the org's saved theme (or built-in defaults for an org that never
-      // customized one) immediately after login.
-      await _ref.read(orgThemeProvider.notifier).refresh();
+
+      // Post-login background tasks should never fail the user's login
+      try {
+        await _syncSubscription();
+      } catch (e) {
+        debugPrint('Sync subscription error: $e');
+      }
+      try {
+        await _registerPushToken();
+      } catch (e) {
+        debugPrint('Push token error: $e');
+      }
+      try {
+        await _ref.read(orgThemeProvider.notifier).refresh();
+      } catch (e) {
+        debugPrint('Theme refresh error: $e');
+      }
       return true;
     } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      state = state.copyWith(isLoggedIn: false, isLoading: false, errorMessage: message);
       return false;
     }
   }
 
   Future<bool> register(String fullName, String email, String password, [String? phone]) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final response = await _auth.register(fullName, email, password, phone);
-      state = state.copyWith(isLoggedIn: true, user: response.user);
+      state = state.copyWith(isLoggedIn: true, user: response.user, isLoading: false);
       invalidateAllUserData(_ref);
-      // Sync subscription from backend profile
-      await _syncSubscription();
-      await _registerPushToken();
-      await _ref.read(orgThemeProvider.notifier).refresh();
+
+      try {
+        await _syncSubscription();
+      } catch (e) {
+        debugPrint('Sync subscription error: $e');
+      }
+      try {
+        await _registerPushToken();
+      } catch (e) {
+        debugPrint('Push token error: $e');
+      }
+      try {
+        await _ref.read(orgThemeProvider.notifier).refresh();
+      } catch (e) {
+        debugPrint('Theme refresh error: $e');
+      }
       return true;
     } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      state = state.copyWith(isLoggedIn: false, isLoading: false, errorMessage: message);
       return false;
     }
   }
 
   Future<void> logout() async {
-    await PushNotificationService().clearToken();
+    try {
+      await PushNotificationService().clearToken();
+    } catch (_) {}
     await _auth.logout();
     invalidateAllUserData(_ref);
     state = state.copyWith(isLoggedIn: false, clearUser: true);
     _ref.read(subscriptionProvider.notifier).reset();
-    // Clears the previous tenant's brand colors so they don't bleed into the next
-    // login on a shared device, until the new session's theme loads.
-    await _ref.read(orgThemeProvider.notifier).reset();
+    try {
+      await _ref.read(orgThemeProvider.notifier).reset();
+    } catch (_) {}
   }
 
-  /// Flips the cached user's payment flag to COMPLETED so the router redirect
-  /// (which guards every authenticated route) stops forcing the student back
-  /// to the payment screen after a successful payment.
   void markPaymentCompleted() {
     final user = state.user;
     if (user == null) return;
@@ -119,32 +153,27 @@ class MobileAuthNotifier extends StateNotifier<MobileAuthState> {
     state = state.copyWith(user: updated);
   }
 
-  /// Registers this device's current FCM token (if any) with the backend
-  /// right after login/register, so the very first session on a device
-  /// starts receiving push notifications without waiting for a token
-  /// refresh event.
   Future<void> _registerPushToken() async {
+    if (kIsWeb) return; // Push tokens via FCM are handled natively on mobile
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null) return;
       final apiService = ApiService();
       await apiService.updateFcmToken(token);
     } catch (e) {
-      print('Failed to register push token after login: $e');
+      debugPrint('Failed to register push token after login: $e');
     }
   }
 
-  /// Fetch the user profile from backend and sync the subscription plan.
   Future<void> _syncSubscription() async {
     try {
       final apiService = ApiService();
       final profile = await apiService.getUserProfile();
       if (profile != null) {
-        // Use the global subscription notifier to sync the plan
         await _ref.read(subscriptionProvider.notifier).syncFromProfile(profile);
       }
     } catch (e) {
-      print('Failed to sync subscription: $e');
+      debugPrint('Failed to sync subscription: $e');
     }
   }
 }

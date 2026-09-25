@@ -1,0 +1,40 @@
+{
+    "name": "Academy LMS",
+    "short_name": "Academy LMS",
+    "start_url": ".",
+    "display": "fullscreen",
+    "display_override": [
+        "window-controls-overlay",
+        "fullscreen",
+        "standalone"
+    ],
+    "background_color": "#071D43",
+    "theme_color": "#071D43",
+    "description": "Academy LMS Student Mobile Platform",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

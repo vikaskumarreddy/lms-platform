@@ -15,7 +15,13 @@ class MainShellScreen extends ConsumerStatefulWidget {
   ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
 }
 
-class _MainShellScreenState extends ConsumerState<MainShellScreen> {
+class _MainShellScreenState extends ConsumerState<MainShellScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _navAnimController;
+  late final Animation<Offset> _slideAnimation;
+  late final Animation<double> _fadeAnimation;
+  double? _arrowTopOffset;
+
   final _tabs = [
     (AppRoutes.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
     (
@@ -64,6 +70,40 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
     (AppRoutes.profile, Icons.person_outline, Icons.person_rounded, 'Profile'),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    final initialHidden = ref.read(shellNavBarHiddenProvider);
+    _navAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+      value: initialHidden ? 1.0 : 0.0,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(1.15, 0.0),
+    ).animate(CurvedAnimation(
+      parent: _navAnimController,
+      curve: Curves.easeInOutCubic,
+    ));
+    _fadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _navAnimController,
+      curve: Curves.easeInOutCubic,
+    ));
+    _navAnimController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _navAnimController.dispose();
+    super.dispose();
+  }
+
   int _getCurrentIndex() {
     final uri = GoRouterState.of(context).uri.toString();
     for (int i = 0; i < _tabs.length; i++) {
@@ -83,6 +123,16 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   Widget build(BuildContext context) {
     final isHome = _isHomeScreen();
     final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
+
+    ref.listen<bool>(shellNavBarHiddenProvider, (previous, current) {
+      if (current) {
+        _navAnimController.forward();
+      } else {
+        _navAnimController.reverse();
+      }
+    });
+
+    final isVisible = !isNavBarHidden || _navAnimController.value < 1.0;
 
     return PopScope(
       canPop: false,
@@ -125,132 +175,110 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen> {
           fit: StackFit.expand,
           children: [
             widget.child,
-            if (isNavBarHidden)
+            if (isVisible)
               Positioned(
-                right: 16,
+                left: 0,
+                right: 0,
                 bottom: 0,
-                child: SafeArea(
-                  bottom: true,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildShowNavBarButton(),
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: ModernBottomNavBar(
+                      currentIndex: _getCurrentIndex(),
+                      tabs: _tabs,
+                      onTap: (index) => context.go(_tabs[index].$1),
+                    ),
                   ),
                 ),
               ),
+            _buildGestureEdgeArrow(context, isNavBarHidden),
           ],
         ),
-        bottomNavigationBar: isNavBarHidden
-            ? null
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 20, bottom: 4),
-                      child: _buildHideNavBarTab(),
-                    ),
-                  ),
-                  ModernBottomNavBar(
-                    currentIndex: _getCurrentIndex(),
-                    tabs: _tabs,
-                    onTap: (index) => context.go(_tabs[index].$1),
-                  ),
-                ],
-              ),
+        bottomNavigationBar: null,
       ),
     );
   }
 
-  Widget _buildShowNavBarButton() {
-    return GestureDetector(
-      key: const ValueKey('show-nav-bar-btn'),
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(shellNavBarHiddenProvider.notifier).state = false;
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0C2B64).withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFF27D9D3).withValues(alpha: 0.70),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF27D9D3).withValues(alpha: 0.30),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+  Widget _buildGestureEdgeArrow(BuildContext context, bool isNavBarHidden) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (keyboardHeight > 0) return const SizedBox.shrink();
+
+    final topPos = _arrowTopOffset ?? (screenHeight * 0.72);
+
+    return Positioned(
+      top: topPos,
+      right: 0,
+      child: Tooltip(
+        message: isNavBarHidden ? 'Show Navigation' : 'Hide Navigation',
+        child: GestureDetector(
+          key: ValueKey(isNavBarHidden ? 'show-nav-bar-btn' : 'hide-nav-bar-btn'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            final isHidden = ref.read(shellNavBarHiddenProvider);
+            ref.read(shellNavBarHiddenProvider.notifier).state = !isHidden;
+          },
+          onVerticalDragUpdate: (details) {
+            setState(() {
+              final currentTop = _arrowTopOffset ?? (screenHeight * 0.72);
+              final newTop = currentTop + details.delta.dy;
+              _arrowTopOffset = newTop.clamp(screenHeight * 0.25, screenHeight * 0.82);
+            });
+          },
+          onHorizontalDragEnd: (details) {
+            final vx = details.primaryVelocity ?? 0;
+            if (vx < -120) {
+              HapticFeedback.lightImpact();
+              ref.read(shellNavBarHiddenProvider.notifier).state = false;
+            } else if (vx > 120) {
+              HapticFeedback.lightImpact();
+              ref.read(shellNavBarHiddenProvider.notifier).state = true;
+            }
+          },
+          child: Container(
+            width: 30,
+            height: 54,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C2B64).withValues(alpha: 0.94),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(27),
+                bottomLeft: Radius.circular(27),
+              ),
+              border: Border.all(
+                color: const Color(0xFF27D9D3).withValues(alpha: 0.80),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF27D9D3).withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(-2, 2),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 8,
+                  offset: const Offset(-1, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.keyboard_arrow_up_rounded,
-              color: Color(0xFF27D9D3),
-              size: 18,
-            ),
-            SizedBox(width: 6),
-            Text(
-              'Show Nav',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.only(left: 3),
+            child: RotationTransition(
+              turns: Tween<double>(begin: 0.5, end: 0.0).animate(
+                CurvedAnimation(
+                  parent: _navAnimController,
+                  curve: Curves.easeInOutCubic,
+                ),
+              ),
+              child: const Icon(
+                Icons.chevron_left_rounded,
                 color: Color(0xFF27D9D3),
-                letterSpacing: 0.5,
+                size: 26,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHideNavBarTab() {
-    return GestureDetector(
-      key: const ValueKey('hide-nav-bar-btn'),
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(shellNavBarHiddenProvider.notifier).state = true;
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF092350).withValues(alpha: 0.90),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.20),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Hide',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
-              ),
-            ),
-            SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 16,
-              color: Color(0xFF27D9D3),
-            ),
-          ],
         ),
       ),
     );

@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Java Placement Notes — Module 2: Variables, Data Types & Operators</title>
+<style>
+  @page {
+    size: A4;
+    margin: 14mm 12mm 14mm 12mm;
+    @bottom-right {
+      content: counter(page);
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.55;
+    font-size: 13px;
+    background-color: #ffffff;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1, h2, h3, h4, h5 {
+    color: #0f172a;
+    font-weight: 700;
+    margin-top: 1.4em;
+    margin-bottom: 0.5em;
+    page-break-after: avoid;
+  }
+
+  h1 {
+    font-size: 24px;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+
+  h2 {
+    font-size: 18px;
+    border-bottom: 1.5px solid #cbd5e1;
+    padding-bottom: 5px;
+    color: #1e40af;
+  }
+
+  h3 {
+    font-size: 15px;
+    color: #0369a1;
+  }
+
+  p {
+    margin: 0.5em 0;
+  }
+
+  /* Header banner */
+  .header-card {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb, #3b82f6);
+    color: #ffffff;
+    padding: 20px 24px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  .header-card h1 {
+    color: #ffffff;
+    border-bottom: 2px solid rgba(255,255,255,0.3);
+    margin: 0 0 8px 0;
+    font-size: 24px;
+  }
+  .header-card .subtitle {
+    font-size: 14px;
+    opacity: 0.95;
+    margin-bottom: 12px;
+  }
+  .meta-tags {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .meta-tag {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px 0;
+    font-size: 12px;
+    page-break-inside: avoid;
+  }
+  th, td {
+    padding: 7px 10px;
+    border: 1px solid #cbd5e1;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+  }
+  tr:nth-child(even) {
+    background-color: #f8fafc;
+  }
+
+  /* Code blocks */
+  pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: "Cascadia Code", "Fira Code", Consolas, Monaco, monospace;
+    font-size: 11.5px;
+    overflow-x: auto;
+    margin: 8px 0 12px 0;
+    line-height: 1.45;
+    page-break-inside: avoid;
+    border-left: 4px solid #38bdf8;
+  }
+  code {
+    font-family: "Cascadia Code", "Fira Code", Consolas, Monaco, monospace;
+    font-size: 11.5px;
+    background-color: #f1f5f9;
+    color: #b91c1c;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  pre code {
+    background-color: transparent;
+    color: #f8fafc;
+    padding: 0;
+  }
+
+  /* Syntax highlights in pre */
+  .c-kw { color: #f472b6; font-weight: 600; } /* Keyword */
+  .c-type { color: #38bdf8; font-weight: 600; } /* Type */
+  .c-str { color: #a3e635; } /* String */
+  .c-num { color: #fb923c; } /* Number */
+  .c-com { color: #94a3b8; font-style: italic; } /* Comment */
+  .c-fn { color: #facc15; } /* Function */
+
+  /* Callout alert boxes */
+  .callout {
+    padding: 10px 14px;
+    margin: 10px 0 14px 0;
+    border-radius: 6px;
+    border-left: 4px solid;
+    page-break-inside: avoid;
+    font-size: 12px;
+  }
+  .callout-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+  }
+  .trap {
+    background-color: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+  }
+  .trap .callout-title {
+    color: #b91c1c;
+  }
+  .tip {
+    background-color: #f0fdf4;
+    border-color: #22c55e;
+    color: #166534;
+  }
+  .tip .callout-title {
+    color: #15803d;
+  }
+  .hood {
+    background-color: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+  }
+  .hood .callout-title {
+    color: #1d4ed8;
+  }
+  .warn {
+    background-color: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+  }
+  .warn .callout-title {
+    color: #b45309;
+  }
+
+  /* ASCII / Visual Box */
+  .diagram-box {
+    background: #f8fafc;
+    border: 1px dashed #94a3b8;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-family: monospace;
+    font-size: 11.5px;
+    white-space: pre;
+    line-height: 1.35;
+    color: #0f172a;
+    page-break-inside: avoid;
+  }
+
+  /* Badges & Checklists */
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 12px;
+    text-transform: uppercase;
+  }
+  .badge-primary { background: #dbeafe; color: #1e40af; }
+  .badge-danger { background: #fee2e2; color: #991b1b; }
+  .badge-warning { background: #fef3c7; color: #92400e; }
+  .badge-success { background: #dcfce7; color: #166534; }
+
+  .checklist {
+    list-style: none;
+    padding-left: 0;
+  }
+  .checklist li {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 6px;
+  }
+  .checklist li::before {
+    content: "✔";
+    position: absolute;
+    left: 0;
+    color: #2563eb;
+    font-weight: bold;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .q-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    page-break-inside: avoid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .q-title {
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 5px;
+  }
+
+  /* Two column layout for print */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header Banner -->
+<div class="header-card">
+  <div class="subtitle">JAVA TECHNICAL PLACEMENT CRACKER SERIES &bull; CRITICAL FOUNDATIONS</div>
+  <h1>Module 2: Variables, Data Types & Operators</h1>
+  <div class="meta-tags">
+    <span class="meta-tag">Target: Campus &amp; Off-Campus Placements</span>
+    <span class="meta-tag">Difficulty: Foundational to Advanced Traps</span>
+    <span class="meta-tag">Weightage: 100% In MCQs &amp; Coding Screenings</span>
+  </div>
+</div>
+
+<!-- SECTION 1 -->
+<h2>1. Placement Learning Objectives &amp; Readiness Checklist</h2>
+<p>By the end of this module, a B.Tech candidate must master not just the syntax, but the <strong>underlying JVM memory model, evaluation rules, and interview traps</strong>:</p>
+
+<div class="grid-2">
+  <ul class="checklist">
+    <li>Explain variable lifecycle and memory allocation (Stack vs Heap).</li>
+    <li>Differentiate between the 8 Primitives and Reference Types.</li>
+    <li>Predict exact type promotion in binary and unary expressions.</li>
+    <li>Explain Definite Assignment Analysis for local variables.</li>
+    <li>Master Wrapper classes, Autoboxing, Unboxing, and NPE pitfalls.</li>
+    <li>Explain the Integer Cache mechanism (<code>-128</code> to <code>127</code>).</li>
+    <li>Distinguish <code>==</code> (reference check) from <code>.equals()</code> (value check).</li>
+  </ul>
+  <ul class="checklist">
+    <li>Master Bitwise operator tricks (XOR, Bit masking, Two's complement).</li>
+    <li>Understand short-circuiting (<code>&&</code>, <code>||</code> vs <code>&</code>, <code>|</code>).</li>
+    <li>Explain shift operators and the 5-bit shift distance mask (<code>1 &lt;&lt; 32</code>).</li>
+    <li>Distinguish prefix vs postfix (<code>++x</code> vs <code>x++</code>) evaluation order.</li>
+    <li>Understand Implicit Narrowing in compound assignment (<code>b += 1</code>).</li>
+    <li>Explain floating-point IEEE-754 precision loss and <code>BigDecimal</code>.</li>
+    <li>Solve classic bitwise and mathematical placement coding questions.</li>
+  </ul>
+</div>
+
+<!-- SECTION 2 -->
+<h2>2. Variables in Java: The Mental &amp; Memory Model</h2>
+<p>A <strong>variable</strong> is an identifier associated with a specific memory location allocated to store values of a declared type. Java is a <strong>statically typed language</strong>, meaning variable types are strictly bound and verified at compile time.</p>
+
+<pre><code><span class="c-type">int</span> age = <span class="c-num">25</span>;
+<span class="c-com">// age = "25"; &lt;-- COMPILE-TIME ERROR: Type mismatch (cannot convert from String to int)</span></code></pre>
+
+<div class="diagram-box">
+Variable Declaration Anatomy:
+┌───────────────┬──────────────────┬──────────────────────┬─────────────┐
+│  int          │  age             │  =                   │  25;        │
+│  (Data Type)  │  (Variable Name) │  (Assignment Op)     │  (Literal)  │
+└───────────────┴──────────────────┴──────────────────────┴─────────────┘
+Memory (Stack Frame):
+[ age ] ──> | 00000000 00000000 00000000 00011001 | (32 bits = 25)
+</div>
+
+<!-- SECTION 3 -->
+<h2>3. Variable Types &amp; Lifecycle Scopes</h2>
+<p>In Java, variables are categorized based on where they are declared and their lifecycle in JVM memory:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable Type</th>
+      <th>Where Declared</th>
+      <th>Memory Area</th>
+      <th>Default Value?</th>
+      <th>Lifecycle</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Local Variable</strong></td>
+      <td>Inside method, constructor, or block <code>{ ... }</code></td>
+      <td><strong>Stack Frame</strong></td>
+      <td><span class="badge badge-danger">NO</span> (Must be explicitly initialized)</td>
+      <td>Created on method call, destroyed on frame exit.</td>
+    </tr>
+    <tr>
+      <td><strong>Instance Variable</strong></td>
+      <td>Inside class, outside any method (non-static)</td>
+      <td><strong>Heap</strong> (part of Object state)</td>
+      <td><span class="badge badge-success">YES</span> (0, 0.0, false, null)</td>
+      <td>Created with <code>new</code>, destroyed by Garbage Collector.</td>
+    </tr>
+    <tr>
+      <td><strong>Static / Class Variable</strong></td>
+      <td>Inside class, declared with <code>static</code> keyword</td>
+      <td><strong>Metaspace</strong> (Class Area)</td>
+      <td><span class="badge badge-success">YES</span> (0, 0.0, false, null)</td>
+      <td>Loaded when Class is loaded; unloaded with ClassLoader.</td>
+    </tr>
+    <tr>
+      <td><strong>Parameter</strong></td>
+      <td>Method / constructor signature</td>
+      <td><strong>Stack Frame</strong></td>
+      <td>Initialized by caller arguments</td>
+      <td>Scope limited to method body.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout trap">
+  <div class="callout-title">🚨 INTERVIEW TRAP: Definite Assignment Analysis</div>
+  Unlike C/C++ where uninitialized local variables hold "garbage values", Java local variables <strong>produce a compile-time error</strong> if read before initialization. The Java compiler verifies through control flow analysis whether every possible execution path initializes the variable.
+</div>
+
+<pre><code><span class="c-kw">public void</span> <span class="c-fn">checkAssignment</span>(<span class="c-type">boolean</span> condition) {
+    <span class="c-type">int</span> x;
+    <span class="c-kw">if</span> (condition) {
+        x = <span class="c-num">10</span>;
+    }
+    <span class="c-com">// System.out.println(x); // COMPILE ERROR: The local variable x may not have been initialized</span>
+}</code></pre>
+
+<!-- SECTION 4 -->
+<h2>4. The 8 Primitive Data Types (Exhaustive Reference)</h2>
+<p>Java has exactly <strong>8 primitive types</strong>. Primitives store raw binary values directly in memory (no object headers or pointer indirection).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Bits</th>
+      <th>Bytes</th>
+      <th>Minimum Value</th>
+      <th>Maximum Value</th>
+      <th>Default Value</th>
+      <th>Wrapper Class</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>byte</code></td>
+      <td>8</td>
+      <td>1</td>
+      <td>$-2^7 = -128$</td>
+      <td>$2^7 - 1 = 127$</td>
+      <td><code>0</code></td>
+      <td><code>Byte</code></td>
+    </tr>
+    <tr>
+      <td><code>short</code></td>
+      <td>16</td>
+      <td>2</td>
+      <td>$-2^{15} = -32,768$</td>
+      <td>$2^{15} - 1 = 32,767$</td>
+      <td><code>0</code></td>
+      <td><code>Short</code></td>
+    </tr>
+    <tr>
+      <td><code>int</code></td>
+      <td>32</td>
+      <td>4</td>
+      <td>$-2^{31} \approx -2.14 \times 10^9$</td>
+      <td>$2^{31} - 1 \approx 2.14 \times 10^9$</td>
+      <td><code>0</code></td>
+      <td><code>Integer</code></td>
+    </tr>
+    <tr>
+      <td><code>long</code></td>
+      <td>64</td>
+      <td>8</td>
+      <td>$-2^{63} \approx -9.22 \times 10^{18}$</td>
+      <td>$2^{63} - 1 \approx 9.22 \times 10^{18}$</td>
+      <td><code>0L</code></td>
+      <td><code>Long</code></td>
+    </tr>
+    <tr>
+      <td><code>float</code></td>
+      <td>32</td>
+      <td>4</td>
+      <td>$1.4 \times 10^{-45}$ (IEEE 754)</td>
+      <td>$3.4028235 \times 10^{38}$</td>
+      <td><code>0.0f</code></td>
+      <td><code>Float</code></td>
+    </tr>
+    <tr>
+      <td><code>double</code></td>
+      <td>64</td>
+      <td>8</td>
+      <td>$4.9 \times 10^{-324}$ (IEEE 754)</td>
+      <td>$1.79769313 \times 10^{308}$</td>
+      <td><code>0.0d</code></td>
+      <td><code>Double</code></td>
+    </tr>
+    <tr>
+      <td><code>char</code></td>
+      <td>16</td>
+      <td>2</td>
+      <td><code>'\u0000'</code> (0)</td>
+      <td><code>'\uffff'</code> (65,535)</td>
+      <td><code>'\u0000'</code></td>
+      <td><code>Character</code></td>
+    </tr>
+    <tr>
+      <td><code>boolean</code></td>
+      <td>*</td>
+      <td>*</td>
+      <td><code>false</code></td>
+      <td><code>true</code></td>
+      <td><code>false</code></td>
+      <td><code>Boolean</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout hood">
+  <div class="callout-title">🔍 UNDER THE HOOD: Why boolean size is JVM-dependent</div>
+  According to the <em>Java Language Specification (JLS §4.2.5)</em>, the size of a <code>boolean</code> is not specified. In Oracle/OpenJDK HotSpot:
+  <ul>
+    <li>An individual <code>boolean</code> local variable on the stack is compiled into an <code>int</code> (using 4 bytes / 32 bits).</li>
+    <li>In a <code>boolean[]</code> array, HotSpot packs elements as an array of <code>byte</code> (1 byte per boolean).</li>
+    <li><strong>Interview Answer:</strong> Never say "boolean is always 1 byte". State that the JLS does not fix the size; HotSpot typically uses 4 bytes for standalone variables and 1 byte in arrays.</li>
+  </ul>
+</div>
+
+<!-- SECTION 5 -->
+<div class="page-break"></div>
+<h2>5. Critical Interview Traps on Literals &amp; Precision</h2>
+
+<h3>Trap 1: The Floating-Point Literal Suffix Rule</h3>
+<pre><code><span class="c-type">float</span> price = <span class="c-num">10.5</span>;   <span class="c-com">// ❌ COMPILE ERROR: Type mismatch (double cannot be converted to float)</span>
+<span class="c-type">float</span> price = <span class="c-num">10.5f</span>;  <span class="c-com">// ✔ CORRECT: 'f' or 'F' suffix tells compiler it is a 32-bit float</span>
+<span class="c-type">double</span> d    = <span class="c-num">10.5</span>;   <span class="c-com">// ✔ CORRECT: Floating-point decimal literals default to double</span></code></pre>
+
+<h3>Trap 2: The Integer Literal Bounds &amp; Suffix Rule</h3>
+<pre><code><span class="c-type">long</span> x = <span class="c-num">100</span>;         <span class="c-com">// ✔ Valid: 100 is an int literal widened automatically to long</span>
+<span class="c-type">long</span> pop = <span class="c-num">8000000000</span>; <span class="c-com">// ❌ COMPILE ERROR: Integer number too large (evaluated as int literal first!)</span>
+<span class="c-type">long</span> pop = <span class="c-num">8000000000L</span>;<span class="c-com">// ✔ CORRECT: 'L' suffix tells compiler to treat literal as a 64-bit long</span></code></pre>
+
+<h3>Trap 3: IEEE-754 Precision Loss &amp; Financial Calculations</h3>
+<pre><code><span class="c-type">double</span> a = <span class="c-num">0.1</span>;
+<span class="c-type">double</span> b = <span class="c-num">0.2</span>;
+System.out.println(a + b); <span class="c-com">// Prints: 0.30000000000000004  (NOT 0.3!)</span></code></pre>
+<div class="callout trap">
+  <div class="callout-title">🚨 PLACEMENT QUESTION: Why 0.1 + 0.2 != 0.3 in Java?</div>
+  Numbers like $0.1$ and $0.2$ cannot be represented precisely in base-2 binary floating point (they result in repeating binary fractions, just like $1/3$ in base-10). In monetary and FinTech applications, <strong>always use <code>java.math.BigDecimal</code></strong> initialized with Strings:
+  <pre><code><span class="c-type">BigDecimal</span> d1 = <span class="c-kw">new</span> <span class="c-type">BigDecimal</span>(<span class="c-str">"0.1"</span>);
+<span class="c-type">BigDecimal</span> d2 = <span class="c-kw">new</span> <span class="c-type">BigDecimal</span>(<span class="c-str">"0.2"</span>);
+System.out.println(d1.add(d2)); <span class="c-com">// Exactly: 0.3</span></code></pre>
+</div>
+
+<h3>Trap 4: `char` is an Unsigned 16-Bit Integer Under the Hood</h3>
+<pre><code><span class="c-type">char</span> ch = <span class="c-str">'A'</span>;
+System.out.println(ch + <span class="c-num">1</span>);            <span class="c-com">// Prints: 66  ('A' promoted to ASCII/Unicode 65 + 1)</span>
+System.out.println((<span class="c-type">char</span>)(ch + <span class="c-num">1</span>));    <span class="c-com">// Prints: 'B'</span>
+
+<span class="c-type">char</span> c1 = <span class="c-str">'A'</span>, c2 = <span class="c-str">'B'</span>;
+System.out.println(c1 + c2);           <span class="c-com">// Prints: 131 (65 + 66)</span>
+System.out.println(<span class="c-str">""</span> + c1 + c2);      <span class="c-com">// Prints: "AB" (String concatenation triggers!)</span></code></pre>
+
+<!-- SECTION 6 -->
+<h2>6. Primitive vs Reference Types: Stack vs Heap Layout</h2>
+<p>Every non-primitive type in Java (including <code>String</code>, arrays <code>int[]</code>, and all classes) is a <strong>Reference Type</strong>.</p>
+
+<div class="diagram-box">
+Code:
+int age = 25;
+String name = new String("Rahul");
+int[] arr = new int[]{10, 20};
+
+STACK FRAME                                 HEAP MEMORY
+┌───────────────────────┐                  ┌───────────────────────────────┐
+│ age: [ 25 ]           │ (raw value)      │                               │
+├───────────────────────┤                  ├───────────────────────────────┤
+│ name: [ 0x4A12 ] ─────┼─────────────────>│ String Object @ 0x4A12        │
+├───────────────────────┤                  │  value: ['R','a','h','u','l'] │
+│ arr:  [ 0x8B34 ] ─────┼────────┐         ├───────────────────────────────┤
+└───────────────────────┘        └────────>│ int[] Array Object @ 0x8B34   │
+                                           │  length: 2, [ 10 | 20 ]       │
+                                           └───────────────────────────────┘
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Comparison Criterion</th>
+      <th>Primitive Types</th>
+      <th>Reference Types</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Data Stored</strong></td>
+      <td>Direct raw binary representation</td>
+      <td>Memory address / pointer to object on Heap</td>
+    </tr>
+    <tr>
+      <td><strong>Can Hold <code>null</code>?</strong></td>
+      <td><span class="badge badge-danger">Never</span></td>
+      <td><span class="badge badge-success">Yes</span> (Unassigned reference points to null)</td>
+    </tr>
+    <tr>
+      <td><strong>Default Values (fields)</strong></td>
+      <td><code>0</code>, <code>0.0</code>, <code>false</code>, <code>'\u0000'</code></td>
+      <td><code>null</code></td>
+    </tr>
+    <tr>
+      <td><strong>Java Collections Compatibility</strong></td>
+      <td>Cannot be used (<code>List&lt;int&gt;</code> is invalid)</td>
+      <td>Directly supported (<code>List&lt;Integer&gt;</code>)</td>
+    </tr>
+    <tr>
+      <td><strong><code>==</code> Comparison</strong></td>
+      <td>Compares actual raw values</td>
+      <td>Compares memory addresses / object identity</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- SECTION 7 -->
+<h2>7. Wrapper Classes, Autoboxing, Unboxing &amp; NPE Trap</h2>
+<p>Java provides object-oriented wrappers for every primitive to enable interoperability with the Collections Framework, Generics, and Reflection:</p>
+
+<div class="diagram-box">
+Autoboxing:   int ─────> Integer.valueOf(x) ─────> Integer Object
+Unboxing:     Integer Object ─────> obj.intValue() ─────> int
+</div>
+
+<div class="callout trap">
+  <div class="callout-title">🚨 FATAL PLACEMENT TRAP: Unboxing a Null Wrapper Causes NullPointerException</div>
+  <pre><code><span class="c-type">Integer</span> box = <span class="c-kw">null</span>;
+<span class="c-type">int</span> val = box; <span class="c-com">// Compiles cleanly! At runtime throws: java.lang.NullPointerException!</span></code></pre>
+  <strong>Why?</strong> The Java compiler rewrites <code>int val = box;</code> into <code>int val = box.intValue();</code>. Invoking any instance method on a <code>null</code> reference throws an immediate <code>NullPointerException</code>.
+</div>
+
+<!-- SECTION 8 -->
+<div class="page-break"></div>
+<h2>8. The Integer Cache Mechanism: Top Tier-1 Interview Question</h2>
+<p>Java optimizes memory allocation by caching <code>Integer</code> objects within the range <strong><code>-128</code> to <code>127</code></strong> (inclusive) in an internal static cache (<code>IntegerCache</code>) initialized during class loading.</p>
+
+<pre><code><span class="c-type">Integer</span> a = <span class="c-num">100</span>;
+<span class="c-type">Integer</span> b = <span class="c-num">100</span>;
+System.out.println(a == b); <span class="c-com">// TRUE  (Both point to identical cached object in IntegerCache)</span>
+
+<span class="c-type">Integer</span> x = <span class="c-num">128</span>;
+<span class="c-type">Integer</span> y = <span class="c-num">128</span>;
+System.out.println(x == y); <span class="c-com">// FALSE (128 is outside cache! Two distinct objects on Heap)</span>
+System.out.println(x.equals(y)); <span class="c-com">// TRUE (Value comparison!)</span></code></pre>
+
+<div class="callout tip">
+  <div class="callout-title">💡 GOLDEN PLACEMENT RULE FOR WRAPPER COMPARISON</div>
+  <strong>NEVER use <code>==</code> to compare wrapper objects for mathematical equivalence!</strong>
+  <ul>
+    <li><code>==</code> compares object references (memory address).</li>
+    <li><code>.equals()</code> compares deep logical value.</li>
+    <li>Alternatively, use <code>Objects.equals(a, b)</code> to safely guard against <code>NullPointerException</code>.</li>
+  </ul>
+</div>
+
+<!-- SECTION 9 -->
+<h2>9. Operators in Java: Complete Breakdown</h2>
+
+<h3>9.1 Arithmetic Operators &amp; Division Hazards</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Operation</th>
+      <th>Code</th>
+      <th>Result</th>
+      <th>Technical Explanation</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Integer Division</strong></td>
+      <td><code>10 / 3</code></td>
+      <td><code>3</code></td>
+      <td>Both operands are integers; fractional part is truncated towards zero.</td>
+    </tr>
+    <tr>
+      <td><strong>Floating Division</strong></td>
+      <td><code>(double)10 / 3</code></td>
+      <td><code>3.3333333333333335</code></td>
+      <td>Type promotion forces 64-bit IEEE-754 floating division.</td>
+    </tr>
+    <tr>
+      <td><strong>Integer Div by 0</strong></td>
+      <td><code>10 / 0</code></td>
+      <td><span class="badge badge-danger">ArithmeticException</span></td>
+      <td>Throws runtime <code>java.lang.ArithmeticException: / by zero</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Floating Div by 0</strong></td>
+      <td><code>10.0 / 0.0</code></td>
+      <td><code>Infinity</code></td>
+      <td>IEEE-754 defines positive floating-point infinity.</td>
+    </tr>
+    <tr>
+      <td><strong>Zero / Zero (Float)</strong></td>
+      <td><code>0.0 / 0.0</code></td>
+      <td><code>NaN</code></td>
+      <td>Not-a-Number (undefined floating result).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>9.2 Prefix vs Postfix Unary Operators</h3>
+<ul>
+  <li><code>++x</code> (Prefix): Increment value <strong>before</strong> taking part in expression evaluation.</li>
+  <li><code>x++</code> (Postfix): Store current value for expression evaluation, increment <strong>after</strong>.</li>
+</ul>
+
+<pre><code><span class="c-type">int</span> x = <span class="c-num">5</span>;
+<span class="c-type">int</span> y = x++ + ++x;
+<span class="c-com">// Evaluation Step-by-Step:</span>
+<span class="c-com">// 1. x++ evaluates to 5. Internal x becomes 6.</span>
+<span class="c-com">// 2. ++x increments internal x from 6 to 7, evaluates to 7.</span>
+<span class="c-com">// 3. y = 5 + 7 = 12. Final x = 7.</span>
+System.out.println(<span class="c-str">"y = "</span> + y + <span class="c-str">", x = "</span> + x); <span class="c-com">// y = 12, x = 7</span></code></pre>
+
+<h3>9.3 Short-Circuit Evaluation (`&&`, `||` vs `&`, `|`)</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Operator</th>
+      <th>Type</th>
+      <th>Short-Circuit Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>&amp;&amp;</code></td>
+      <td>Conditional AND</td>
+      <td><strong>Short-circuits:</strong> If LHS is <code>false</code>, RHS is <strong>NEVER</strong> evaluated.</td>
+    </tr>
+    <tr>
+      <td><code>&amp;</code></td>
+      <td>Bitwise / Boolean AND</td>
+      <td><strong>No short-circuit:</strong> Always evaluates both LHS and RHS even if LHS is false.</td>
+    </tr>
+    <tr>
+      <td><code>||</code></td>
+      <td>Conditional OR</td>
+      <td><strong>Short-circuits:</strong> If LHS is <code>true</code>, RHS is <strong>NEVER</strong> evaluated.</td>
+    </tr>
+    <tr>
+      <td><code>|</code></td>
+      <td>Bitwise / Boolean OR</td>
+      <td><strong>No short-circuit:</strong> Evaluates both sides regardless.</td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><code><span class="c-type">int</span> a = <span class="c-num">10</span>;
+<span class="c-kw">if</span> (a &lt; <span class="c-num">5</span> &amp;&amp; ++a &gt; <span class="c-num">10</span>) { }
+System.out.println(a); <span class="c-com">// Output: 10 (a is NOT incremented because a &lt; 5 was false!)</span>
+
+<span class="c-kw">if</span> (a &lt; <span class="c-num">5</span> &amp; ++a &gt; <span class="c-num">10</span>) { }
+System.out.println(a); <span class="c-com">// Output: 11 (Both sides evaluated! a was incremented)</span></code></pre>
+
+<h3>9.4 Bitwise Operators &amp; Two's Complement NOT (`~`)</h3>
+<p>In two's complement binary representation, the formula for Bitwise NOT is: <strong><code>~x = -(x + 1)</code></strong>.</p>
+<pre><code>System.out.println(~<span class="c-num">5</span>);   <span class="c-com">// Output: -6   (-(5 + 1))</span>
+System.out.println(~(-<span class="c-num">10</span>)); <span class="c-com">// Output: 9    (-(-10 + 1) = 9)</span></code></pre>
+
+<h3>9.5 Bit Shift Operators &amp; The 5-Bit Shift Distance Mask</h3>
+<div class="callout trap">
+  <div class="callout-title">🚨 ADVANCED INTERVIEW QUESTION: Why is `1 &lt;&lt; 32` equal to 1 in Java?</div>
+  According to JLS §15.19, when shifting a 32-bit <code>int</code>, the JVM takes <strong>only the lower 5 bits of the shift distance</strong> (mask: <code>distance &amp; 0x1F</code>, i.e., modulo 32).<br>
+  For a 64-bit <code>long</code>, it takes only the lower 6 bits (mask: <code>distance &amp; 0x3F</code>, i.e., modulo 64).
+  <pre><code>System.out.println(<span class="c-num">1</span> &lt;&lt; <span class="c-num">32</span>); <span class="c-com">// Shift distance: 32 & 31 = 0! Result: 1 &lt;&lt; 0 = 1</span>
+System.out.println(<span class="c-num">1</span> &lt;&lt; <span class="c-num">33</span>); <span class="c-com">// Shift distance: 33 & 31 = 1! Result: 1 &lt;&lt; 1 = 2</span></code></pre>
+</div>
+
+<!-- SECTION 10 -->
+<div class="page-break"></div>
+<h2>10. Type Conversion, Widening &amp; Type Promotion</h2>
+
+<div class="diagram-box">
+Numeric Widening Hierarchy (Automatic / Implicit):
+byte ──> short ──┐
+                 ├──> int ──> long ──> float ──> double
+char ────────────┘
+</div>
+
+<h3>Implicit Widening vs Explicit Narrowing</h3>
+<ul>
+  <li><strong>Widening (Automatic):</strong> Storing smaller type in a larger type container (No data loss risk).</li>
+  <li><strong>Narrowing (Manual Cast Required):</strong> Larger type into smaller type. Truncates bits/decimals without rounding.</li>
+</ul>
+
+<pre><code><span class="c-type">double</span> salary = <span class="c-num">50000.75</span>;
+<span class="c-type">int</span> truncated = (<span class="c-type">int</span>) salary; <span class="c-com">// 50000 (Fraction discarded; truncates towards zero)</span>
+
+<span class="c-type">double</span> neg = -<span class="c-num">10.9</span>;
+<span class="c-type">int</span> truncatedNeg = (<span class="c-type">int</span>) neg; <span class="c-com">// -10 (NOT -11!)</span>
+
+<span class="c-type">int</span> overflowVal = <span class="c-num">130</span>;
+<span class="c-type">byte</span> b = (<span class="c-type">byte</span>) overflowVal; <span class="c-com">// Output: -126 (Wraparound in 8-bit signed space!)</span></code></pre>
+
+<h3>The Universal Binary Type Promotion Rules</h3>
+<p>Whenever binary arithmetic (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>) is performed, Java applies automatic numeric promotion:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rule Priority</th>
+      <th>Operands Condition</th>
+      <th>Promoted Result Type</th>
+      <th>Placement Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Priority 1</strong></td>
+      <td>If either operand is <code>double</code></td>
+      <td><strong><code>double</code></strong></td>
+      <td><code>float + double</code> &rarr; <code>double</code></td>
+    </tr>
+    <tr>
+      <td><strong>Priority 2</strong></td>
+      <td>Else if either operand is <code>float</code></td>
+      <td><strong><code>float</code></strong></td>
+      <td><code>long + float</code> &rarr; <code>float</code></td>
+    </tr>
+    <tr>
+      <td><strong>Priority 3</strong></td>
+      <td>Else if either operand is <code>long</code></td>
+      <td><strong><code>long</code></strong></td>
+      <td><code>int + long</code> &rarr; <code>long</code></td>
+    </tr>
+    <tr>
+      <td><strong>Priority 4 (DEFAULT)</strong></td>
+      <td>All smaller integral types (<code>byte</code>, <code>short</code>, <code>char</code>)</td>
+      <td><strong><code>int</code></strong></td>
+      <td><code>byte + byte</code> &rarr; <strong><code>int</code></strong><br><code>char + short</code> &rarr; <strong><code>int</code></strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout trap">
+  <div class="callout-title">🚨 CLASSIC MCQ: Why does `byte c = a + b;` fail to compile?</div>
+  <pre><code><span class="c-type">byte</span> a = <span class="c-num">10</span>;
+<span class="c-type">byte</span> b = <span class="c-num">20</span>;
+<span class="c-com">// byte c = a + b; // ❌ COMPILE ERROR: Cannot convert from int to byte</span>
+<span class="c-type">byte</span> c = (<span class="c-type">byte</span>)(a + b); <span class="c-com">// ✔ Explicit cast required!</span></code></pre>
+  <strong>Explanation:</strong> Under JLS §5.6, unary numeric promotion always widens <code>byte</code>, <code>short</code>, and <code>char</code> operands to <code>int</code> before arithmetic execution.
+</div>
+
+<h3>The Compile-Time Constant Optimization Exception</h3>
+<pre><code><span class="c-type">byte</span> b = <span class="c-num">10</span> + <span class="c-num">20</span>; <span class="c-com">// ✔ COMPILES! 10 + 20 is evaluated at compile-time as 30, which fits in byte.</span>
+<span class="c-com">// byte b2 = 100 + 50; // ❌ COMPILE ERROR: Constant 150 overflows byte range (-128 to 127).</span></code></pre>
+
+<h3>Compound Assignment Implicit Cast Trap</h3>
+<pre><code><span class="c-type">byte</span> b = <span class="c-num">10</span>;
+<span class="c-com">// b = b + 1; // ❌ COMPILE ERROR (b + 1 produces int)</span>
+b += <span class="c-num">1</span>;      <span class="c-com">// ✔ COMPILES! Compound assignment implicitly performs: b = (byte)(b + 1);</span></code></pre>
+
+<!-- SECTION 11 -->
+<h2>11. String Concatenation &amp; Expression Precedence</h2>
+<p>The <code>+</code> operator evaluates from <strong>left to right</strong>. If either operand is a <code>String</code>, string concatenation is triggered for that sub-expression.</p>
+
+<div class="diagram-box">
+Evaluation Trace for: System.out.println(10 + 20 + "Java" + 30 + 40);
+
+Step 1: (10 + 20)           ==> 30           (Numeric Addition)
+Step 2: (30 + "Java")       ==> "30Java"     (String Concatenation)
+Step 3: ("30Java" + 30)     ==> "30Java30"   (String Concatenation)
+Step 4: ("30Java30" + 40)   ==> "30Java3040" (String Concatenation)
+Result: "30Java3040"
+</div>
+
+<!-- SECTION 12 -->
+<div class="page-break"></div>
+<h2>12. Top 8 Placement Coding Problems (Variables &amp; Bitwise)</h2>
+
+<div class="q-card">
+  <div class="q-title">Problem 1: Swap Two Numbers Without a Third Variable (With Overflow Defense)</div>
+  <p><strong>Approach A: XOR Manipulation (Optimal for Integers)</strong></p>
+  <pre><code><span class="c-kw">public static void</span> <span class="c-fn">swapXOR</span>(<span class="c-type">int</span> a, <span class="c-type">int</span> b) {
+    a = a ^ b;
+    b = a ^ b; <span class="c-com">// b = (a ^ b) ^ b = a</span>
+    a = a ^ b; <span class="c-com">// a = (a ^ b) ^ a = b</span>
+    System.out.println(<span class="c-str">"a = "</span> + a + <span class="c-str">", b = "</span> + b);
+}</code></pre>
+  <p><em>Placement Note:</em> The arithmetic approach <code>a = a + b; b = a - b; a = a - b;</code> can cause integer overflow if <code>a + b &gt; Integer.MAX_VALUE</code>. XOR is bitwise and immune to integer overflow.</p>
+</div>
+
+<div class="q-card">
+  <div class="q-title">Problem 2: Check If an Integer Is a Power of Two ($O(1)$ Time)</div>
+  <p>Powers of 2 in binary have exactly one set bit (e.g., $16 = 10000_2$, $15 = 01111_2$). Subtracting 1 flips all bits after the lowest set bit.</p>
+  <pre><code><span class="c-kw">public static boolean</span> <span class="c-fn">isPowerOfTwo</span>(<span class="c-type">int</span> n) {
+    <span class="c-kw">return</span> n &gt; <span class="c-num">0</span> &amp;&amp; (n &amp; (n - <span class="c-num">1</span>)) == <span class="c-num">0</span>;
+}</code></pre>
+</div>
+
+<div class="q-card">
+  <div class="q-title">Problem 3: Count Set Bits (Brian Kernighan's Algorithm — $O(\text{set bits})$)</div>
+  <pre><code><span class="c-kw">public static int</span> <span class="c-fn">countSetBits</span>(<span class="c-type">int</span> n) {
+    <span class="c-type">int</span> count = <span class="c-num">0</span>;
+    <span class="c-kw">while</span> (n != <span class="c-num">0</span>) {
+        n = n &amp; (n - <span class="c-num">1</span>); <span class="c-com">// Clears the lowest set bit in each iteration</span>
+        count++;
+    }
+    <span class="c-kw">return</span> count;
+}
+<span class="c-com">// Note: In production / interviews, also mention: Integer.bitCount(n);</span></code></pre>
+</div>
+
+<div class="q-card">
+  <div class="q-title">Problem 4: Find the Single Non-Repeating Element (All others appear twice)</div>
+  <p>Leverage XOR properties: $x \oplus x = 0$ and $x \oplus 0 = x$. Time: $O(n)$, Auxiliary Space: $O(1)$.</p>
+  <pre><code><span class="c-kw">public static int</span> <span class="c-fn">findSingle</span>(<span class="c-type">int</span>[] nums) {
+    <span class="c-type">int</span> unique = <span class="c-num">0</span>;
+    <span class="c-kw">for</span> (<span class="c-type">int</span> num : nums) {
+        unique ^= num;
+    }
+    <span class="c-kw">return</span> unique;
+}</code></pre>
+</div>
+
+<div class="q-card">
+  <div class="q-title">Problem 5: Reverse an Integer (Guarding Against 32-bit Overflow)</div>
+  <pre><code><span class="c-kw">public static int</span> <span class="c-fn">reverse</span>(<span class="c-type">int</span> x) {
+    <span class="c-type">int</span> rev = <span class="c-num">0</span>;
+    <span class="c-kw">while</span> (x != <span class="c-num">0</span>) {
+        <span class="c-type">int</span> pop = x % <span class="c-num">10</span>;
+        x /= <span class="c-num">10</span>;
+        <span class="c-kw">if</span> (rev &gt; Integer.MAX_VALUE / <span class="c-num">10</span> || (rev == Integer.MAX_VALUE / <span class="c-num">10</span> &amp;&amp; pop &gt; <span class="c-num">7</span>)) <span class="c-kw">return</span> <span class="c-num">0</span>;
+        <span class="c-kw">if</span> (rev &lt; Integer.MIN_VALUE / <span class="c-num">10</span> || (rev == Integer.MIN_VALUE / <span class="c-num">10</span> &amp;&amp; pop &lt; -<span class="c-num">8</span>)) <span class="c-kw">return</span> <span class="c-num">0</span>;
+        rev = rev * <span class="c-num">10</span> + pop;
+    }
+    <span class="c-kw">return</span> rev;
+}</code></pre>
+</div>
+
+<!-- SECTION 13 -->
+<div class="page-break"></div>
+<h2>13. Placement Output Prediction Drills (Rapid-Fire)</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Code Snippet</th>
+      <th>Predicted Output</th>
+      <th>Core Concept / Trap</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>System.out.println(10 / 4);</code></td>
+      <td><code>2</code></td>
+      <td>Integer division truncates decimal remainder.</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>System.out.println(10 + 20 + "Hi");</code></td>
+      <td><code>"30Hi"</code></td>
+      <td>Addition precedes string concatenation.</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>System.out.println("Hi" + 10 + 20);</code></td>
+      <td><code>"Hi1020"</code></td>
+      <td>Left-to-right: Once string appears, all <code>+</code> concatenate.</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code>char c = 'A'; System.out.println(c + 1);</code></td>
+      <td><code>66</code></td>
+      <td><code>char</code> undergoes numeric promotion to <code>int</code> (65 + 1).</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code>char c = '7'; System.out.println(c - '0');</code></td>
+      <td><code>7</code></td>
+      <td>Character ASCII digit conversion trick: $55 - 48 = 7$.</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><code>Integer a = 127, b = 127; System.out.println(a == b);</code></td>
+      <td><code>true</code></td>
+      <td>IntegerCache hit (-128 to 127).</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><code>Integer a = 128, b = 128; System.out.println(a == b);</code></td>
+      <td><code>false</code></td>
+      <td>IntegerCache miss; two distinct heap instances.</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><code>int x = Integer.MAX_VALUE; System.out.println(x + 1);</code></td>
+      <td><code>-2147483648</code></td>
+      <td>Integer overflow wraps around to <code>Integer.MIN_VALUE</code>.</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><code>int a = 5; System.out.println(a++ + a++);</code></td>
+      <td><code>11</code></td>
+      <td>$5$ (a becomes 6) $+ 6$ (a becomes 7) $= 11$.</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><code>System.out.println(1 &lt;&lt; 32);</code></td>
+      <td><code>1</code></td>
+      <td>32-bit shift distance is masked with <code>0x1F</code> ($32 \bmod 32 = 0$).</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- SECTION 14 -->
+<h2>14. 30-Second Quick Revision Cheat Sheet</h2>
+
+<div class="grid-2">
+  <div class="callout tip">
+    <div class="callout-title">📌 Primitive Summary</div>
+    <ul>
+      <li><strong>8 Primitives:</strong> byte(1B), short(2B), int(4B), long(8B), float(4B), double(8B), char(2B), boolean(JVM-dep).</li>
+      <li><strong>Default Int Literal:</strong> <code>int</code> (append <code>L</code> for long).</li>
+      <li><strong>Default Float Literal:</strong> <code>double</code> (append <code>f</code> for float).</li>
+      <li><strong>Local variables:</strong> NO default values.</li>
+    </ul>
+  </div>
+  <div class="callout hood">
+    <div class="callout-title">📌 Type Promotion &amp; Wrappers</div>
+    <ul>
+      <li><code>byte + byte</code> &rarr; <strong><code>int</code></strong> (ALWAYS!).</li>
+      <li><code>char + char</code> &rarr; <strong><code>int</code></strong>.</li>
+      <li><strong>Integer Cache:</strong> <code>-128</code> to <code>127</code>.</li>
+      <li><strong>Comparing wrappers:</strong> Always use <code>.equals()</code>.</li>
+      <li><strong>Unboxing null:</strong> Throws <code>NullPointerException</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="callout warn">
+    <div class="callout-title">📌 Bitwise &amp; Operators</div>
+    <ul>
+      <li><code>~x</code> equals <code>-(x + 1)</code>.</li>
+      <li><code>x ^ x = 0</code> and <code>x ^ 0 = x</code>.</li>
+      <li>Power of 2: <code>n &gt; 0 &amp;&amp; (n &amp; (n - 1)) == 0</code>.</li>
+      <li><code>&&</code> short-circuits; <code>&</code> evaluates both sides.</li>
+      <li>Shift distance: masked by 31 for int, 63 for long.</li>
+    </ul>
+  </div>
+  <div class="callout trap">
+    <div class="callout-title">📌 Assignments &amp; Memory</div>
+    <ul>
+      <li><code>b += 1</code> works because of implicit cast <code>(byte)(b + 1)</code>.</li>
+      <li><code>b = b + 1</code> fails compile check.</li>
+      <li><code>final Student s</code>: Reference cannot change, but object fields CAN.</li>
+      <li>Stack holds local variables &amp; references; Heap holds all objects.</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

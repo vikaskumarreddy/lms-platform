@@ -165,40 +165,50 @@ public class TenantInterceptor implements HandlerInterceptor {
 
     /**
      * Resolves tenant from the request hostname.
-     * Examples:
-     *   - "localhost:4200" or "localhost:8080" → "axisora" (super admin / main platform)
-     *   - "tenant1.localhost:4200" → "tenant1" (organization)
-     *   - "acme.example.com" → "acme" (organization)
+     * <p>
+     * Domain structure: {@code [tenant].axisoraforge.in}
+     * <ul>
+     *   <li>{@code axisoraforge.in} or {@code www.axisoraforge.in} → default org ("axisora")</li>
+     *   <li>{@code axisora.axisoraforge.in} → org with slug "axisora"</li>
+     *   <li>{@code manyasree.axisoraforge.in} → org with slug "manyasree"</li>
+     *   <li>{@code localhost}, {@code 127.0.0.1}, bare IP → default org "axisora"</li>
+     *   <li>Any unknown bare IP or tunnel host → default org "axisora"</li>
+     * </ul>
      */
     private String resolveTenantFromDomain(HttpServletRequest request) {
         String serverName = request.getServerName();
 
-        // If it's localhost, it's the main platform (super admin)
-        if (serverName.startsWith("localhost") || serverName.startsWith("127.0.0.1")) {
+        // Local development: always resolve to the default (axisora) org
+        if (serverName.startsWith("localhost")
+                || serverName.startsWith("127.0.0.1")
+                || serverName.matches("^\\d{1,3}(\\.\\d{1,3}){3}$")) {
             Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
             return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
         }
 
-        // Extract subdomain for domain-based tenancy
-        // e.g., "tenant1.localhost" or "acme.example.com"
+        // Split the hostname into parts.
+        // axisoraforge.in         → ["axisoraforge", "in"]           → 2 parts → root domain → default org
+        // www.axisoraforge.in     → ["www", "axisoraforge", "in"]    → 3 parts, first = "www" → default org
+        // axisora.axisoraforge.in → ["axisora", "axisoraforge", "in"] → 3 parts, first = tenant slug
+        // tenant.sub.axisoraforge.in → ["tenant", "sub", "axisoraforge", "in"] → 4+ parts → use first part
         String[] parts = serverName.split("\\.");
-        if (parts.length > 1) {
+        if (parts.length >= 3) {
             String subdomain = parts[0];
+            // "www" is not a tenant — treat as root domain → default org
+            if ("www".equalsIgnoreCase(subdomain)) {
+                Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
+                return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
+            }
+            // Try to resolve subdomain as a tenant slug
             Optional<Organization> org = organizationRepository.findBySlug(subdomain);
             if (org.isPresent()) {
                 return String.valueOf(org.get().getId());
             }
         }
 
-        // Unrecognized host (e.g. a tunnel hostname like *.ngrok-free.dev used by the
-        // mobile app, or a bare IP): fall back to the default organization instead of
-        // returning null. Returning null leaves the tenant context empty, and then
-        // Hibernate's @TenantId discriminator injects a match-nothing sentinel into
-        // every query — including the payment-info lookup in AuthService during
-        // LOGIN, before any JWT exists to resolve the tenant from. That made every
-        // mobile-app login report CASH / paymentRequired=false regardless of the
-        // student's real payment record. The JWT's organization_id claim re-scopes
-        // the tenant correctly on every authenticated request after login.
+        // Root domain (axisoraforge.in) or unrecognized host → fall back to default org.
+        // Returning null leaves tenant context empty and Hibernate's @TenantId
+        // discriminator injects a match-nothing sentinel into every query.
         Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
         return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
     }

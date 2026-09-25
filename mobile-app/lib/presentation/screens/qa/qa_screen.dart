@@ -458,14 +458,7 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              answer.content,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                                height: 1.4,
-                              ),
-                            ),
+                            _buildFormattedAnswer(answer.content),
                           ],
                         ),
                       )),
@@ -629,7 +622,6 @@ class _QaScreenState extends ConsumerState<QaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
     return CommonHeaderScaffold(
       subtitle: 'Q&A',
       backgroundColor: _bgDark,
@@ -949,7 +941,7 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                           color: _cyan,
                           backgroundColor: const Color(0xFF092350),
                           child: ListView.builder(
-                            padding: EdgeInsets.fromLTRB(16, 8, 16, isNavBarHidden ? 24 : 90),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                             itemCount: _filteredQuestions.length,
                             itemBuilder: (context, index) {
                               final qa = _filteredQuestions[index];
@@ -966,6 +958,89 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildFormattedAnswer(String text) {
+    final lines = text.split('\n');
+    final widgets = <Widget>[];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 4));
+        continue;
+      }
+
+      final spans = <InlineSpan>[];
+      final pattern = RegExp(r'(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`)');
+      int lastIndex = 0;
+
+      for (final match in pattern.allMatches(line)) {
+        if (match.start > lastIndex) {
+          spans.add(TextSpan(text: line.substring(lastIndex, match.start)));
+        }
+
+        final matched = match.group(0)!;
+        if (matched.startsWith('**') && matched.endsWith('**') && matched.length >= 4) {
+          spans.add(
+            TextSpan(
+              text: matched.substring(2, matched.length - 2),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          );
+        } else if (matched.startsWith('*') && matched.endsWith('*') && matched.length >= 2) {
+          spans.add(
+            TextSpan(
+              text: matched.substring(1, matched.length - 1),
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                color: Colors.white70,
+              ),
+            ),
+          );
+        } else if (matched.startsWith('`') && matched.endsWith('`') && matched.length >= 2) {
+          spans.add(
+            TextSpan(
+              text: ' ' + matched.substring(1, matched.length - 1) + ' ',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: _cyan,
+                backgroundColor: Colors.black38,
+              ),
+            ),
+          );
+        }
+        lastIndex = match.end;
+      }
+
+      if (lastIndex < line.length) {
+        spans.add(TextSpan(text: line.substring(lastIndex)));
+      }
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 1.5),
+          child: Text.rich(
+            TextSpan(children: spans),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
     );
   }
 }

@@ -59,9 +59,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       subtitle: 'Home',
       body: LayoutBuilder(builder: (context, constraints) {
         final wide = constraints.maxWidth >= 720;
-        final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
         return ListView(
-          padding: EdgeInsets.fromLTRB(18, 18, 18, isNavBarHidden ? 28 : 118),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
           children: [
             _ReferenceGreeting(theme: theme, name: name),
             const SizedBox(height: 18),
@@ -2295,8 +2294,8 @@ class _ReferenceQuickActions extends StatelessWidget {
     final actions = [
       ('AI Challenge', Icons.psychology_rounded, AppRoutes.dailyChallenge),
       ('Open Roles', Icons.work_outline, AppRoutes.placementDrives),
-      ('Applications', Icons.description_outlined, AppRoutes.assignments),
-      ('Interviews', Icons.calendar_month_outlined, AppRoutes.calendar),
+      ('Assignments', Icons.description_outlined, AppRoutes.assignments),
+      ('Support', Icons.calendar_month_outlined, AppRoutes.supportRequest),
       ('Offers', Icons.track_changes, AppRoutes.placementDrives),
       ('Courses', Icons.menu_book_outlined, AppRoutes.courses),
       ('Batch Chat', Icons.chat_bubble_outline, AppRoutes.chat),

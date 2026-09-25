@@ -8,6 +8,7 @@ import '../providers/data_providers.dart';
 import '../providers/org_theme_provider.dart';
 import '../utils/avatar_utils.dart';
 import 'app_drawer.dart';
+import '../../presentation/widgets/modern_bottom_nav_bar.dart';
 
 /// Global scaffold key used to open the drawer from any screen
 final GlobalKey<ScaffoldState> mainScaffoldKey = GlobalKey<ScaffoldState>();
@@ -139,11 +140,13 @@ class GlassHeader extends ConsumerWidget {
   final String? subtitle;
   final bool showBackButton;
   final VoidCallback? onBack;
+  final List<Widget>? actions;
   const GlassHeader(
       {super.key,
       this.subtitle,
       this.showBackButton = false,
-      this.onBack});
+      this.onBack,
+      this.actions});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -252,6 +255,10 @@ class GlassHeader extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (actions != null) ...[
+                  ...actions!,
+                  const SizedBox(width: 6),
+                ],
                 _HeaderCircleButton(
                   theme: theme,
                   tooltip: 'Notifications',
@@ -339,10 +346,10 @@ class _ProfileAvatar extends StatelessWidget {
 }
 
 
-/// A Scaffold whose body scrolls BEHIND a fixed [GlassHeader]: the header is
-/// overlaid on top while the body's safe-area top inset is inflated by the
-/// header height, so the first content lands just below the bar yet keeps
-/// scrolling underneath its translucent glass.
+/// A Scaffold whose body is safely bounded above both the floating [ModernBottomNavBar]
+/// (when visible) and the device system navigation bar (when the app navbar is hidden
+/// or on detail screens). This guarantees that screen content, cards, and buttons
+/// never collide with or get hidden beneath app or system navigation bars.
 class CommonHeaderScaffold extends ConsumerWidget {
   final Widget body;
   final String? subtitle;
@@ -350,24 +357,42 @@ class CommonHeaderScaffold extends ConsumerWidget {
   final VoidCallback? onBack;
   final Color? backgroundColor;
   final Widget? floatingActionButton;
-  const CommonHeaderScaffold(
-      {super.key,
-      required this.body,
-      this.subtitle,
-      this.showBackButton = false,
-      this.onBack,
-      this.backgroundColor,
-      this.floatingActionButton});
+  final List<Widget>? actions;
+
+  const CommonHeaderScaffold({
+    super.key,
+    required this.body,
+    this.subtitle,
+    this.showBackButton = false,
+    this.onBack,
+    this.backgroundColor,
+    this.floatingActionButton,
+    this.actions,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
+    final mediaQuery = MediaQuery.of(context);
+    final systemBottom = mediaQuery.padding.bottom;
+
+    // Dynamic layout:
+    // When bottom nav is OPEN (!isNavBarHidden): body shrinks by barHeight+systemBottom
+    //   so content never slides under the floating navbar.
+    // When bottom nav is CLOSED (isNavBarHidden): body expands to full available height,
+    //   only leaving room for the device system navigation bar.
+    final double bottomInset = isNavBarHidden
+        ? (systemBottom > 0 ? systemBottom : 0.0)
+        : (ModernBottomNavBar.barHeight + systemBottom);
+
     return Scaffold(
       backgroundColor: backgroundColor ?? const Color(0xFF071D43),
-      extendBody: true,
+      extendBody: false,
       floatingActionButton: floatingActionButton != null
-          ? Padding(
-              padding: EdgeInsets.only(bottom: isNavBarHidden ? 68.0 : 88.0),
+          ? AnimatedPadding(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: EdgeInsets.only(bottom: bottomInset + 8.0),
               child: floatingActionButton,
             )
           : null,
@@ -377,15 +402,23 @@ class CommonHeaderScaffold extends ConsumerWidget {
             subtitle: subtitle,
             showBackButton: showBackButton,
             onBack: onBack,
+            actions: actions,
           ),
           Expanded(
-            child: MediaQuery.removePadding(
-              context: context,
-              removeTop: true,
-              removeBottom: true,
-              removeLeft: true,
-              removeRight: true,
-              child: body,
+            // AnimatedContainer smoothly transitions the bottom padding as the
+            // nav bar slides in and out — content compresses/expands accordingly.
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: MediaQuery(
+                // Remove bottom padding so the child doesn't double-count it.
+                data: mediaQuery.copyWith(
+                  padding: mediaQuery.padding.copyWith(bottom: 0),
+                  viewPadding: mediaQuery.viewPadding.copyWith(bottom: 0),
+                ),
+                child: body,
+              ),
             ),
           ),
         ],

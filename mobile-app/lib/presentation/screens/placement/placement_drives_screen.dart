@@ -102,7 +102,6 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
     final rejected = (overview['rejectedCount'] as num?)?.toInt() ?? 0;
     final profileValues = metrics.values.where((value) => value >= 0).toList();
     final profileScore = profileValues.isEmpty ? 0 : (profileValues.reduce((a, b) => a + b) / profileValues.length).round();
-    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
     return Stack(children: [
       const Positioned.fill(child: _PlacementBackdrop()),
       SafeArea(
@@ -116,7 +115,7 @@ class _PlacementDrivesScreenState extends ConsumerState<PlacementDrivesScreen> {
         backgroundColor: const Color(0xFF123E72),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(12, 10, 12, isNavBarHidden ? 28 : 112),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
           children: [
             _referenceHeader(context),
             const SizedBox(height: 14),

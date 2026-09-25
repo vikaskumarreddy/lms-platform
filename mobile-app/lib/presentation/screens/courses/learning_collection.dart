@@ -72,7 +72,7 @@ class _LearningCollectionState extends ConsumerState<LearningCollection> {
           backgroundColor: const Color(0xFF123E72),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(12, 10, 12, isNavBarHidden ? 28 : 112),
+            padding: EdgeInsets.fromLTRB(12, 10, 12, isNavBarHidden ? 24 : 104),
             children: [
               Row(children: [
                 InkWell(onTap: widget.onBack, customBorder: const CircleBorder(), child: const SizedBox(width: 42, height: 42, child: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20))),

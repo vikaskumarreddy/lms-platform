@@ -302,12 +302,11 @@ class _CompanyQuestionsScreenState extends ConsumerState<CompanyQuestionsScreen>
         ],
       );
     }
-    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 4, 16, isNavBarHidden ? 24 : 90),
-      itemCount: kits.length,
-      itemBuilder: (context, index) => _kitCard(kits[index]),
-    );
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        itemCount: kits.length,
+        itemBuilder: (context, index) => _kitCard(kits[index]),
+      );
   }
 
   Widget _kitCard(Map<String, dynamic> kit) {

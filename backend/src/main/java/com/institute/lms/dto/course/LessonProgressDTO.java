@@ -75,4 +75,12 @@ public class LessonProgressDTO {
     public void setPdfNotesUrl(String pdfNotesUrl) { this.pdfNotesUrl = pdfNotesUrl; }
     public Boolean getCompleted() { return completed; }
     public void setCompleted(Boolean completed) { this.completed = completed; }
+
+    private Long nextLessonId;
+    private String nextLessonTitle;
+
+    public Long getNextLessonId() { return nextLessonId; }
+    public void setNextLessonId(Long nextLessonId) { this.nextLessonId = nextLessonId; }
+    public String getNextLessonTitle() { return nextLessonTitle; }
+    public void setNextLessonTitle(String nextLessonTitle) { this.nextLessonTitle = nextLessonTitle; }
 }

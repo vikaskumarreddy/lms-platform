@@ -265,12 +265,9 @@ interface FeatureToggleDef {
             </div>
             <select [(ngModel)]="aiConfig.modelName" (ngModelChange)="onModelSelectChange($event)" name="aiModelName"
                     style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;background:#FFF;">
-              <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Latest Active Model)</option>
-              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra-low latency)</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep reasoning)</option>
-              <option value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy)</option>
-              <option value="gemini-1.5-pro">Gemini 1.5 Pro (Legacy)</option>
+              <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended - Latest & Fast)</option>
+              <option value="gemini-3.5-flash">Gemini 3.5 Flash (High Speed)</option>
+              <option value="gemini-flash-latest">Gemini Flash Latest</option>
               <option *ngFor="let m of availableModels" [value]="m.id">{{ m.name }}</option>
               <option value="CUSTOM">Custom Model Name...</option>
             </select>
@@ -322,13 +319,17 @@ interface FeatureToggleDef {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Doubt Resolution Limit (per student)</label>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Lesson AI Tutor Limit (questions/lesson)</label>
+            <input type="number" [(ngModel)]="aiConfig.lessonAiQuestionLimit" name="aiLessonLimit" min="1" max="1000" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Doubt Resolution Limit</label>
             <input type="number" [(ngModel)]="aiConfig.dailyQuestionLimit" name="aiDailyLimit" min="1" max="100" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;">
           </div>
           <div>
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Challenges Allowed (per student)</label>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Daily Challenges Allowed</label>
             <input type="number" [(ngModel)]="aiConfig.dailyChallengeLimit" name="aiChallengeLimit" min="1" max="10" style="width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px;box-sizing:border-box;">
           </div>
         </div>
@@ -514,7 +515,8 @@ export class SettingsComponent implements OnInit {
     apiKey: '',
     enabled: true,
     dailyQuestionLimit: 10,
-    dailyChallengeLimit: 1
+    dailyChallengeLimit: 1,
+    lessonAiQuestionLimit: 100
   };
   aiConfigMaskedKey: string | null = null;
   showAiApiKey = false;
@@ -756,7 +758,7 @@ export class SettingsComponent implements OnInit {
         if (data) {
           const model = data.modelName || 'gemini-3.6-flash';
           this.aiConfig.modelName = model;
-          const knownStandard = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+          const knownStandard = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.8-flash'];
           if (!knownStandard.includes(model)) {
             this.useCustomModel = true;
             this.customModelInput = model;
@@ -764,6 +766,7 @@ export class SettingsComponent implements OnInit {
           this.aiConfig.enabled = data.enabled !== false;
           this.aiConfig.dailyQuestionLimit = data.dailyQuestionLimit || 10;
           this.aiConfig.dailyChallengeLimit = data.dailyChallengeLimit || 1;
+          this.aiConfig.lessonAiQuestionLimit = data.lessonAiQuestionLimit || 100;
           if (data.isConfigured) {
             this.aiConfigMaskedKey = data.apiKeyHint || data.maskedApiKey;
           }

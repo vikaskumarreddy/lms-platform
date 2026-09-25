@@ -25,6 +25,7 @@ import 'package:lms_student_app/presentation/screens/profile/profile_screen.dart
 import 'package:lms_student_app/presentation/screens/qa/qa_screen.dart';
 import 'package:lms_student_app/presentation/screens/settings/settings_screen.dart';
 import 'package:lms_student_app/presentation/screens/video/video_player_screen.dart';
+import 'package:lms_student_app/presentation/screens/video/widgets/lesson_ai_chat_sheet.dart';
 import 'package:lms_student_app/presentation/screens/notes/personal_reminders.dart';
 import 'package:lms_student_app/presentation/widgets/in_app_notification_overlay.dart';
 import 'package:lms_student_app/presentation/widgets/modern_bottom_nav_bar.dart';
@@ -623,24 +624,25 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Verify "Hide" button is visible
-    expect(find.text('Hide'), findsOneWidget);
-    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsWidgets);
+    // Verify gesture edge arrow is visible with hide key
+    expect(find.byKey(const ValueKey('hide-nav-bar-btn')), findsOneWidget);
+    expect(find.byType(ModernBottomNavBar), findsOneWidget);
 
-    // Tap "Hide" button to hide bottom navigation bar
-    await tester.tap(find.text('Hide'));
+    // Tap gesture edge arrow to hide bottom navigation bar
+    await tester.tap(find.byKey(const ValueKey('hide-nav-bar-btn')));
     await tester.pumpAndSettle();
 
-    // Verify "Show Nav" floating button appears
-    expect(find.text('Show Nav'), findsOneWidget);
-    expect(find.byIcon(Icons.keyboard_arrow_up_rounded), findsOneWidget);
+    // Verify navbar is hidden and show nav key is active on gesture arrow
+    expect(find.byType(ModernBottomNavBar), findsNothing);
+    expect(find.byKey(const ValueKey('show-nav-bar-btn')), findsOneWidget);
 
-    // Tap "Show Nav" to restore navigation bar
-    await tester.tap(find.text('Show Nav'));
+    // Tap gesture edge arrow to restore navigation bar
+    await tester.tap(find.byKey(const ValueKey('show-nav-bar-btn')));
     await tester.pumpAndSettle();
 
-    // Verify "Hide" button is back
-    expect(find.text('Hide'), findsOneWidget);
+    // Verify navbar is restored
+    expect(find.byType(ModernBottomNavBar), findsOneWidget);
+    expect(find.byKey(const ValueKey('hide-nav-bar-btn')), findsOneWidget);
   });
 
   testWidgets('CompanyQuestionsViewScreen renders header with back button and company title', (tester) async {
@@ -871,5 +873,81 @@ void main() {
 
     listView = tester.widget<ListView>(find.byType(ListView));
     expect((listView.padding as EdgeInsets).bottom, 110.0);
+  });
+
+  testWidgets('LessonAiChatSheet renders header, 100/100 question limit badge, suggestion chips, and input', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final testLesson = Lesson(
+      id: 999,
+      title: 'Operating Systems & Architecture',
+      heading: 'Process Scheduling & Memory Management',
+      notes: 'CPU scheduling algorithms and virtual memory concepts.',
+      videoUrl: '',
+      pdfNotesUrl: 'https://example.com/os_notes.pdf',
+      duration: '45m',
+      isLocked: false,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: LessonAiChatSheet(
+              lesson: testLesson,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify AI Tutor title and badges
+    expect(find.text('AI Tutor'), findsOneWidget);
+    expect(find.text('PDF Context'), findsOneWidget);
+    expect(find.text('Process Scheduling & Memory Management'), findsOneWidget);
+
+    // Verify 100 question limit badge
+    expect(find.text('100/100 left'), findsOneWidget);
+
+    // Verify starter question suggestion chips
+    expect(find.text('📝 Summarize this lesson'), findsOneWidget);
+    expect(find.text('💡 Key takeaways & formulas'), findsOneWidget);
+    expect(find.text('❓ Give me 3 practice questions'), findsOneWidget);
+    expect(find.text('🔍 Explain core concepts step-by-step'), findsOneWidget);
+
+    // Verify input bar textfield hint
+    expect(find.text('Ask anything about this lesson...'), findsOneWidget);
+
+    // Verify typing in question field
+    await tester.enterText(find.byType(TextField), 'What is virtual memory?');
+    expect(find.text('What is virtual memory?'), findsOneWidget);
+  });
+
+  testWidgets('CommonHeaderScaffold renders custom header action buttons', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: CommonHeaderScaffold(
+            subtitle: 'Lesson',
+            actions: [
+              Text('Ask AI'),
+              Icon(Icons.auto_awesome),
+            ],
+            body: Center(child: Text('Lesson Content')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ask AI'), findsOneWidget);
+    expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+    expect(find.text('Lesson Content'), findsOneWidget);
   });
 }

@@ -72,7 +72,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileAsync = ref.watch(userProfileProvider);
     final coursesAsync = ref.watch(coursesProvider);
     final certsAsync = ref.watch(certificatesProvider);
-    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
 
     return CommonHeaderScaffold(
       subtitle: 'Profile',
@@ -152,7 +151,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             left: false,
             right: false,
             child: ListView(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, isNavBarHidden ? 28 : 110),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
                 // 1. Top Profile Card with Glowing Avatar & Upgrade Plan
                 _buildTopProfileCard(

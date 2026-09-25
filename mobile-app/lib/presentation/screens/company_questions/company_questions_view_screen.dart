@@ -156,9 +156,8 @@ class _CompanyQuestionsViewScreenState
   }
 
   Widget _buildBlog() {
-    final isNavBarHidden = ref.watch(shellNavBarHiddenProvider);
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, isNavBarHidden ? 24 : 90),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         _buildIntro(),
         const SizedBox(height: 14),

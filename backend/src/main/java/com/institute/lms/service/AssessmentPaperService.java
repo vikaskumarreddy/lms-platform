@@ -77,6 +77,25 @@ public class AssessmentPaperService {
     }
 
     @Transactional
+    public List<AssessmentQuestion> createQuestionsBulk(AssessmentType type, Long assessmentId, List<QuestionForm> forms) {
+        if (forms == null || forms.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int currentCount = (int) questionCount(type, assessmentId);
+        List<AssessmentQuestion> savedList = new ArrayList<>();
+        for (int i = 0; i < forms.size(); i++) {
+            QuestionForm form = forms.get(i);
+            AssessmentQuestion question = new AssessmentQuestion();
+            question.setAssessmentType(type);
+            question.setAssessmentId(assessmentId);
+            question.setDisplayOrder(form.displayOrder != null ? form.displayOrder : (currentCount + i));
+            apply(question, form);
+            savedList.add(questionRepository.save(question));
+        }
+        return savedList;
+    }
+
+    @Transactional
     public AssessmentQuestion updateQuestion(Long questionId, QuestionForm form) {
         AssessmentQuestion question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found: " + questionId));

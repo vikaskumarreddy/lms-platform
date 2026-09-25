@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/utils/certificate_pdf_generator.dart';
 import '../../../core/widgets/common_header.dart';
+import '../../../core/config/app_config.dart';
 
 class CertificatesScreen extends ConsumerWidget {
   const CertificatesScreen({super.key});
@@ -107,7 +108,7 @@ class _CertificateCard extends StatelessWidget {
     final courseName = cert['courseName'] ?? 'Certification';
     final instituteName = cert['instituteName'] ?? 'Institute';
     final credentialId = cert['credentialId'] ?? '';
-    final verifyUrl = 'https://lms-platform.com/verify/$credentialId';
+    final verifyUrl = AppConfig.certificateVerifyUrl(credentialId);
     final uri = Uri.parse(
       'https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME'
       '&name=${Uri.encodeComponent(courseName)}'
@@ -143,6 +144,7 @@ class _CertificateCard extends StatelessWidget {
   }
 
   Future<pw.Document> _buildDoc(BuildContext context) {
+    final credentialId = cert['credentialId'] ?? '';
     return CertificatePdfGenerator.generate(
       accentColor: _gold.value,
       primaryColor: const Color(0xFF0C2B64).value,
@@ -151,8 +153,9 @@ class _CertificateCard extends StatelessWidget {
       instituteName: cert['instituteName'] ?? '',
       courseName: cert['courseName'] ?? '',
       duration: cert['duration'],
-      credentialId: cert['credentialId'] ?? '',
+      credentialId: credentialId,
       issueDate: cert['issueDate'] ?? '',
+      verifyUrl: AppConfig.certificateVerifyUrl(credentialId),
     );
   }
 

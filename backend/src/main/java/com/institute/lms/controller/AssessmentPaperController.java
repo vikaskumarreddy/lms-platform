@@ -58,6 +58,23 @@ public class AssessmentPaperController {
         return ResponseEntity.ok(Map.of("id", saved.getId()));
     }
 
+    @PostMapping("/questions/bulk")
+    public ResponseEntity<?> createQuestionsBulk(@PathVariable String type,
+                                                @PathVariable Long assessmentId,
+                                                @RequestBody List<AssessmentPaperService.QuestionForm> forms) {
+        if (forms == null || forms.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No questions provided"));
+        }
+        for (int i = 0; i < forms.size(); i++) {
+            String error = validate(forms.get(i));
+            if (error != null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Question #" + (i + 1) + ": " + error));
+            }
+        }
+        List<AssessmentQuestion> saved = paperService.createQuestionsBulk(AssessmentType.from(type), assessmentId, forms);
+        return ResponseEntity.ok(Map.of("count", saved.size(), "message", "Imported " + saved.size() + " questions successfully"));
+    }
+
     @PutMapping("/questions/{questionId}")
     public ResponseEntity<?> updateQuestion(@PathVariable String type,
                                             @PathVariable Long assessmentId,

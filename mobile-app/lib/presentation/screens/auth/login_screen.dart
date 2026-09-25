@@ -128,8 +128,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           user.planId != null;
       context.go(needsPayment ? AppRoutes.paymentFor(user!.planId!) : AppRoutes.home);
     } else {
+      final authError = ref.read(mobileAuthProvider).errorMessage;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login failed. Check your credentials.'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(authError != null && authError.isNotEmpty
+              ? authError
+              : 'Login failed. Check your credentials.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }

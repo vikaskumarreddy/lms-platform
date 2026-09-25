@@ -14,6 +14,8 @@ class Lesson {
   final String thumbnailUrl;
   final String pdfNotesUrl;
   final String notes;
+  final int? nextLessonId;
+  final String? nextLessonTitle;
 
   Lesson({
     required this.id,
@@ -28,6 +30,8 @@ class Lesson {
     this.thumbnailUrl = '',
     this.pdfNotesUrl = '',
     required this.notes,
+    this.nextLessonId,
+    this.nextLessonTitle,
   });
 
   factory Lesson.fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,8 @@ class Lesson {
       thumbnailUrl: json['thumbnailUrl']?.toString() ?? '',
       pdfNotesUrl: json['pdfNotesUrl']?.toString() ?? '',
       notes: json['content']?.toString() ?? json['notes']?.toString() ?? '',
+      nextLessonId: json['nextLessonId'] != null ? _safeInt(json['nextLessonId']) : null,
+      nextLessonTitle: json['nextLessonTitle']?.toString(),
     );
   }
 

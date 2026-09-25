@@ -1,0 +1,10 @@
+.dart_tool/
+.pub-cache/
+.pub/
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+!build/web/**

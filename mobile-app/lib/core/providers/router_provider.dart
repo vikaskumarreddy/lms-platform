@@ -55,6 +55,60 @@ String _placementFilter(String? value) {
   }
 }
 
+CustomTransitionPage<void> buildPremiumTransitionPage({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final secondaryCurved = CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+
+      return FadeTransition(
+        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.04, 0.0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 1.0, end: 0.0).animate(secondaryCurved),
+              child: child,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+GoRoute _animatedRoute({
+  required String path,
+  required Widget Function(BuildContext, GoRouterState) builder,
+}) {
+  return GoRoute(
+    path: path,
+    pageBuilder: (context, state) => buildPremiumTransitionPage(
+      state: state,
+      child: builder(context, state),
+    ),
+  );
+}
+
 /// Root navigator key, shared with [InAppNotificationOverlay] so it can find
 /// a live [OverlayState] (via `Navigator.of(context).overlay`) to insert the
 /// foreground push-notification card into from outside the widget tree --
@@ -115,54 +169,54 @@ final routerProvider = Provider<GoRouter>((ref) {
       return AppRoutes.paymentFor(user.planId!);
     },
     routes: [
-      GoRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
-      GoRoute(path: AppRoutes.landing, builder: (context, state) => const LandingScreen()),
-      GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
-      GoRoute(path: AppRoutes.register, builder: (context, state) => const RegisterScreen()),
-      GoRoute(path: AppRoutes.forgotPassword, builder: (context, state) => const ForgotPasswordScreen()),
-      GoRoute(path: AppRoutes.onboarding, builder: (context, state) => const OnboardingScreen()),
+      _animatedRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
+      _animatedRoute(path: AppRoutes.landing, builder: (context, state) => const LandingScreen()),
+      _animatedRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
+      _animatedRoute(path: AppRoutes.register, builder: (context, state) => const RegisterScreen()),
+      _animatedRoute(path: AppRoutes.forgotPassword, builder: (context, state) => const ForgotPasswordScreen()),
+      _animatedRoute(path: AppRoutes.onboarding, builder: (context, state) => const OnboardingScreen()),
       ShellRoute(
         builder: (context, state, child) => MainShellScreen(child: child),
         routes: [
-          GoRoute(path: '/notes', builder: (context, state) => const NotesScreen(lessonId: 0)),
-          GoRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
-          GoRoute(path: AppRoutes.home, builder: (context, state) => const HomeScreen()),
-          GoRoute(path: AppRoutes.courses, builder: (context, state) => const CoursesScreen()),
-          GoRoute(path: AppRoutes.courseDetail, builder: (context, state) => CourseDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
-          GoRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
-          GoRoute(path: AppRoutes.notifications, builder: (context, state) => NotificationsScreen()),
-          GoRoute(path: AppRoutes.settings, builder: (context, state) => const SettingsScreen()),
-          GoRoute(path: AppRoutes.placementDrives, builder: (context, state) => PlacementDrivesScreen(initialFilter: _placementFilter(state.uri.queryParameters['filter']))),
-          GoRoute(path: AppRoutes.calendar, builder: (context, state) => const CalendarScreen()),
-          GoRoute(path: AppRoutes.assignments, builder: (context, state) => const AssignmentsScreen()),
-          GoRoute(path: AppRoutes.exams, builder: (context, state) => const ExamsScreen()),
-          GoRoute(path: AppRoutes.certificates, builder: (context, state) => const CertificatesScreen()),
-          GoRoute(path: AppRoutes.resumeBuilder, builder: (context, state) => const ResumeBuilderScreen()),
-          GoRoute(path: AppRoutes.discussion, builder: (context, state) => DiscussionScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
-          GoRoute(path: AppRoutes.search, builder: (context, state) => const SearchScreen()),
-          GoRoute(path: AppRoutes.subscription, builder: (context, state) => const SubscriptionScreen()),
-          GoRoute(path: AppRoutes.paymentHistory, builder: (context, state) => const PaymentHistoryScreen()),
-          GoRoute(path: AppRoutes.attendance, builder: (context, state) => const AttendanceScreen()),
-          GoRoute(path: AppRoutes.feedback, builder: (context, state) => const FeedbackScreen()),
-          GoRoute(path: AppRoutes.interviewHistory, builder: (context, state) => const InterviewHistoryScreen()),
-          GoRoute(path: AppRoutes.bookmarks, builder: (context, state) => const BookmarksScreen()),
-          GoRoute(path: AppRoutes.leaderboard, builder: (context, state) => const LeaderboardScreen()),
-          GoRoute(path: AppRoutes.dailyChallenge, builder: (context, state) => const DailyChallengeScreen()),
-          GoRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
-          GoRoute(path: AppRoutes.companyQuestions, builder: (context, state) => const CompanyQuestionsScreen()),
-          GoRoute(path: AppRoutes.supportRequest, builder: (context, state) => const SupportRequestScreen()),
-          GoRoute(path: AppRoutes.sectionLessons, builder: (context, state) => CourseSectionLessonsScreen(sectionId: int.tryParse(state.pathParameters['sectionId'] ?? '') ?? 0)),
-          GoRoute(path: AppRoutes.lesson, builder: (context, state) => LessonPlayerScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
-          GoRoute(path: AppRoutes.chat, builder: (context, state) => const ChatScreen()),
-          GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
+          _animatedRoute(path: '/notes', builder: (context, state) => const NotesScreen(lessonId: 0)),
+          _animatedRoute(path: AppRoutes.notes, builder: (context, state) => NotesScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
+          _animatedRoute(path: AppRoutes.home, builder: (context, state) => const HomeScreen()),
+          _animatedRoute(path: AppRoutes.courses, builder: (context, state) => const CoursesScreen()),
+          _animatedRoute(path: AppRoutes.courseDetail, builder: (context, state) => CourseDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+          _animatedRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
+          _animatedRoute(path: AppRoutes.notifications, builder: (context, state) => const NotificationsScreen()),
+          _animatedRoute(path: AppRoutes.settings, builder: (context, state) => const SettingsScreen()),
+          _animatedRoute(path: AppRoutes.placementDrives, builder: (context, state) => PlacementDrivesScreen(initialFilter: _placementFilter(state.uri.queryParameters['filter']))),
+          _animatedRoute(path: AppRoutes.calendar, builder: (context, state) => const CalendarScreen()),
+          _animatedRoute(path: AppRoutes.assignments, builder: (context, state) => const AssignmentsScreen()),
+          _animatedRoute(path: AppRoutes.exams, builder: (context, state) => const ExamsScreen()),
+          _animatedRoute(path: AppRoutes.certificates, builder: (context, state) => const CertificatesScreen()),
+          _animatedRoute(path: AppRoutes.resumeBuilder, builder: (context, state) => const ResumeBuilderScreen()),
+          _animatedRoute(path: AppRoutes.discussion, builder: (context, state) => DiscussionScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
+          _animatedRoute(path: AppRoutes.search, builder: (context, state) => const SearchScreen()),
+          _animatedRoute(path: AppRoutes.subscription, builder: (context, state) => const SubscriptionScreen()),
+          _animatedRoute(path: AppRoutes.paymentHistory, builder: (context, state) => const PaymentHistoryScreen()),
+          _animatedRoute(path: AppRoutes.attendance, builder: (context, state) => const AttendanceScreen()),
+          _animatedRoute(path: AppRoutes.feedback, builder: (context, state) => const FeedbackScreen()),
+          _animatedRoute(path: AppRoutes.interviewHistory, builder: (context, state) => const InterviewHistoryScreen()),
+          _animatedRoute(path: AppRoutes.bookmarks, builder: (context, state) => const BookmarksScreen()),
+          _animatedRoute(path: AppRoutes.leaderboard, builder: (context, state) => const LeaderboardScreen()),
+          _animatedRoute(path: AppRoutes.dailyChallenge, builder: (context, state) => const DailyChallengeScreen()),
+          _animatedRoute(path: AppRoutes.qa, builder: (context, state) => const QaScreen()),
+          _animatedRoute(path: AppRoutes.companyQuestions, builder: (context, state) => const CompanyQuestionsScreen()),
+          _animatedRoute(path: AppRoutes.supportRequest, builder: (context, state) => const SupportRequestScreen()),
+          _animatedRoute(path: AppRoutes.sectionLessons, builder: (context, state) => CourseSectionLessonsScreen(sectionId: int.tryParse(state.pathParameters['sectionId'] ?? '') ?? 0)),
+          _animatedRoute(path: AppRoutes.lesson, builder: (context, state) => LessonPlayerScreen(lessonId: int.tryParse(state.pathParameters['lessonId'] ?? '') ?? 0)),
+          _animatedRoute(path: AppRoutes.chat, builder: (context, state) => const ChatScreen()),
+          _animatedRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
         ],
       ),
-      GoRoute(path: AppRoutes.inAppBrowser, builder: (context, state) => InAppBrowserScreen(
+      _animatedRoute(path: AppRoutes.inAppBrowser, builder: (context, state) => InAppBrowserScreen(
         url: state.uri.queryParameters['url'] ?? '',
         title: state.uri.queryParameters['title'] ?? 'Browser',
       )),
       // Outside the shell: a paper in progress should not show the bottom nav.
-      GoRoute(
+      _animatedRoute(
         path: AppRoutes.assessmentPaper,
         builder: (context, state) => AssessmentPaperScreen(
           type: state.pathParameters['type'] ?? 'assignments',
@@ -172,9 +226,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           totalMarks: int.tryParse(state.uri.queryParameters['marks'] ?? ''),
         ),
       ),
-      GoRoute(path: AppRoutes.mentorChat, builder: (context, state) => ChatScreen(mentorId: int.tryParse(state.pathParameters['mentorId'] ?? '') ?? 0)),
-
-      GoRoute(path: AppRoutes.payment, builder: (context, state) => PaymentScreen(planId: int.tryParse(state.pathParameters['planId'] ?? '') ?? 0)),
+      _animatedRoute(path: AppRoutes.payment, builder: (context, state) => PaymentScreen(planId: int.tryParse(state.pathParameters['planId'] ?? '') ?? 0)),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

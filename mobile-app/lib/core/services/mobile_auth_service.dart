@@ -7,7 +7,7 @@ import '../models/auth_user.dart';
 /// Mobile authentication service that communicates with the backend
 /// to handle login, registration, token persistence, and user profile retrieval.
 class MobileAuthService {
-  static const String _baseUrl = AppConfig.apiBaseUrl;
+  static String get _baseUrl => AppConfig.apiBaseUrl;
 
   /// The key used to store the JWT token in SharedPreferences.
   static const String _tokenKey = 'access_token';
@@ -72,7 +72,10 @@ class MobileAuthService {
     final prefs = await SharedPreferences.getInstance();
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: json.encode({'email': email, 'password': password}),
     );
 
@@ -116,7 +119,10 @@ class MobileAuthService {
 
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/register'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: json.encode(payload),
     );
 

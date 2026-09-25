@@ -119,9 +119,12 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                 Expanded(
                   child: TextField(
                     controller: _commentController,
+                    style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                    cursorColor: const Color(0xFF0F172A),
                     decoration: InputDecoration(
                       hintText: 'Add a comment...',
-                      prefixIcon: const Icon(Icons.comment, size: 20),
+                      hintStyle: TextStyle(color: Colors.grey.shade600),
+                      prefixIcon: const Icon(Icons.comment, size: 20, color: Color(0xFF64748B)),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),

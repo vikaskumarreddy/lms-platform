@@ -1,5 +1,6 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../config/app_config.dart';
 
 /// Generates a certificate PDF document using data configured by the admin
 /// (institute name, course name, duration) combined with the currently
@@ -19,7 +20,7 @@ class CertificatePdfGenerator {
     final doc = pw.Document();
     final gold = PdfColor.fromInt(accentColor);
     final navy = PdfColor.fromInt(primaryColor);
-    final String publicUrl = verifyUrl ?? 'https://lms-platform.com/verify/$credentialId';
+    final String publicUrl = verifyUrl ?? AppConfig.certificateVerifyUrl(credentialId);
     final String formattedIssueDate = (issueDate != null && issueDate.isNotEmpty)
         ? issueDate
         : DateTime.now().toString().split(' ')[0];

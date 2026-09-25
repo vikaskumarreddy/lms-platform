@@ -610,15 +610,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ),
-            Text(
-              content,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: isMe ? _navyText : Colors.white,
-                fontWeight: isMe ? FontWeight.w500 : FontWeight.normal,
-                height: 1.35,
-              ),
-            ),
+            _buildFormattedMessage(content, isMe),
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.bottomRight,
@@ -632,6 +624,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFormattedMessage(String text, bool isMe) {
+    final baseColor = isMe ? _navyText : Colors.white;
+    final spans = <InlineSpan>[];
+    final pattern = RegExp(r'(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`)');
+    int lastIndex = 0;
+
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
+      }
+
+      final matched = match.group(0)!;
+      if (matched.startsWith('**') && matched.endsWith('**') && matched.length >= 4) {
+        spans.add(
+          TextSpan(
+            text: matched.substring(2, matched.length - 2),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: baseColor,
+            ),
+          ),
+        );
+      } else if (matched.startsWith('*') && matched.endsWith('*') && matched.length >= 2) {
+        spans.add(
+          TextSpan(
+            text: matched.substring(1, matched.length - 1),
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isMe ? baseColor.withOpacity(0.9) : Colors.white70,
+            ),
+          ),
+        );
+      } else if (matched.startsWith('`') && matched.endsWith('`') && matched.length >= 2) {
+        spans.add(
+          TextSpan(
+            text: ' ' + matched.substring(1, matched.length - 1) + ' ',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: isMe ? const Color(0xFF0F172A) : _cyan,
+              backgroundColor: isMe ? Colors.black12 : Colors.black45,
+            ),
+          ),
+        );
+      }
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex)));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
+      style: TextStyle(
+        fontSize: 13.5,
+        color: baseColor,
+        fontWeight: isMe ? FontWeight.w500 : FontWeight.normal,
+        height: 1.35,
       ),
     );
   }

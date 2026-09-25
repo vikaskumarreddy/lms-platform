@@ -1,12 +1,11 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/offline_manager.dart';
 
 class InAppBrowserScreen extends StatefulWidget {
   final String url;
@@ -44,11 +43,9 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
   /// page. PDFs are therefore downloaded and rendered by a real, native PDF
   /// renderer (flutter_pdfview) instead — see _downloadPdf()/build() below.
   ///
-  /// Self-hosted files served through /api/media/{id}/serve (Media & Files
-  /// uploads) or the legacy /api/pdf-notes/{id}/file never end in ".pdf" —
-  /// the extension lives in the Content-Disposition header, not the URL path
-  /// — so a plain ".pdf" suffix check missed every self-hosted PDF.
+  /// On Web, InAppWebView already handles PDFs via browser iframe, so return false on web.
   bool get _isPdf {
+    if (kIsWeb) return false;
     final path = widget.url.toLowerCase();
     final cut = path.split('?').first;
     if (cut.endsWith('.pdf') || (path.contains('blob:') && path.contains('pdf'))) {
@@ -57,10 +54,7 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
     return cut.contains('/api/media/') || cut.contains('/api/pdf-notes/');
   }
 
-  /// Downloads the PDF's raw bytes directly (same HTTP GET the device already
-  /// does successfully when the URL is opened in Chrome — no WebView, no
-  /// Google Docs Viewer, no third-party JS viewer, no server-side hop that
-  /// can hit an ngrok interstitial page), writes them to a temp file, and
+  /// Downloads the PDF's raw bytes directly, writes them to a temp file, and
   /// hands that file to a native PDF renderer.
   Future<void> _downloadPdf() async {
     setState(() { _pdfError = null; _pdfLocalPath = null; });
@@ -75,10 +69,8 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
         setState(() => _pdfError = 'This PDF appears to be empty.');
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/lesson_pdf_${DateTime.now().millisecondsSinceEpoch}.pdf');
-      await file.writeAsBytes(bytes, flush: true);
-      if (mounted) setState(() => _pdfLocalPath = file.path);
+      final path = await OfflineManager.instance.saveTempPdf(bytes);
+      if (mounted) setState(() => _pdfLocalPath = path);
     } catch (e) {
       if (mounted) setState(() => _pdfError = 'Could not load this PDF. Check your connection and try again.');
     }

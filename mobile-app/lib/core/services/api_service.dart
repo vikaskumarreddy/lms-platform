@@ -15,7 +15,7 @@ import '../../data/models/question_model.dart';
 import '../../data/models/placement_drive_model.dart';
 
 class ApiService {
-  static const String baseUrl = AppConfig.apiBaseUrl;
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// The logged-in student's own ID, as stored on login. Used client-side to
   /// tell "my booking" apart from other students' slots in a shared list.
@@ -30,6 +30,7 @@ class ApiService {
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'ngrok-skip-browser-warning': 'true',
     };
   }
 
@@ -73,6 +74,53 @@ class ApiService {
     } catch (e) {
       return null;
     }
+  }
+
+  Future<dynamic> delete(String path) async {
+    try {
+      final headers = await _getHeaders();
+      String cleanPath = path.startsWith('/') ? path : '/$path';
+      if (cleanPath.startsWith('/api/')) {
+        cleanPath = cleanPath.substring(4);
+      }
+      final url = path.startsWith('http') ? Uri.parse(path) : Uri.parse('$baseUrl$cleanPath');
+      final response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 20));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return true;
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get chat history and question limit status for Lesson AI Tutor
+  Future<Map<String, dynamic>?> getLessonAiChat(int lessonId) async {
+    final res = await get('/api/ai/lesson-chat/$lessonId');
+    if (res is Map) {
+      return Map<String, dynamic>.from(res);
+    }
+    return null;
+  }
+
+  /// Ask a question to the Lesson AI Tutor with PDF context
+  Future<Map<String, dynamic>?> askLessonAiQuestion(int lessonId, String question, {String? pdfContext}) async {
+    final body = <String, dynamic>{
+      'question': question,
+      if (pdfContext != null && pdfContext.isNotEmpty) 'pdfContext': pdfContext,
+    };
+    final res = await post('/api/ai/lesson-chat/$lessonId/ask', body);
+    if (res is Map) {
+      return Map<String, dynamic>.from(res);
+    }
+    return null;
+  }
+
+  /// Clear Lesson AI chat history
+  Future<bool> clearLessonAiChat(int lessonId) async {
+    final res = await delete('/api/ai/lesson-chat/$lessonId/clear');
+    return res != null;
   }
 
   Future<List<Map<String, dynamic>>> getStudyTopics() async {

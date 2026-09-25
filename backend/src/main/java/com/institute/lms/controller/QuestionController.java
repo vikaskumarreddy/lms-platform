@@ -138,7 +138,7 @@ public class QuestionController {
                 Answer aiAnswer = new Answer();
                 aiAnswer.setQuestion(saved);
                 aiAnswer.setContent(aiAnswerText);
-                aiAnswer.setAuthorName("🤖 AI Teaching Assistant (Gemini 1.5 Flash)");
+                aiAnswer.setAuthorName("🤖 AI Teaching Assistant (Gemini 3.6 Flash)");
                 aiAnswer.setIsAiGenerated(true);
                 aiAnswer.setIsAccepted(false);
                 aiAnswer.setVoteCount(0);

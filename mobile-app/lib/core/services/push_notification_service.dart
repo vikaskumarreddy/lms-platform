@@ -53,6 +53,7 @@ class PushNotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> initialize(GoRouter router) async {
+    if (kIsWeb) return; // Push notification and local notification channels are native-only
     _router = router;
     if (_initialized) return;
     _initialized = true;
@@ -282,6 +283,7 @@ class PushNotificationService {
   }
 
   Future<void> clearToken() async {
+    if (kIsWeb) return;
     try {
       await FirebaseMessaging.instance.deleteToken();
     } catch (e) {

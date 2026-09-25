@@ -15,7 +15,7 @@ public class OrgAiConfig extends BaseEntity {
 
     @Column(name = "model_name", nullable = false, length = 50)
     @Builder.Default
-    private String modelName = "gemini-1.5-flash";
+    private String modelName = "gemini-3.6-flash";
 
     @Column(name = "api_key", columnDefinition = "TEXT")
     private String apiKey;
@@ -31,4 +31,8 @@ public class OrgAiConfig extends BaseEntity {
     @Column(name = "daily_challenge_limit")
     @Builder.Default
     private Integer dailyChallengeLimit = 1;
+
+    @Column(name = "lesson_ai_question_limit")
+    @Builder.Default
+    private Integer lessonAiQuestionLimit = 100;
 }

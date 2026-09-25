@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LMS Platform - Architecture A (S3 + CloudFront Frontend with EC2 Backend Origin)'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: 'prod'
+    Description: 'Deployment environment name (e.g. prod, staging)'
+
+  EC2BackendOriginHost:
+    Type: String
+    Description: 'Public IP or DNS of the EC2 instance running Spring Boot backend (e.g., ec2-1-2-3-4.compute-1.amazonaws.com or api.yourdomain.com)'
+
+  EC2BackendOriginPort:
+    Type: Number
+    Default: 8080
+    Description: 'Port where the backend service listens (e.g. 8080 or 80)'
+
+  CustomDomainName:
+    Type: String
+    Default: ''
+    Description: 'Optional custom domain for the frontend (e.g. lms.yourdomain.com). Leave empty to use default cloudfront.net URL.'
+
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: 'Optional ACM Certificate ARN in us-east-1 for the custom domain (required if CustomDomainName is provided).'
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomainName, '']]
+
+Resources:
+  # ----------------------------------------------------------------------------
+  # S3 Bucket for Angular Admin Portal Static Assets
+  # ----------------------------------------------------------------------------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'lms-frontend-${EnvironmentName}-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  # ----------------------------------------------------------------------------
+  # CloudFront Origin Access Control (OAC) for secure S3 access
+  # ----------------------------------------------------------------------------
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'lms-frontend-oac-${EnvironmentName}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ----------------------------------------------------------------------------
+  # S3 Bucket Policy allowing CloudFront OAC GetObject
+  # ----------------------------------------------------------------------------
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # ----------------------------------------------------------------------------
+  # CloudFront Distribution
+  # ----------------------------------------------------------------------------
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'LMS Platform Architecture A (${EnvironmentName})'
+        Enabled: true
+        DefaultRootObject: index.html
+        Aliases: !If [HasCustomDomain, [!Ref CustomDomainName], !Ref 'AWS::NoValue']
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+        # Custom SPA Error Responses: Redirect 403/404 from S3 to index.html with 200
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+        Origins:
+          # Origin 1: S3 Static Frontend
+          - Id: S3FrontendOrigin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+            S3OriginConfig: {}
+
+          # Origin 2: EC2 Spring Boot Backend
+          - Id: EC2BackendOrigin
+            DomainName: !Ref EC2BackendOriginHost
+            CustomOriginConfig:
+              HTTPPort: !Ref EC2BackendOriginPort
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 300
+              OriginKeepaliveTimeout: 60
+
+        # Default Behavior: Serve static frontend files from S3 with caching
+        DefaultCacheBehavior:
+          TargetOriginId: S3FrontendOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          # AWS Managed-CachingOptimized policy ID
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+        # Cache Behaviors: Forward API and backend endpoints to EC2
+        CacheBehaviors:
+          - PathPattern: '/api/*'
+            TargetOriginId: EC2BackendOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            Compress: false
+            # AWS Managed-CachingDisabled policy ID
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # AWS Managed-AllViewerExceptHostHeader policy ID (preserves auth headers, query params, cookies)
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+          - PathPattern: '/swagger-ui/*'
+            TargetOriginId: EC2BackendOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+          - PathPattern: '/swagger-ui.html'
+            TargetOriginId: EC2BackendOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+          - PathPattern: '/api-docs*'
+            TargetOriginId: EC2BackendOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+          - PathPattern: '/actuator/*'
+            TargetOriginId: EC2BackendOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+Outputs:
+  FrontendBucketName:
+    Description: 'S3 Bucket name for uploading Angular frontend dist files'
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucketName'
+
+  CloudFrontDomainName:
+    Description: 'CloudFront Distribution URL for accessing the application'
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontDistributionId:
+    Description: 'CloudFront Distribution ID for triggering cache invalidations on deploy'
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-DistributionId'

@@ -360,7 +360,55 @@ public class CourseServiceImpl implements CourseService {
         }
 
         Set<Long> completedLessonIds = getCompletedLessonIds();
-        return Optional.of(toLessonProgressDTO(lesson, completedLessonIds));
+        LessonProgressDTO dto = toLessonProgressDTO(lesson, completedLessonIds);
+
+        // Compute next lesson in current module or next module of the course
+        if (lesson.getModule() != null) {
+            Module module = lesson.getModule();
+            List<Lesson> moduleLessons = module.getLessons() != null ? new ArrayList<>(module.getLessons()) : new ArrayList<>();
+            moduleLessons.sort(Comparator.comparing(Lesson::getOrderIndex, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(Lesson::getId));
+
+            Long nextId = null;
+            String nextTitle = null;
+            boolean foundCurrent = false;
+            for (Lesson l : moduleLessons) {
+                if (foundCurrent) {
+                    nextId = l.getId();
+                    nextTitle = l.getTitle();
+                    break;
+                }
+                if (l.getId().equals(lesson.getId())) {
+                    foundCurrent = true;
+                }
+            }
+
+            if (nextId == null && module.getCourse() != null && module.getCourse().getModules() != null) {
+                List<Module> courseModules = new ArrayList<>(module.getCourse().getModules());
+                courseModules.sort(Comparator.comparing(Module::getOrderIndex, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Module::getId));
+                boolean foundModule = false;
+                for (Module m : courseModules) {
+                    if (foundModule) {
+                        List<Lesson> nextModLessons = m.getLessons() != null ? new ArrayList<>(m.getLessons()) : new ArrayList<>();
+                        nextModLessons.sort(Comparator.comparing(Lesson::getOrderIndex, Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(Lesson::getId));
+                        if (!nextModLessons.isEmpty()) {
+                            nextId = nextModLessons.get(0).getId();
+                            nextTitle = nextModLessons.get(0).getTitle();
+                            break;
+                        }
+                    }
+                    if (m.getId().equals(module.getId())) {
+                        foundModule = true;
+                    }
+                }
+            }
+            dto.setNextLessonId(nextId);
+            dto.setNextLessonTitle(nextTitle);
+        }
+
+        return Optional.of(dto);
     }
 
     // ─────────────────────────────────────────────────────────────

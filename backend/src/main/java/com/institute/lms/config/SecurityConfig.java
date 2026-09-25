@@ -64,26 +64,16 @@ public class SecurityConfig {
         return http.build();
     }
 
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:}")
+    private List<String> customAllowedOrigins;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://*.localhost:*",
-                "http://*.localhost",
-                "http://placements.com",
-                "https://placements.com",
-                "http://*.placements.com",
-                "https://*.placements.com",
-                // Mozilla's hosted PDF.js viewer (used to render self-hosted PDFs
-                // inside the mobile app's in-app WebView — see
-                // InAppBrowserScreen._effectiveUrl) fetches the PDF bytes with a
-                // same-device fetch() call from this origin. Without it here,
-                // that fetch is blocked by CORS and the viewer shows nothing.
-                "https://mozilla.github.io"
-        ));
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("*", "Authorization", "Content-Disposition", "ngrok-skip-browser-warning"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
