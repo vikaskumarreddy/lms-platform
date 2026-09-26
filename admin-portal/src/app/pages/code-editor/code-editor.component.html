@@ -1,0 +1,506 @@
+<div class="coding-platform-root">
+  <!-- Top Platform Header with Organisation Branding -->
+  <header class="coding-header">
+    <div class="header-left">
+      <button type="button" class="btn-back" (click)="navigateBack()" title="Go Back">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+
+      <!-- Organisation Branding -->
+      <div class="org-brand-badge">
+        <img *ngIf="orgLogoUrl" [src]="orgLogoUrl" alt="Org Logo" class="org-logo-img">
+        <span *ngIf="!orgLogoUrl" class="org-logo-fallback">🏛️</span>
+        <span class="org-name-text">{{ orgName }}</span>
+      </div>
+
+      <div class="header-separator"></div>
+
+      <!-- Problem Title & Badges -->
+      <div class="problem-meta">
+        <span class="problem-title-header">{{ problem?.title || 'Coding Challenge' }}</span>
+        <span class="difficulty-pill" [class.easy]="problem?.difficulty === 'EASY'" [class.medium]="problem?.difficulty === 'MEDIUM'" [class.hard]="problem?.difficulty === 'HARD'">
+          {{ problem?.difficulty || 'EASY' }}
+        </span>
+        <span class="marks-pill">
+          ⭐ {{ problem?.marks || 10 }} Marks
+        </span>
+        <span *ngIf="assessmentId" class="assessment-badge">
+          📝 {{ assessmentType | uppercase }} #{{ assessmentId }}
+          <span *ngIf="userId" class="student-id-tag">(User #{{ userId }})</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Center Verdict Indicator -->
+    <div class="header-center">
+      <div *ngIf="activeVerdict" class="verdict-banner" [style.borderColor]="activeVerdictColor" [style.color]="activeVerdictColor">
+        <span *ngIf="isRunning || isSubmitting" class="spinner-inline"></span>
+        <span *ngIf="activeVerdict === 'ACCEPTED'">✓ Accepted (All Passed)</span>
+        <span *ngIf="activeVerdict === 'WRONG_ANSWER'">✗ Wrong Answer</span>
+        <span *ngIf="activeVerdict === 'COMPILATION_ERROR'">⚠️ Compilation Error</span>
+        <span *ngIf="activeVerdict === 'RUNTIME_ERROR'">⚡ Runtime Error</span>
+        <span *ngIf="activeVerdict === 'TIME_LIMIT_EXCEEDED'">⏱️ Time Limit Exceeded</span>
+        <span *ngIf="activeVerdict === 'RUNNING'">⏳ Executing Code...</span>
+        <span *ngIf="activeVerdict === 'EVALUATING'">🔍 Auto-Grading Test Cases...</span>
+      </div>
+    </div>
+
+    <!-- Right Actions -->
+    <div class="header-right">
+      <!-- Language Selector -->
+      <div class="lang-select-group">
+        <label class="lang-label">Language:</label>
+        <div class="lang-dropdown-wrapper">
+          <select [ngModel]="selectedLanguage" (ngModelChange)="onLanguageChange($event)" class="lang-select">
+            <option value="JAVA">☕ Java 21 (OpenJDK)</option>
+            <option value="PYTHON">🐍 Python 3.12</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Reset Code -->
+      <button type="button" class="btn-action btn-reset" (click)="resetCode()" title="Reset to initial boilerplate template">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+        Reset
+      </button>
+
+      <!-- Run Code -->
+      <button type="button" class="btn-action btn-run" (click)="runCode()" [disabled]="isRunning || isSubmitting" title="Run against sample test cases (Ctrl + Enter)">
+        <svg *ngIf="!isRunning" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span *ngIf="isRunning" class="btn-spinner"></span>
+        <span>{{ isRunning ? 'Running...' : 'Run Code' }}</span>
+        <span class="btn-shortcut">^↵</span>
+      </button>
+
+      <!-- Submit Solution -->
+      <button type="button" class="btn-action btn-submit" (click)="submitCode()" [disabled]="isRunning || isSubmitting" title="Submit solution & auto-grade (Ctrl + Shift + Enter)">
+        <svg *ngIf="!isSubmitting" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+        <span *ngIf="isSubmitting" class="btn-spinner"></span>
+        <span>{{ isSubmitting ? 'Evaluating...' : 'Submit Solution' }}</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile View Switcher (Only visible on screens <= 860px) -->
+  <div class="mobile-view-switcher">
+    <button
+      type="button"
+      class="mobile-switch-btn"
+      [class.active]="mobileViewTab === 'problem'"
+      (click)="mobileViewTab = 'problem'"
+    >
+      <span class="m-icon">📖</span> Problem Statement
+    </button>
+    <button
+      type="button"
+      class="mobile-switch-btn"
+      [class.active]="mobileViewTab === 'editor'"
+      (click)="mobileViewTab = 'editor'"
+    >
+      <span class="m-icon">💻</span> Code & Console
+      <span *ngIf="runResponse || submitResponse" class="mobile-verdict-dot" [style.background]="activeVerdictColor"></span>
+    </button>
+  </div>
+
+  <!-- 2 Verticals Workspace: 25% Left / 75% Right Default Split -->
+  <div class="workspace-body">
+    <!-- ==================== LEFT VERTICAL (25% DEFAULT) ==================== -->
+    <div class="left-panel" [class.mobile-active]="mobileViewTab === 'problem'" [style.width.%]="leftWidthPercent">
+      <div class="left-nav-tabs">
+        <button type="button" class="left-tab-btn" [class.active]="leftTab === 'description'" (click)="leftTab = 'description'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          Problem
+        </button>
+
+        <button type="button" class="left-tab-btn" [class.active]="leftTab === 'submissions'" (click)="leftTab = 'submissions'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 11 12 14 22 4"></polyline>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+          Submissions & Grading
+          <span *ngIf="submitResponse" class="tab-dot-success"></span>
+        </button>
+      </div>
+
+      <div class="left-content-scroll">
+        <!-- DESCRIPTION TAB -->
+        <div *ngIf="leftTab === 'description'" class="tab-pane-content">
+          <div class="problem-heading-section">
+            <h1 class="problem-h1">{{ problem?.title }}</h1>
+            <div class="tags-row">
+              <span class="tag-diff" [class.easy]="problem?.difficulty === 'EASY'" [class.medium]="problem?.difficulty === 'MEDIUM'" [class.hard]="problem?.difficulty === 'HARD'">
+                {{ problem?.difficulty || 'EASY' }}
+              </span>
+              <span class="tag-marks">Score: {{ problem?.marks || 10 }} pts</span>
+              <span class="tag-cases">{{ problem?.totalTestCases || problem?.sampleTestCases?.length || 0 }} Test Cases</span>
+            </div>
+          </div>
+
+          <!-- Problem Description -->
+          <div class="problem-text-block">
+            <p class="problem-description-text">{{ problem?.questionText }}</p>
+          </div>
+
+          <!-- Input Format -->
+          <div *ngIf="problem?.inputFormat" class="spec-section">
+            <h3 class="spec-title">
+              <span class="spec-icon">📥</span> Input Format
+            </h3>
+            <div class="spec-box">
+              {{ problem?.inputFormat }}
+            </div>
+          </div>
+
+          <!-- Output Format -->
+          <div *ngIf="problem?.outputFormat" class="spec-section">
+            <h3 class="spec-title">
+              <span class="spec-icon">📤</span> Output Format
+            </h3>
+            <div class="spec-box">
+              {{ problem?.outputFormat }}
+            </div>
+          </div>
+
+          <!-- Constraints & Conditions -->
+          <div *ngIf="problem?.constraints" class="spec-section">
+            <h3 class="spec-title">
+              <span class="spec-icon">⚖️</span> Constraints & Criteria
+            </h3>
+            <div class="spec-box constraints-box">
+              <pre>{{ problem?.constraints }}</pre>
+            </div>
+          </div>
+
+          <!-- Sample Test Cases -->
+          <div class="spec-section" *ngIf="problem?.sampleTestCases && problem?.sampleTestCases?.length">
+            <h3 class="spec-title">
+              <span class="spec-icon">📋</span> Sample Test Cases
+            </h3>
+
+            <div *ngFor="let sample of problem?.sampleTestCases; let idx = index" class="sample-case-card">
+              <div class="sample-case-header">
+                <span class="sample-case-label">Sample Case {{ idx + 1 }}</span>
+                <button type="button" class="btn-copy-sample" (click)="copySampleInput(sample.input, idx)" title="Copy Sample Input">
+                  {{ copiedIndex === idx ? '✓ Copied' : '📋 Copy Input' }}
+                </button>
+              </div>
+
+              <div class="sample-io-grid">
+                <div class="sample-io-column">
+                  <div class="io-header">Sample Input</div>
+                  <pre class="io-pre">{{ sample.input }}</pre>
+                </div>
+                <div class="sample-io-column">
+                  <div class="io-header">Expected Output</div>
+                  <pre class="io-pre">{{ sample.expectedOutput }}</pre>
+                </div>
+              </div>
+
+              <div *ngIf="sample.explanation" class="sample-explanation">
+                <span class="expl-bold">Explanation:</span> {{ sample.explanation }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Explanation / Hints -->
+          <div *ngIf="problem?.explanation" class="spec-section">
+            <h3 class="spec-title">
+              <span class="spec-icon">💡</span> Additional Notes
+            </h3>
+            <div class="spec-box notes-box">
+              {{ problem?.explanation }}
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBMISSIONS & GRADING TAB -->
+        <div *ngIf="leftTab === 'submissions'" class="tab-pane-content">
+          <div *ngIf="!submitResponse" class="no-submissions-box">
+            <div class="empty-sub-icon">🚀</div>
+            <h3>No Submissions Yet</h3>
+            <p>Click "Submit Solution" in the header to run your code against all test cases and receive automated grading.</p>
+          </div>
+
+          <div *ngIf="submitResponse" class="submission-report">
+            <!-- Score Card -->
+            <div class="grade-score-card" [class.passed-card]="submitResponse.verdict === 'ACCEPTED'" [class.failed-card]="submitResponse.verdict !== 'ACCEPTED'">
+              <div class="grade-score-header">
+                <span class="grade-verdict-title">
+                  {{ submitResponse.verdict === 'ACCEPTED' ? '✓ Accepted' : submitResponse.verdict }}
+                </span>
+                <span class="grade-percentage">{{ submitResponse.scorePercentage }}%</span>
+              </div>
+
+              <div class="grade-stats-row">
+                <div class="grade-stat-item">
+                  <span class="stat-num">{{ submitResponse.testCasesPassed }} / {{ submitResponse.totalTestCases }}</span>
+                  <span class="stat-lbl">Test Cases Passed</span>
+                </div>
+                <div class="grade-stat-item">
+                  <span class="stat-num">{{ submitResponse.marksAwarded }} / {{ submitResponse.totalMarks }}</span>
+                  <span class="stat-lbl">Marks Awarded</span>
+                </div>
+              </div>
+
+              <div class="grade-message-box">
+                {{ submitResponse.message }}
+              </div>
+
+              <div *ngIf="assessmentId && userId" class="sync-banner">
+                <span class="sync-icon">✅</span>
+                <span>Grading recorded for <strong>User #{{ userId }}</strong> on <strong>{{ assessmentType }} #{{ assessmentId }}</strong></span>
+              </div>
+            </div>
+
+            <!-- Per-Test-Case List -->
+            <h4 class="subcases-title">Test Cases Breakdown</h4>
+            <div class="subcases-list">
+              <div *ngFor="let tc of submitResponse.results; let i = index" class="subcase-row" [class.subcase-pass]="tc.passed" [class.subcase-fail]="!tc.passed">
+                <div class="subcase-left">
+                  <span class="subcase-indicator">{{ tc.passed ? '✓' : '✗' }}</span>
+                  <span class="subcase-title">Test Case {{ i + 1 }}</span>
+                  <span *ngIf="tc.isSample" class="sample-tag">Sample</span>
+                </div>
+                <div class="subcase-right">
+                  <span class="subcase-time">{{ tc.executionTimeMs }} ms</span>
+                  <span class="subcase-badge" [class.badge-pass]="tc.passed" [class.badge-fail]="!tc.passed">
+                    {{ tc.passed ? 'PASSED' : tc.status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DRAGGABLE VERTICAL RESIZER ==================== -->
+    <div class="divider-handle" (mousedown)="startResize($event)" title="Drag to adjust width">
+      <div class="divider-grip"></div>
+    </div>
+
+    <!-- ==================== RIGHT VERTICAL (75% DEFAULT) ==================== -->
+    <div class="right-panel" [class.mobile-active]="mobileViewTab === 'editor'" [style.width.%]="100 - leftWidthPercent">
+      <!-- Editor Top Toolbar -->
+      <div class="editor-toolbar">
+        <div class="toolbar-left">
+          <span class="file-tab">
+            <span class="file-icon">{{ selectedLanguage === 'JAVA' ? '☕' : '🐍' }}</span>
+            <span class="file-name">{{ selectedLanguage === 'JAVA' ? 'Solution.java' : 'solution.py' }}</span>
+          </span>
+          <span class="editor-lang-indicator">
+            {{ selectedLanguage === 'JAVA' ? 'Java 21 (OpenJDK)' : 'Python 3.12' }}
+          </span>
+        </div>
+
+        <div class="toolbar-right">
+          <span class="shortcuts-hint">
+            <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to Run
+          </span>
+          <span class="editor-lines-badge">{{ lineCount }} lines</span>
+        </div>
+      </div>
+
+      <!-- Monospace Code Editor Area -->
+      <div class="editor-canvas">
+        <!-- Line Numbers Column -->
+        <div class="editor-gutter" #gutter>
+          <div *ngFor="let n of lineNumbers" class="line-number">{{ n }}</div>
+        </div>
+
+        <!-- Textarea Code Input -->
+        <textarea
+          #codeTextarea
+          class="code-textarea"
+          [(ngModel)]="sourceCode"
+          (input)="onCodeInput()"
+          (keydown)="onKeyDown($event, codeTextarea)"
+          (scroll)="syncScroll(codeTextarea, gutter)"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          [style.fontSize.px]="editorFontSize"
+          placeholder="// Write your code here..."
+        ></textarea>
+      </div>
+
+      <!-- Bottom Console Drawer (Test Cases & Execution Results) -->
+      <div class="console-drawer">
+        <!-- Console Tabs Header -->
+        <div class="console-tabs-bar">
+          <div class="console-tabs-left">
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'cases'" (click)="consoleTab = 'cases'">
+              <span class="tab-icon">🧪</span> Test Cases
+            </button>
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'custom'" (click)="consoleTab = 'custom'">
+              <span class="tab-icon">⚙️</span> Custom Input
+            </button>
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'results'" (click)="consoleTab = 'results'">
+              <span class="tab-icon">📊</span> Console & Results
+              <span *ngIf="runResponse || submitResponse" class="results-dot" [style.background]="activeVerdictColor"></span>
+            </button>
+          </div>
+
+          <div class="console-tabs-right">
+            <span *ngIf="activeVerdict" class="console-status-pill" [style.borderColor]="activeVerdictColor" [style.color]="activeVerdictColor">
+              {{ activeVerdict }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Console Body -->
+        <div class="console-body">
+          <!-- TAB 1: SAMPLE TEST CASES -->
+          <div *ngIf="consoleTab === 'cases'" class="console-pane">
+            <div class="testcases-subnav">
+              <button
+                *ngFor="let tc of problem?.sampleTestCases; let idx = index"
+                type="button"
+                class="tc-pill-btn"
+                [class.active]="selectedCaseTab === idx"
+                (click)="selectedCaseTab = idx"
+              >
+                Case {{ idx + 1 }}
+              </button>
+            </div>
+
+            <div *ngIf="problem?.sampleTestCases && problem?.sampleTestCases?.length" class="tc-display-box">
+              <div class="tc-field-group">
+                <label class="tc-field-label">Input:</label>
+                <pre class="tc-code-block">{{ problem?.sampleTestCases?.[selectedCaseTab]?.input }}</pre>
+              </div>
+              <div class="tc-field-group">
+                <label class="tc-field-label">Expected Output:</label>
+                <pre class="tc-code-block">{{ problem?.sampleTestCases?.[selectedCaseTab]?.expectedOutput }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: CUSTOM INPUT -->
+          <div *ngIf="consoleTab === 'custom'" class="console-pane">
+            <div class="custom-input-header">
+              <label class="custom-input-check">
+                <input type="checkbox" [(ngModel)]="useCustomInput">
+                <span>Use Custom Input for "Run Code"</span>
+              </label>
+              <span class="custom-input-help">When checked, Run Code will feed this input to your program's stdin.</span>
+            </div>
+            <textarea
+              class="custom-input-textarea"
+              [(ngModel)]="customInput"
+              rows="4"
+              placeholder="Enter stdin input here (e.g. arguments or test case numbers)..."
+            ></textarea>
+          </div>
+
+          <!-- TAB 3: RUN / SUBMISSION RESULTS -->
+          <div *ngIf="consoleTab === 'results'" class="console-pane results-pane">
+            <!-- Loading States -->
+            <div *ngIf="isRunning" class="exec-loading">
+              <div class="exec-spinner"></div>
+              <p>Compiling & Running your code...</p>
+            </div>
+            <div *ngIf="isSubmitting" class="exec-loading">
+              <div class="exec-spinner"></div>
+              <p>Evaluating against all hidden test cases...</p>
+            </div>
+
+            <!-- Execution Results Display -->
+            <div *ngIf="!isRunning && !isSubmitting">
+              <!-- No results yet -->
+              <div *ngIf="!runResponse && !submitResponse" class="no-results-notice">
+                <span>Run or submit your solution to view compilation details and test case results here.</span>
+              </div>
+
+              <!-- Compilation Error Output -->
+              <div *ngIf="(runResponse?.verdict === 'COMPILATION_ERROR' || submitResponse?.verdict === 'COMPILATION_ERROR')" class="error-banner">
+                <div class="error-banner-header">
+                  <span class="err-icon">⚠️</span> Compilation Error
+                </div>
+                <pre class="error-pre">{{ runResponse?.results?.[0]?.errorOutput || submitResponse?.results?.[0]?.errorOutput || runResponse?.error || submitResponse?.error }}</pre>
+              </div>
+
+              <!-- Runtime Error Output -->
+              <div *ngIf="(runResponse?.verdict === 'RUNTIME_ERROR' || submitResponse?.verdict === 'RUNTIME_ERROR')" class="error-banner">
+                <div class="error-banner-header">
+                  <span class="err-icon">⚡</span> Runtime Error
+                </div>
+                <pre class="error-pre">{{ runResponse?.results?.[0]?.errorOutput || submitResponse?.results?.[0]?.errorOutput || runResponse?.error || submitResponse?.error }}</pre>
+              </div>
+
+              <!-- Test Case Results Carousel -->
+              <div *ngIf="(runResponse?.results?.length || submitResponse?.results?.length)" class="results-viewer">
+                <!-- Case buttons -->
+                <div class="results-cases-pills">
+                  <button
+                    *ngFor="let r of (runResponse ? runResponse.results : submitResponse!.results); let i = index"
+                    type="button"
+                    class="res-case-btn"
+                    [class.active]="selectedCaseTab === i"
+                    [class.pass]="r.passed"
+                    [class.fail]="!r.passed"
+                    (click)="selectedCaseTab = i"
+                  >
+                    <span class="res-case-dot">{{ r.passed ? '✓' : '✗' }}</span>
+                    <span>Case {{ i + 1 }}</span>
+                  </button>
+                </div>
+
+                <!-- Active Test Case Detail -->
+                <ng-container *ngIf="(runResponse ? runResponse.results : submitResponse!.results) as activeResults">
+                  <div *ngIf="activeResults[selectedCaseTab]" class="active-case-card">
+                    <div class="active-case-meta">
+                      <span class="case-status-badge" [class.badge-pass]="activeResults[selectedCaseTab].passed" [class.badge-fail]="!activeResults[selectedCaseTab].passed">
+                        {{ activeResults[selectedCaseTab].passed ? 'PASSED' : activeResults[selectedCaseTab].status }}
+                      </span>
+                      <span class="case-runtime">⏱️ {{ activeResults[selectedCaseTab].executionTimeMs }} ms</span>
+                    </div>
+
+                    <div class="io-comparison-grid">
+                      <div class="io-col">
+                        <label class="io-label">Input:</label>
+                        <pre class="io-box">{{ activeResults[selectedCaseTab].input }}</pre>
+                      </div>
+
+                      <div class="io-col">
+                        <label class="io-label">Expected Output:</label>
+                        <pre class="io-box expected-box">{{ activeResults[selectedCaseTab].expectedOutput }}</pre>
+                      </div>
+
+                      <div class="io-col">
+                        <label class="io-label">Your Output:</label>
+                        <pre class="io-box" [class.actual-pass]="activeResults[selectedCaseTab].passed" [class.actual-fail]="!activeResults[selectedCaseTab].passed">{{ activeResults[selectedCaseTab].actualOutput || '(no output)' }}</pre>
+                      </div>
+                    </div>
+
+                    <div *ngIf="activeResults[selectedCaseTab].errorOutput" class="case-error-details">
+                      <label class="io-label">Standard Error (stderr):</label>
+                      <pre class="error-pre">{{ activeResults[selectedCaseTab].errorOutput }}</pre>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -39,11 +39,17 @@ import { PlatformBillingComponent } from './pages/platform-billing/platform-bill
 import { LeaderboardAdminComponent } from './pages/leaderboard-admin/leaderboard-admin.component';
 import { PublicVerifyComponent } from './pages/public-verify/public-verify.component';
 import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard';
+import { SocialHandlesComponent } from './pages/social-handles/social-handles.component';
+import { CodeEditorComponent } from './pages/code-editor/code-editor.component';
+import { CodingChallengesComponent } from './pages/coding-challenges/coding-challenges.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'verify/:credentialId', component: PublicVerifyComponent },
+  // Standalone Realtime Coding IDE (full-screen 2-vertical layout for students & playground)
+  { path: 'code-editor/:questionId', component: CodeEditorComponent },
+  { path: 'code-editor', component: CodeEditorComponent },
   {
     path: '',
     component: AdminLayoutComponent,
@@ -74,6 +80,9 @@ export const routes: Routes = [
       { path: 'certificates-admin', component: CertificatesAdminComponent },
       { path: 'qa-admin', component: QaAdminComponent },
       { path: 'company-questions', component: CompanyQuestionsComponent },
+      { path: 'coding-challenges', component: CodingChallengesComponent },
+      { path: 'code-editor/:questionId', component: CodeEditorComponent },
+      { path: 'code-editor', component: CodeEditorComponent },
       { path: 'media-hub', component: MediaHubComponent },
       { path: 'leaderboard-admin', component: LeaderboardAdminComponent },
       { path: 'notifications-admin', component: NotificationsAdminComponent },
@@ -90,7 +99,8 @@ export const routes: Routes = [
       { path: 'settings', component: SettingsComponent },
       // Per-organization brand colors. Guarded like Account: any org admin (platform
       // super admin or the tenant's own INSTITUTE_ADMIN) can restyle their portal.
-      { path: 'theme-settings', component: ThemeSettingsComponent, canActivate: [orgAdminGuard] }
+      { path: 'theme-settings', component: ThemeSettingsComponent, canActivate: [orgAdminGuard] },
+      { path: 'social-handles', component: SocialHandlesComponent }
     ]
   },
   { path: '**', redirectTo: '/login' }

@@ -16,7 +16,7 @@ const COLLAPSED_ICONS: Record<string, string> = {
   'platform-billing': '🧾', payments: '💳', 'notifications-admin': '🔔', settings: '⚙️',
   students: '🎓', courses: '📚', placements: '💼', 'events-admin': '🎉', 'calendar-events': '📅',
   'assignments-admin': '📝', 'exams-admin': '📋', 'grading-admin': '✅', 'attendance-admin': '🗓️',
-  'certificates-admin': '🎓', 'qa-admin': '💬', 'company-questions': '🏢', 'media-hub': '🎬',
+  'certificates-admin': '🎓', 'qa-admin': '💬', 'company-questions': '🏢', 'coding-challenges': '💻', 'media-hub': '🎬',
   'leaderboard-admin': '🏆', 'daily-attendance': '🗓️', batches: '👥', faculty: '👨‍🏫',
   'subscriptions-admin': '⭐', 'bookmarks-admin': '🔖', 'payment-settings': '⚙️', account: '🧾',
   'theme-settings': '🎨'

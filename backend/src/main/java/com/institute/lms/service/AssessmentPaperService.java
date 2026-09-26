@@ -32,20 +32,24 @@ public class AssessmentPaperService {
     private final ExamSubmissionRepository examSubmissionRepository;
     private final UserRepository userRepository;
     private final ActivityMeterService activityMeter;
+    private final CodingTestCaseRepository testCaseRepository;
 
     public AssessmentPaperService(AssessmentQuestionRepository questionRepository,
                                   AssessmentResponseRepository responseRepository,
                                   AssignmentSubmissionRepository assignmentSubmissionRepository,
                                   ExamSubmissionRepository examSubmissionRepository,
                                   UserRepository userRepository,
-                                  ActivityMeterService activityMeter) {
+                                  ActivityMeterService activityMeter,
+                                  CodingTestCaseRepository testCaseRepository) {
         this.questionRepository = questionRepository;
         this.responseRepository = responseRepository;
         this.assignmentSubmissionRepository = assignmentSubmissionRepository;
         this.examSubmissionRepository = examSubmissionRepository;
         this.userRepository = userRepository;
         this.activityMeter = activityMeter;
+        this.testCaseRepository = testCaseRepository;
     }
+
 
     // ------------------------------------------------------------------ authoring
 
@@ -135,12 +139,26 @@ public class AssessmentPaperService {
 
     private void apply(AssessmentQuestion question, QuestionForm form) {
         question.setQuestionText(form.questionText);
+        if (form.codingTitle != null && !form.codingTitle.isBlank()) {
+            question.setCodingTitle(form.codingTitle);
+        } else if (form.title != null && !form.title.isBlank()) {
+            question.setCodingTitle(form.title);
+        }
         question.setExplanation(form.explanation);
         question.setQuestionType(form.questionType == null
                 ? AssessmentQuestion.QuestionType.SINGLE_CHOICE : form.questionType);
         question.setMarks(form.marks == null || form.marks < 1 ? 1 : form.marks);
         question.setAnswerText(form.answerText);
         if (form.displayOrder != null) question.setDisplayOrder(form.displayOrder);
+
+        question.setCodingStarterJava(form.codingStarterJava);
+        question.setCodingStarterPython(form.codingStarterPython);
+        question.setCodingConstraints(form.codingConstraints);
+        question.setCodingInputFormat(form.codingInputFormat);
+        question.setCodingOutputFormat(form.codingOutputFormat);
+        if (form.codingDifficulty != null && !form.codingDifficulty.isBlank()) {
+            question.setCodingDifficulty(form.codingDifficulty);
+        }
 
         question.clearOptions();
         int order = 0;
@@ -152,6 +170,22 @@ public class AssessmentPaperService {
             option.setIsCorrect(Boolean.TRUE.equals(optionForm.isCorrect));
             option.setDisplayOrder(order++);
             question.addOption(option);
+        }
+
+        if (question.getId() != null && form.testCases != null) {
+            testCaseRepository.deleteByQuestionId(question.getId());
+            int tcOrder = 0;
+            for (TestCaseForm tcForm : form.testCases) {
+                CodingTestCase tc = new CodingTestCase();
+                tc.setQuestion(question);
+                tc.setOrganizationId(question.getOrganizationId());
+                tc.setInput(tcForm.input != null ? tcForm.input : "");
+                tc.setExpectedOutput(tcForm.expectedOutput != null ? tcForm.expectedOutput : "");
+                tc.setIsSample(Boolean.TRUE.equals(tcForm.isSample));
+                tc.setExplanation(tcForm.explanation);
+                tc.setDisplayOrder(tcOrder++);
+                testCaseRepository.save(tc);
+            }
         }
     }
 
@@ -170,12 +204,32 @@ public class AssessmentPaperService {
             item.put("questionType", q.getQuestionType().name());
             item.put("marks", q.getMarks());
             item.put("displayOrder", q.getDisplayOrder());
+            item.put("explanation", q.getExplanation());
+            item.put("codingDifficulty", q.getCodingDifficulty());
+            item.put("codingConstraints", q.getCodingConstraints());
+            item.put("codingInputFormat", q.getCodingInputFormat());
+            item.put("codingOutputFormat", q.getCodingOutputFormat());
+            item.put("codingStarterJava", q.getCodingStarterJava());
+            item.put("codingStarterPython", q.getCodingStarterPython());
             item.put("options", q.getOptions().stream().map(o -> {
                 Map<String, Object> opt = new LinkedHashMap<>();
                 opt.put("id", o.getId());
                 opt.put("optionText", o.getOptionText());
                 return opt;
             }).collect(Collectors.toList()));
+
+            if (q.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+                List<CodingTestCase> samples = testCaseRepository.findByQuestionIdAndIsSampleTrueOrderByDisplayOrderAscIdAsc(q.getId());
+                item.put("sampleTestCases", samples.stream().map(tc -> {
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("id", tc.getId());
+                    t.put("input", tc.getInput());
+                    t.put("expectedOutput", tc.getExpectedOutput());
+                    t.put("explanation", tc.getExplanation());
+                    return t;
+                }).collect(Collectors.toList()));
+            }
+
             return item;
         }).collect(Collectors.toList());
     }
@@ -188,12 +242,20 @@ public class AssessmentPaperService {
     private Map<String, Object> withKey(AssessmentQuestion q) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", q.getId());
+        item.put("title", q.getCodingTitle() != null ? q.getCodingTitle() : q.getQuestionText());
+        item.put("codingTitle", q.getCodingTitle());
         item.put("questionText", q.getQuestionText());
         item.put("questionType", q.getQuestionType().name());
         item.put("explanation", q.getExplanation());
         item.put("marks", q.getMarks());
         item.put("displayOrder", q.getDisplayOrder());
         item.put("answerText", q.getAnswerText());
+        item.put("codingDifficulty", q.getCodingDifficulty());
+        item.put("codingConstraints", q.getCodingConstraints());
+        item.put("codingInputFormat", q.getCodingInputFormat());
+        item.put("codingOutputFormat", q.getCodingOutputFormat());
+        item.put("codingStarterJava", q.getCodingStarterJava());
+        item.put("codingStarterPython", q.getCodingStarterPython());
         item.put("options", q.getOptions().stream().map(o -> {
             Map<String, Object> opt = new LinkedHashMap<>();
             opt.put("id", o.getId());
@@ -202,8 +264,24 @@ public class AssessmentPaperService {
             opt.put("displayOrder", o.getDisplayOrder());
             return opt;
         }).collect(Collectors.toList()));
+
+        if (q.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+            List<CodingTestCase> tcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(q.getId());
+            item.put("testCases", tcs.stream().map(tc -> {
+                Map<String, Object> t = new LinkedHashMap<>();
+                t.put("id", tc.getId());
+                t.put("input", tc.getInput());
+                t.put("expectedOutput", tc.getExpectedOutput());
+                t.put("isSample", tc.getIsSample());
+                t.put("explanation", tc.getExplanation());
+                t.put("displayOrder", tc.getDisplayOrder());
+                return t;
+            }).collect(Collectors.toList()));
+        }
+
         return item;
     }
+
 
     /**
      * COMPANY_KIT has its own branch rather than falling into the EXAM check: a
@@ -537,6 +615,8 @@ public class AssessmentPaperService {
 
     /** Inbound payload for creating/updating a question (options included). */
     public static class QuestionForm {
+        public String title;
+        public String codingTitle;
         public String questionText;
         public String explanation;
         public AssessmentQuestion.QuestionType questionType;
@@ -545,12 +625,27 @@ public class AssessmentPaperService {
         public List<OptionForm> options;
         /** Reference answer for FILL_IN_BLANK; optional non-graded notes for CODING. */
         public String answerText;
+        public String codingStarterJava;
+        public String codingStarterPython;
+        public String codingConstraints;
+        public String codingInputFormat;
+        public String codingOutputFormat;
+        public String codingDifficulty;
+        public List<TestCaseForm> testCases;
     }
 
     public static class OptionForm {
         public String optionText;
         public Boolean isCorrect;
     }
+
+    public static class TestCaseForm {
+        public String input;
+        public String expectedOutput;
+        public Boolean isSample;
+        public String explanation;
+    }
+
 
     /** One student answer inside an attempt. */
     public static class AnswerForm {

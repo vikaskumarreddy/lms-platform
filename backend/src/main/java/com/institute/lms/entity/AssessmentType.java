@@ -11,7 +11,8 @@ package com.institute.lms.entity;
 public enum AssessmentType {
     ASSIGNMENT,
     EXAM,
-    COMPANY_KIT;
+    COMPANY_KIT,
+    PRACTICE;
 
     /**
      * Lenient parse used by the path-variable binding ("exam", "EXAM", "exams",

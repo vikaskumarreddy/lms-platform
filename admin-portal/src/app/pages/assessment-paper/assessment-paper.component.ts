@@ -1,7 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ConfirmService } from '../../services/confirm.service';
@@ -23,12 +23,19 @@ interface PaperQuestion {
   displayOrder: number;
   answerText?: string;
   options: Array<{ id: number; optionText: string; isCorrect: boolean }>;
+  codingStarterJava?: string;
+  codingStarterPython?: string;
+  codingConstraints?: string;
+  codingInputFormat?: string;
+  codingOutputFormat?: string;
+  codingDifficulty?: string;
+  testCases?: Array<{ id?: number; input: string; expectedOutput: string; isSample: boolean; explanation?: string }>;
 }
 
 @Component({
   selector: 'app-assessment-paper',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="assessment-builder-container">
       <!-- Left Sidebar / Info Card -->
@@ -190,7 +197,18 @@ interface PaperQuestion {
 
             <!-- Coding question box -->
             <div *ngIf="q.questionType === 'CODING'" class="q-coding-container">
-              <div class="coding-note">Not auto-graded — a mentor reviews the student's typed answer manually.</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <span class="badge" style="background:#EDE9FE;color:#6D28D9;font-weight:700;">⚡ Realtime Auto-Graded (Java & Python)</span>
+                <a [href]="'/code-editor/' + q.id" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;background:#0F172A;color:#FFFFFF;padding:4px 10px;border-radius:6px;text-decoration:none;">
+                  <span>💻 Open in Coding Platform</span>
+                </a>
+              </div>
+              <div *ngIf="q.codingConstraints" style="font-size:12px;color:#64748B;margin-bottom:4px;">
+                <strong>Constraints:</strong> {{ q.codingConstraints }}
+              </div>
+              <div *ngIf="q.testCases?.length" style="font-size:12px;color:#059669;font-weight:600;margin-bottom:4px;">
+                🧪 {{ q.testCases?.length }} Test Cases Configured
+              </div>
               <div *ngIf="q.answerText" class="coding-solution"><span class="bold-text">Reference Notes:</span> {{ q.answerText }}</div>
             </div>
 
@@ -314,7 +332,8 @@ interface PaperQuestion {
           </div>
 
           <div class="modal-body-styled">
-            <div class="form-group-styled">
+            <!-- Question Text for non-coding questions -->
+            <div class="form-group-styled" *ngIf="qForm.questionType !== 'CODING'">
               <label>Question Text *</label>
               <textarea [(ngModel)]="qForm.questionText" name="questionText" rows="3" required placeholder="Type the question as the student should read it..."></textarea>
             </div>
@@ -327,17 +346,72 @@ interface PaperQuestion {
                   Single choice
                 </label>
                 <label [class.selected]="qForm.questionType === 'MULTIPLE_ANSWER'">
-                  <input type="radio" name="questionType" value="MULTIPLE_ANSWER" [(ngModel)]="qForm.questionType">
+                  <input type="radio" name="questionType" value="MULTIPLE_ANSWER" [(ngModel)]="qForm.questionType" (ngModelChange)="onTypeChange()">
                   Multiple answers
                 </label>
                 <label [class.selected]="qForm.questionType === 'FILL_IN_BLANK'">
-                  <input type="radio" name="questionType" value="FILL_IN_BLANK" [(ngModel)]="qForm.questionType">
+                  <input type="radio" name="questionType" value="FILL_IN_BLANK" [(ngModel)]="qForm.questionType" (ngModelChange)="onTypeChange()">
                   Fill in the blank
                 </label>
                 <label [class.selected]="qForm.questionType === 'CODING'">
-                  <input type="radio" name="questionType" value="CODING" [(ngModel)]="qForm.questionType">
+                  <input type="radio" name="questionType" value="CODING" [(ngModel)]="qForm.questionType" (ngModelChange)="onTypeChange()">
                   Coding
                 </label>
+              </div>
+            </div>
+
+            <!-- Coding Question Selection from Coding Bank (No manual re-entry needed!) -->
+            <div *ngIf="qForm.questionType === 'CODING'">
+              <div class="form-group-styled">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label style="font-weight:700;color:#0F172A;margin:0;">Select Question from Coding Bank *</label>
+                  <a routerLink="/coding-challenges" target="_blank" style="font-size:12px;font-weight:600;color:#7C3AED;text-decoration:none;">
+                    + Open Coding Bank ↗
+                  </a>
+                </div>
+                <select
+                  [ngModel]="selectedCodingBankId"
+                  (ngModelChange)="onSelectCodingBankQuestion($event)"
+                  name="selectedCodingBankId"
+                  class="full-width-input"
+                  style="padding:10px 12px;border-radius:8px;border:1.5px solid #CBD5E1;font-size:14px;background:#FFFFFF;"
+                >
+                  <option [ngValue]="null">-- Select a question from Coding Bank --</option>
+                  <option *ngFor="let bankQ of codingBankList" [value]="bankQ.id">
+                    {{ bankQ.title }} ({{ bankQ.difficulty }} • {{ bankQ.marks }} marks • {{ bankQ.testCases?.length || 0 }} test cases)
+                  </option>
+                </select>
+                <div *ngIf="codingBankList.length === 0 && !loadingCodingBank" style="font-size:12.5px;color:#D97706;margin-top:6px;">
+                  ⚠️ No coding questions found in the Coding Bank. Click "+ Open Coding Bank" above to prepare questions and test cases.
+                </div>
+              </div>
+
+              <!-- Selected Question Preview Card -->
+              <div *ngIf="selectedCodingBankQuestion" style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <h4 style="margin:0;font-size:15px;font-weight:700;color:#0F172A;">{{ selectedCodingBankQuestion.title }}</h4>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <span class="badge" style="background:#EDE9FE;color:#6D28D9;font-weight:700;">{{ selectedCodingBankQuestion.difficulty }}</span>
+                    <span class="badge" style="background:#E2E8F0;color:#334155;font-weight:600;">⭐ {{ qForm.marks }} Marks</span>
+                    <span class="badge" style="background:#ECFDF5;color:#059669;font-weight:600;">🧪 {{ qForm.testCases?.length || 0 }} Test Cases</span>
+                  </div>
+                </div>
+
+                <p style="font-size:13px;color:#64748B;margin:0 0 10px 0;line-height:1.45;max-height:80px;overflow:hidden;text-overflow:ellipsis;">
+                  {{ selectedCodingBankQuestion.questionText }}
+                </p>
+
+                <div style="background:#F1F5F9;border-radius:6px;padding:8px 12px;font-size:12px;color:#475569;display:flex;align-items:center;gap:6px;">
+                  <span>✓ Starter templates (Java & Python), constraints, input/output formats, and {{ qForm.testCases?.length || 0 }} test cases imported.</span>
+                </div>
+              </div>
+
+              <!-- Marks for this coding question -->
+              <div class="form-row-2">
+                <div class="form-group-styled">
+                  <label>Marks for this Question</label>
+                  <input type="number" min="1" [(ngModel)]="qForm.marks" name="codingMarks" class="full-width-input">
+                </div>
               </div>
             </div>
 
@@ -364,23 +438,20 @@ interface PaperQuestion {
               <input type="text" [(ngModel)]="qForm.answerText" name="answerText" placeholder="Exact text student must type" class="full-width-input">
             </div>
 
-            <!-- Coding notes -->
-            <div class="form-group-styled" *ngIf="qForm.questionType === 'CODING'">
-              <label>Reference Notes (optional)</label>
-              <textarea [(ngModel)]="qForm.answerText" name="answerText" rows="3" placeholder="Reference code or notes for mentor grading..."></textarea>
-            </div>
-
-            <div class="form-row-2">
-              <div class="form-group-styled">
-                <label>Marks</label>
-                <input type="number" min="1" [(ngModel)]="qForm.marks" name="marks" class="full-width-input">
+            <!-- Marks & Explanation (for non-coding questions) -->
+            <ng-container *ngIf="qForm.questionType !== 'CODING'">
+              <div class="form-row-2">
+                <div class="form-group-styled">
+                  <label>Marks</label>
+                  <input type="number" min="1" [(ngModel)]="qForm.marks" name="marks" class="full-width-input">
+                </div>
               </div>
-            </div>
 
-            <div class="form-group-styled">
-              <label>Explanation (shown to student after submission)</label>
-              <textarea [(ngModel)]="qForm.explanation" name="explanation" rows="2" placeholder="e.g. Java is a high-level, class-based, object-oriented programming language..."></textarea>
-            </div>
+              <div class="form-group-styled">
+                <label>Explanation (shown to student after submission)</label>
+                <textarea [(ngModel)]="qForm.explanation" name="explanation" rows="2" placeholder="e.g. Java is a high-level, class-based, object-oriented programming language..."></textarea>
+              </div>
+            </ng-container>
 
             <div *ngIf="modalError" class="modal-error-box">
               {{ modalError }}
@@ -1461,7 +1532,27 @@ export class AssessmentPaperComponent implements OnInit {
   editingQuestionId: number | null = null;
   savingQuestion = false;
   modalError = '';
-  qForm: { questionText: string; questionType: QuestionType; marks: number; explanation: string; answerText: string; options: PaperOption[] } = this.blankForm();
+  qForm: {
+    questionText: string;
+    questionType: QuestionType;
+    marks: number;
+    explanation: string;
+    answerText: string;
+    options: PaperOption[];
+    codingStarterJava?: string;
+    codingStarterPython?: string;
+    codingConstraints?: string;
+    codingInputFormat?: string;
+    codingOutputFormat?: string;
+    codingDifficulty?: string;
+    testCases: Array<{ id?: number; input: string; expectedOutput: string; isSample: boolean; explanation?: string }>;
+  } = this.blankForm();
+
+  // Coding Bank integration
+  codingBankList: any[] = [];
+  loadingCodingBank = false;
+  selectedCodingBankId: number | null = null;
+  selectedCodingBankQuestion: any = null;
 
   // AI Modal properties
   showAiModal = false;
@@ -1513,8 +1604,71 @@ export class AssessmentPaperComponent implements OnInit {
     this.assessmentId = Number(this.route.snapshot.paramMap.get('id'));
     this.loadAssessment();
     this.loadQuestions();
+    this.loadCodingBank();
     // Deep link from Grading, which sends mentors straight to the student answers.
     if (this.route.snapshot.queryParamMap.get('tab') === 'responses') this.switchToResponses();
+  }
+
+  loadCodingBank() {
+    this.loadingCodingBank = true;
+    this.api.get<any[]>('/api/coding/bank').subscribe({
+      next: (data) => {
+        this.codingBankList = data || [];
+        this.loadingCodingBank = false;
+      },
+      error: () => {
+        this.codingBankList = [];
+        this.loadingCodingBank = false;
+      }
+    });
+  }
+
+  onSelectCodingBankQuestion(id: any) {
+    if (!id) {
+      this.selectedCodingBankId = null;
+      this.selectedCodingBankQuestion = null;
+      return;
+    }
+    const qId = Number(id);
+    this.selectedCodingBankId = qId;
+    const found = this.codingBankList.find(q => q.id === qId);
+    if (!found) {
+      this.selectedCodingBankQuestion = null;
+      return;
+    }
+    this.selectedCodingBankQuestion = found;
+    (this.qForm as any).codingTitle = found.title || found.codingTitle || '';
+    this.qForm.questionText = found.questionText || found.title || '';
+    this.qForm.marks = found.marks || 10;
+    this.qForm.explanation = found.explanation || '';
+    this.qForm.codingDifficulty = found.difficulty || 'MEDIUM';
+    this.qForm.codingConstraints = found.constraints || '';
+    this.qForm.codingInputFormat = found.inputFormat || '';
+    this.qForm.codingOutputFormat = found.outputFormat || '';
+    this.qForm.codingStarterJava = found.starterJava || '';
+    this.qForm.codingStarterPython = found.starterPython || '';
+    this.qForm.testCases = (found.testCases || []).map((tc: any) => ({
+      input: tc.input || '',
+      expectedOutput: tc.expectedOutput || '',
+      isSample: !!tc.isSample,
+      explanation: tc.explanation || ''
+    }));
+
+    if (!found.testCases || found.testCases.length === 0) {
+      this.api.get<any[]>(`/api/coding/test-cases/${qId}`).subscribe({
+        next: (tcs) => {
+          if (tcs && tcs.length > 0) {
+            this.qForm.testCases = tcs.map((tc: any) => ({
+              input: tc.input || '',
+              expectedOutput: tc.expectedOutput || '',
+              isSample: !!tc.isSample,
+              explanation: tc.explanation || ''
+            }));
+            found.testCases = this.qForm.testCases;
+          }
+        }
+      });
+    }
   }
 
   private blankForm() {
@@ -1527,8 +1681,26 @@ export class AssessmentPaperComponent implements OnInit {
       options: [
         { optionText: '', isCorrect: false },
         { optionText: '', isCorrect: false }
-      ] as PaperOption[]
+      ] as PaperOption[],
+      codingStarterJava: '',
+      codingStarterPython: '',
+      codingConstraints: '',
+      codingInputFormat: '',
+      codingOutputFormat: '',
+      codingDifficulty: 'EASY',
+      testCases: [] as Array<{ id?: number; input: string; expectedOutput: string; isSample: boolean; explanation?: string }>
     };
+  }
+
+  addTestCase() {
+    if (!this.qForm.testCases) this.qForm.testCases = [];
+    this.qForm.testCases.push({ input: '', expectedOutput: '', isSample: false, explanation: '' });
+  }
+
+  removeTestCase(i: number) {
+    if (this.qForm.testCases) {
+      this.qForm.testCases.splice(i, 1);
+    }
   }
 
   goBack() {
@@ -1587,20 +1759,44 @@ export class AssessmentPaperComponent implements OnInit {
 
   openAddQuestion() {
     this.editingQuestionId = null;
+    this.selectedCodingBankId = null;
+    this.selectedCodingBankQuestion = null;
     this.qForm = this.blankForm();
     this.modalError = '';
     this.showQuestionModal = true;
+    if (this.codingBankList.length === 0) this.loadCodingBank();
   }
 
   openEditQuestion(q: PaperQuestion) {
     this.editingQuestionId = q.id;
+    this.selectedCodingBankId = null;
+    this.selectedCodingBankQuestion = null;
+
+    if (q.questionType === 'CODING') {
+      const found = this.codingBankList.find(b =>
+        (b.questionText && b.questionText.trim() === (q.questionText || '').trim()) ||
+        (b.title && (q.questionText || '').includes(b.title))
+      );
+      if (found) {
+        this.selectedCodingBankId = found.id;
+        this.selectedCodingBankQuestion = found;
+      }
+    }
+
     this.qForm = {
       questionText: q.questionText,
       questionType: q.questionType,
       marks: q.marks || 1,
       explanation: q.explanation || '',
       answerText: q.answerText || '',
-      options: q.options.map(o => ({ id: o.id, optionText: o.optionText, isCorrect: o.isCorrect }))
+      options: q.options.map(o => ({ id: o.id, optionText: o.optionText, isCorrect: o.isCorrect })),
+      codingStarterJava: q.codingStarterJava || '',
+      codingStarterPython: q.codingStarterPython || '',
+      codingConstraints: q.codingConstraints || '',
+      codingInputFormat: q.codingInputFormat || '',
+      codingOutputFormat: q.codingOutputFormat || '',
+      codingDifficulty: q.codingDifficulty || 'EASY',
+      testCases: (q.testCases || []).map(tc => ({ ...tc }))
     };
     if (this.qForm.options.length < 2) this.addOption();
     this.modalError = '';
@@ -1611,6 +1807,8 @@ export class AssessmentPaperComponent implements OnInit {
     if (event && event.target !== event.currentTarget) return;
     this.showQuestionModal = false;
     this.editingQuestionId = null;
+    this.selectedCodingBankId = null;
+    this.selectedCodingBankQuestion = null;
     this.savingQuestion = false;
     this.modalError = '';
   }
@@ -1635,6 +1833,12 @@ export class AssessmentPaperComponent implements OnInit {
 
   /** Switching to single-choice keeps only the first ticked option. */
   onTypeChange() {
+    if (this.qForm.questionType === 'CODING') {
+      if (this.codingBankList.length === 0) {
+        this.loadCodingBank();
+      }
+      return;
+    }
     if (this.qForm.questionType !== 'SINGLE_CHOICE') return;
     let seen = false;
     this.qForm.options.forEach(o => {
@@ -1645,7 +1849,17 @@ export class AssessmentPaperComponent implements OnInit {
 
   saveQuestion() {
     this.modalError = '';
-    if (!this.qForm.questionText || !this.qForm.questionText.trim()) { this.modalError = 'Question text is required'; return; }
+    if (this.qForm.questionType === 'CODING') {
+      if (!this.qForm.questionText || !this.qForm.questionText.trim()) {
+        this.modalError = 'Please select a coding question from the Coding Bank dropdown';
+        return;
+      }
+    } else {
+      if (!this.qForm.questionText || !this.qForm.questionText.trim()) {
+        this.modalError = 'Question text is required';
+        return;
+      }
+    }
 
     const isTextType = this.qForm.questionType === 'FILL_IN_BLANK' || this.qForm.questionType === 'CODING';
     let options: PaperOption[] = [];
@@ -1665,7 +1879,7 @@ export class AssessmentPaperComponent implements OnInit {
       }
     }
 
-    const payload = {
+    const payload: any = {
       questionText: this.qForm.questionText.trim(),
       questionType: this.qForm.questionType,
       explanation: this.qForm.explanation || null,
@@ -1673,6 +1887,25 @@ export class AssessmentPaperComponent implements OnInit {
       answerText: isTextType ? (this.qForm.answerText || '').trim() || null : null,
       options: options.map(o => ({ optionText: o.optionText.trim(), isCorrect: !!o.isCorrect }))
     };
+
+    if (this.qForm.questionType === 'CODING') {
+      const qTitle = (this.qForm as any).codingTitle || this.selectedCodingBankQuestion?.title || null;
+      payload.codingTitle = qTitle;
+      payload.title = qTitle;
+      payload.codingStarterJava = this.qForm.codingStarterJava || null;
+      payload.codingStarterPython = this.qForm.codingStarterPython || null;
+      payload.codingConstraints = this.qForm.codingConstraints || null;
+      payload.codingInputFormat = this.qForm.codingInputFormat || null;
+      payload.codingOutputFormat = this.qForm.codingOutputFormat || null;
+      payload.codingDifficulty = this.qForm.codingDifficulty || 'EASY';
+      payload.testCases = (this.qForm.testCases || []).map((tc, idx) => ({
+        input: tc.input || '',
+        expectedOutput: tc.expectedOutput || '',
+        isSample: !!tc.isSample,
+        explanation: tc.explanation || null,
+        displayOrder: idx + 1
+      }));
+    }
 
     this.savingQuestion = true;
     const base = `/api/assessments/${this.type}/${this.assessmentId}/questions`;

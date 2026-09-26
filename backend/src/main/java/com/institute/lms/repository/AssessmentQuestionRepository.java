@@ -26,4 +26,10 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
     @Query("SELECT q.assessmentId, COUNT(q) FROM AssessmentQuestion q "
             + "WHERE q.assessmentType = :type GROUP BY q.assessmentId")
     List<Object[]> countsByType(@Param("type") AssessmentType type);
+
+    List<AssessmentQuestion> findByQuestionType(AssessmentQuestion.QuestionType questionType);
+
+    @Query("SELECT q FROM AssessmentQuestion q WHERE q.questionType = :questionType AND (q.assessmentId = 0 OR q.assessmentId IS NULL OR q.assessmentType = com.institute.lms.entity.AssessmentType.PRACTICE) ORDER BY q.id DESC")
+    List<AssessmentQuestion> findCodingBankQuestions(@Param("questionType") AssessmentQuestion.QuestionType questionType);
 }
+

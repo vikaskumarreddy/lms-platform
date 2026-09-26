@@ -5,7 +5,8 @@ RUN mvn dependency:resolve
 COPY src ./src
 RUN mvn package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jdk-alpine
+RUN apk add --no-cache python3 && ln -sf python3 /usr/bin/python
 WORKDIR /app
 COPY --from=build /app/target/lms-1.0.0.jar app.jar
 EXPOSE 8080

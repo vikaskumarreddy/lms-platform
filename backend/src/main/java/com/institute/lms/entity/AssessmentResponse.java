@@ -49,10 +49,23 @@ public class AssessmentResponse extends BaseEntity {
     @Column(name = "answer_text", columnDefinition = "TEXT")
     private String answerText;
 
-    /** Null means "not auto-graded" (CODING) rather than incorrect. */
+    @Column(length = 20)
+    private String language;
+
+    @Column(name = "test_cases_passed")
+    private Integer testCasesPassed;
+
+    @Column(name = "total_test_cases")
+    private Integer totalTestCases;
+
+    @Column(name = "code_output", columnDefinition = "TEXT")
+    private String codeOutput;
+
+    /** Null means "not auto-graded" rather than incorrect. */
     @Column(name = "is_correct")
     private Boolean isCorrect = false;
 
     @Column(name = "marks_awarded", nullable = false)
     private Integer marksAwarded = 0;
 }
+

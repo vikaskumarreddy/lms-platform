@@ -1,0 +1,840 @@
+<div class="sh-page">
+
+  <!-- Header -->
+  <div class="sh-header">
+    <div>
+      <h1>📱 Social Handles</h1>
+      <p class="sh-sub">Create professional marketing posters for WhatsApp &amp; Instagram</p>
+    </div>
+    <div class="sh-badges">
+      <span class="badge-wa">💬 WhatsApp</span>
+      <span class="badge-ig">📸 Instagram</span>
+    </div>
+  </div>
+
+  <div class="sh-layout">
+
+    <!-- LEFT PANEL -->
+    <div class="sh-left">
+
+      <div class="sh-card">
+        <div class="sh-card-title">📂 Category</div>
+        <div class="cat-grid">
+          <button *ngFor="let c of cats" class="cat-btn" [class.active]="activeCategory===c.id" (click)="selectCat(c.id)">
+            {{c.icon}} {{c.label}}
+          </button>
+        </div>
+      </div>
+
+      <div class="sh-card">
+        <div class="sh-card-title">🎨 Template</div>
+        <div class="tpl-grid">
+          <div *ngFor="let t of filtered" class="tpl-card" [class.sel]="canvas.templateId===t.id" (click)="selectTpl(t)">
+            <div class="tpl-emoji">{{t.emoji}}</div>
+            <div class="tpl-name">{{t.name}}</div>
+            <div class="tpl-desc">{{t.description}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sh-card" *ngIf="sel">
+        <div class="sh-card-title">📐 Format</div>
+        <div class="ratio-row">
+          <button *ngFor="let r of availRatios" class="ratio-btn" [class.active]="canvas.aspectRatio===r.id"
+                  (click)="canvas.aspectRatio=r.id; genCaption()">
+            <div class="ratio-icon">{{r.icon}}</div>
+            <div>{{r.label}}</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Editor Mode Tabs -->
+      <div class="sh-tab-bar" *ngIf="sel">
+        <button class="sh-tab" [class.active]="activeSidebarTab==='details'" (click)="activeSidebarTab='details'">
+          ✏️ Details
+        </button>
+        <button class="sh-tab" [class.active]="activeSidebarTab==='layers'" (click)="activeSidebarTab='layers'">
+          🎨 Photo &amp; Layers <span class="tab-count" *ngIf="elements.length">({{elements.length}})</span>
+        </button>
+        <button class="sh-tab" [class.active]="activeSidebarTab==='presets'" (click)="activeSidebarTab='presets'">
+          👤 Avatars
+        </button>
+      </div>
+
+      <!-- TAB 1: FORM FIELDS -->
+      <div class="sh-card" *ngIf="sel && activeSidebarTab==='details'">
+        <div class="sh-card-title">✏️ Fill Template Details</div>
+        <div *ngFor="let f of sel.fields" class="fld">
+          <label>{{f.label}}</label>
+          <select *ngIf="f.type==='select'" [(ngModel)]="canvas.fieldValues[f.key]" [name]="f.key" (change)="genCaption()">
+            <option *ngFor="let o of f.options" [value]="o">{{o}}</option>
+          </select>
+          <input *ngIf="f.type!=='select'"
+                 [type]="f.type==='number'?'number':f.type==='date'?'date':'text'"
+                 [(ngModel)]="canvas.fieldValues[f.key]"
+                 [placeholder]="f.placeholder||''"
+                 [name]="f.key"
+                 (input)="genCaption()" />
+        </div>
+
+        <div class="fld-divider"></div>
+        <div class="sh-card-title">🏷️ Branding</div>
+        <div class="fld">
+          <label class="chk-label">
+            <input type="checkbox" [(ngModel)]="canvas.showLogo" (change)="genCaption()" />
+            Show Organisation Name
+          </label>
+        </div>
+        <div class="fld" *ngIf="canvas.showLogo">
+          <label>Organisation Name</label>
+          <input type="text" [(ngModel)]="canvas.orgName" (input)="genCaption()" placeholder="Your Academy" />
+        </div>
+      </div>
+
+      <!-- TAB 2: PHOTO & LAYERS EDITOR -->
+      <div class="sh-card" *ngIf="sel && activeSidebarTab==='layers'">
+        <div class="sh-card-title-row">
+          <div class="sh-card-title">🎨 Canvas Layers</div>
+          <button class="btn-sm" (click)="triggerFileInput(sideFileInput)">+ Upload</button>
+          <input #sideFileInput type="file" accept="image/*" style="display:none;" (change)="handleImageUpload($event)" />
+        </div>
+
+        <!-- Add Element Quick Actions -->
+        <div class="quick-add-row">
+          <button class="qa-btn" (click)="triggerFileInput(sideFileInput)">📷 Add Photo</button>
+          <button class="qa-btn" (click)="addText(false)">🔤 Add Text</button>
+          <button class="qa-btn" (click)="addText(true)">🏷️ Add Pill</button>
+        </div>
+
+        <!-- Layer List -->
+        <div class="layers-list" *ngIf="elements.length > 0; else noLayers">
+          <div *ngFor="let el of elements; let i = index"
+               class="layer-item"
+               [class.active]="selectedElementId === el.id"
+               (click)="selectElement(el)">
+            <span class="layer-icon">{{ el.type === 'image' ? '🖼️' : el.type === 'badge' ? '🏷️' : '🔤' }}</span>
+            <span class="layer-name">{{ el.name || el.text || 'Element ' + (i+1) }}</span>
+            <div class="layer-actions">
+              <button class="layer-btn-del" title="Delete" (click)="$event.stopPropagation(); selectedElementId=el.id; deleteSelected()">✕</button>
+            </div>
+          </div>
+        </div>
+        <ng-template #noLayers>
+          <div class="empty-layers-msg">
+            No custom layers yet. Upload a photo or pick an avatar preset to place it on your banner!
+          </div>
+        </ng-template>
+
+        <!-- Selected Element Inspector -->
+        <div class="inspector-card" *ngIf="selectedElement">
+          <div class="inspector-hdr">
+            <span>⚙️ Editing: <b>{{ selectedElement.name || selectedElement.type }}</b></span>
+            <button class="btn-link-danger" (click)="deleteSelected()">Delete</button>
+          </div>
+
+          <!-- IMAGE SPECIFIC CONTROLS -->
+          <div *ngIf="selectedElement.type === 'image'">
+            <!-- Presets -->
+            <label class="insp-label">Quick Placement Presets</label>
+            <div class="insp-presets-grid">
+              <button class="preset-btn" (click)="applyImagePreset('right-avatar')">
+                👤 Right Banner (Ref Style)
+              </button>
+              <button class="preset-btn" (click)="applyImagePreset('circle-avatar')">
+                ⭕ Circle Avatar
+              </button>
+              <button class="preset-btn" (click)="applyImagePreset('center-hero')">
+                🎯 Center Hero
+              </button>
+              <button class="preset-btn" (click)="applyImagePreset('corner-badge')">
+                🏷️ Corner Logo
+              </button>
+            </div>
+
+            <!-- Dimensions -->
+            <div class="insp-row">
+              <div class="insp-col">
+                <label>Width (px)</label>
+                <input type="number" min="20" max="400" [(ngModel)]="selectedElement.width" />
+              </div>
+              <div class="insp-col">
+                <label>Height (px)</label>
+                <input type="number" min="20" max="600" [(ngModel)]="selectedElement.height" />
+              </div>
+            </div>
+
+            <!-- Sliders for Width & Height -->
+            <div class="insp-slider-wrap">
+              <label>Resize Width: {{selectedElement.width}}px</label>
+              <input type="range" min="30" max="320" [(ngModel)]="selectedElement.width" />
+            </div>
+            <div class="insp-slider-wrap">
+              <label>Resize Height: {{selectedElement.height}}px</label>
+              <input type="range" min="30" max="450" [(ngModel)]="selectedElement.height" />
+            </div>
+
+            <!-- X & Y Sliders -->
+            <div class="insp-row">
+              <div class="insp-col">
+                <label>Position X ({{selectedElement.x}}px)</label>
+                <input type="range" min="-50" max="320" [(ngModel)]="selectedElement.x" />
+              </div>
+              <div class="insp-col">
+                <label>Position Y ({{selectedElement.y}}px)</label>
+                <input type="range" min="-50" max="500" [(ngModel)]="selectedElement.y" />
+              </div>
+            </div>
+
+            <!-- Alignments -->
+            <label class="insp-label">Alignment</label>
+            <div class="align-btn-group">
+              <button (click)="alignElement('left')" title="Align Left">Left</button>
+              <button (click)="alignElement('center')" title="Align Center">Center</button>
+              <button (click)="alignElement('right')" title="Align Right">Right</button>
+              <button (click)="alignElement('top')" title="Align Top">Top</button>
+              <button (click)="alignElement('middle')" title="Align Middle">Middle</button>
+              <button (click)="alignElement('bottom')" title="Align Bottom">Bottom</button>
+            </div>
+
+            <!-- Image Styling -->
+            <label class="insp-label">Appearance &amp; Effects</label>
+            <div class="insp-style-grid">
+              <label class="chk-label">
+                <input type="checkbox" [(ngModel)]="selectedElement.flipH" />
+                Flip Horizontal
+              </label>
+              <label class="chk-label">
+                <input type="checkbox" [(ngModel)]="selectedElement.hasShadow" />
+                Drop Shadow
+              </label>
+            </div>
+
+            <div class="insp-row" style="margin-top: 8px;">
+              <div class="insp-col">
+                <label>Roundness: {{selectedElement.borderRadius}}px</label>
+                <input type="range" min="0" max="100" [(ngModel)]="selectedElement.borderRadius" />
+              </div>
+              <div class="insp-col">
+                <label>Fit</label>
+                <select [(ngModel)]="selectedElement.objectFit">
+                  <option value="contain">Contain</option>
+                  <option value="cover">Cover (Fill crop)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Layer Order -->
+            <div class="layer-order-row">
+              <button class="qa-btn" (click)="bringForward()">⬆️ Bring Forward</button>
+              <button class="qa-btn" (click)="sendBackward()">⬇️ Send Backward</button>
+            </div>
+          </div>
+
+          <!-- TEXT / BADGE SPECIFIC CONTROLS -->
+          <div *ngIf="selectedElement.type === 'text' || selectedElement.type === 'badge'">
+            <div class="fld">
+              <label>Text Content</label>
+              <input type="text" [(ngModel)]="selectedElement.text" />
+            </div>
+
+            <div class="insp-row">
+              <div class="insp-col">
+                <label>Font Size: {{selectedElement.fontSize}}px</label>
+                <input type="range" min="9" max="36" [(ngModel)]="selectedElement.fontSize" />
+              </div>
+              <div class="insp-col">
+                <label>Color</label>
+                <input type="color" [(ngModel)]="selectedElement.color" style="height:34px; padding:2px;" />
+              </div>
+            </div>
+
+            <div class="insp-row">
+              <div class="insp-col">
+                <label>Font Family</label>
+                <select [(ngModel)]="selectedElement.fontFamily">
+                  <option value="Poppins">Poppins</option>
+                  <option value="Montserrat">Montserrat</option>
+                  <option value="Dancing Script">Dancing Script</option>
+                </select>
+              </div>
+              <div class="insp-col">
+                <label>Weight</label>
+                <select [(ngModel)]="selectedElement.fontWeight">
+                  <option value="400">Regular</option>
+                  <option value="600">Semi Bold</option>
+                  <option value="800">Bold</option>
+                  <option value="900">Black</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="insp-row">
+              <div class="insp-col">
+                <label>Text Align</label>
+                <select [(ngModel)]="selectedElement.textAlign">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+              <div class="insp-col" *ngIf="selectedElement.type === 'badge'">
+                <label>Badge Background</label>
+                <input type="text" [(ngModel)]="selectedElement.bgColor" placeholder="e.g. #ffffff or rgba(..)" />
+              </div>
+            </div>
+
+            <!-- Alignment Buttons -->
+            <label class="insp-label">Alignment</label>
+            <div class="align-btn-group">
+              <button (click)="alignElement('left')">Left</button>
+              <button (click)="alignElement('center')">Center</button>
+              <button (click)="alignElement('right')">Right</button>
+              <button (click)="alignElement('top')">Top</button>
+              <button (click)="alignElement('middle')">Middle</button>
+              <button (click)="alignElement('bottom')">Bottom</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: AVATAR & STICKER PRESETS -->
+      <div class="sh-card" *ngIf="sel && activeSidebarTab==='presets'">
+        <div class="sh-card-title">👤 Avatar &amp; Character Presets</div>
+        <p class="insp-help-text">Click any avatar below to immediately add it to your banner, exactly positioned like our reference designs!</p>
+
+        <div class="presets-avatar-grid">
+          <div *ngFor="let p of presetAvatars" class="avatar-card" (click)="applyPresetAvatar(p)">
+            <div class="avatar-icon-preview">{{p.icon}}</div>
+            <div class="avatar-title">{{p.name}}</div>
+            <button class="btn-avatar-add">+ Insert</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="sh-right" *ngIf="sel; else noSel">
+
+      <!-- Canvas Preview -->
+      <div class="sh-card">
+        <div class="sh-card-title-row">
+          <div class="sh-card-title">👁️ Live Preview &amp; Editor</div>
+          <button class="btn-export" (click)="exportImg()" [disabled]="exporting">
+            {{exporting ? '⏳ Generating…' : '⬇️ Export PNG'}}
+          </button>
+        </div>
+
+        <!-- Canva-style Interactive Canvas Toolbar -->
+        <div class="cvs-toolbar">
+          <input #cvsFileInput type="file" accept="image/*" style="display:none;" (change)="handleImageUpload($event)" />
+          <button class="tool-btn highlight" (click)="triggerFileInput(cvsFileInput)" title="Upload a photo or avatar">
+            <span>📷</span> Upload Image
+          </button>
+          <button class="tool-btn" (click)="addText(false)" title="Add movable heading or text">
+            <span>🔤</span> Add Text
+          </button>
+          <button class="tool-btn" (click)="addText(true)" title="Add pill discount badge">
+            <span>🏷️</span> Add Badge
+          </button>
+          <button class="tool-btn" (click)="activeSidebarTab='presets'" title="Pick preset avatars">
+            <span>👤</span> Presets
+          </button>
+          <div class="tool-sep" *ngIf="selectedElement"></div>
+          <button class="tool-btn" *ngIf="selectedElement" (click)="alignElement('center')" title="Center Align">
+            <span>↔️</span> Center
+          </button>
+          <button class="tool-btn danger" *ngIf="selectedElement" (click)="deleteSelected()" title="Delete Selected">
+            <span>🗑️</span> Delete
+          </button>
+        </div>
+
+        <div class="cvs-outer" [ngClass]="'r-' + canvas.aspectRatio.replace(':','-')">
+          <div #cvs class="cvs" (pointerdown)="deselectAll($event)">
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: course-launch
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-course-launch" *ngIf="canvas.templateId==='course-launch'">
+              <div class="cl-bg-circle cl-bc1"></div>
+              <div class="cl-bg-circle cl-bc2"></div>
+              <div class="cl-bg-circle cl-bc3"></div>
+
+              <div class="cl-header">
+                <div class="cl-logo-mark">&#9650;</div>
+                <div class="cl-org-info">
+                  <div class="cl-org-name">{{canvas.orgName || 'Your Academy'}}</div>
+                  <div class="cl-org-tag">{{fv('orgTagline') || 'EXCELLENCE IN TRAINING'}}</div>
+                </div>
+              </div>
+
+              <div class="cl-badges">
+                <span class="cl-badge-pill">{{fv('batchType') || 'Live + Recorded Batch'}}</span>
+                <span class="cl-badge-sep">|</span>
+                <span class="cl-cohort-txt">For {{fv('cohort') || 'Next'}} Cohort</span>
+              </div>
+
+              <div class="cl-course-section">
+                <div class="cl-course-bold">{{fv('courseName') || 'COURSE NAME'}}</div>
+                <div class="cl-course-script">{{fv('courseSubtitle') || 'Mastery Batch'}}</div>
+              </div>
+
+              <!-- Fallback emoji avatar only shown when no custom image layer exists -->
+              <div class="cl-avatar" *ngIf="!hasHeroImage()">&#128105;&#8205;&#128187;</div>
+
+              <div class="cl-dates">
+                <div class="cl-date-row" *ngIf="fv('earlyBirdDate')">
+                  <span class="cl-date-lbl">Early Bird Classes</span>
+                  <span class="cl-date-val">{{formatDate(fv('earlyBirdDate'))}}</span>
+                </div>
+                <div class="cl-date-row" *ngIf="fv('regularDate')">
+                  <span class="cl-date-lbl">Regular Classes</span>
+                  <span class="cl-date-val">{{formatDate(fv('regularDate'))}}</span>
+                </div>
+                <div class="cl-date-row" *ngIf="fv('timing')">
+                  <span class="cl-date-lbl">Timings</span>
+                  <span class="cl-date-val">{{fv('timing')}}</span>
+                </div>
+              </div>
+
+
+              <div class="cl-mode">{{fv('mode') || 'Offline | Live Online | Recorded'}}</div>
+
+              <div class="cl-features">
+                <div class="cl-feat"><span>&#128221;</span><span>Mock Test Series</span></div>
+                <div class="cl-feat"><span>&#128188;</span><span>Real-World Projects</span></div>
+                <div class="cl-feat"><span>&#127909;</span><span>Recorded Backup</span></div>
+              </div>
+
+              <div class="cl-footer">
+                <div class="cl-social">
+                  <span class="cl-soc-icon">f</span>
+                  <span class="cl-soc-icon">&#128247;</span>
+                  <span class="cl-soc-icon">&#9992;&#65039;</span>
+                  <span class="cl-soc-text">{{fv('website')}}</span>
+                </div>
+                <div class="cl-contact-info">
+                  <span>{{fv('contact')}}</span>
+                  <span>{{fv('website')}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: promo-discount
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-promo-discount" *ngIf="canvas.templateId==='promo-discount'">
+              <div class="pd-slash"></div>
+              <div class="pd-slash pd-slash2"></div>
+
+              <div class="pd-header">
+                <div class="pd-limited">&#128293; LIMITED TIME OFFER</div>
+                <div class="pd-org" *ngIf="canvas.showLogo">{{canvas.orgName || 'Your Academy'}}</div>
+              </div>
+
+              <div class="pd-hero">
+                <div class="pd-pct-wrap">
+                  <span class="pd-pct">{{fv('discountPercent') || '50'}}</span>
+                  <span class="pd-off">%<br>OFF</span>
+                </div>
+              </div>
+
+              <div class="pd-course">{{fv('courseName') || 'Course Name'}}</div>
+
+              <div class="pd-fees" *ngIf="fv('originalFee') || fv('discountedFee')">
+                <span class="pd-orig" *ngIf="fv('originalFee')">{{fv('originalFee')}}</span>
+                <span class="pd-arrow">&#8594;</span>
+                <span class="pd-disc">{{fv('discountedFee')}}</span>
+              </div>
+
+              <div class="pd-code" *ngIf="fv('offerCode')">
+                <span class="pd-code-label">USE CODE</span>
+                <span class="pd-code-val">{{fv('offerCode')}}</span>
+              </div>
+
+              <div class="pd-expiry" *ngIf="fv('expiryDate')">
+                &#9203; Offer expires: <b>{{formatDate(fv('expiryDate'))}}</b>
+              </div>
+
+              <div class="pd-footer">
+                <div class="pd-enroll">Enroll Now</div>
+                <div class="pd-contact">{{fv('contact')}}</div>
+                <div class="pd-org-tag" *ngIf="canvas.showLogo">{{canvas.orgName || 'Your Academy'}}</div>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: promo-demo
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-promo-demo" *ngIf="canvas.templateId==='promo-demo'">
+              <div class="demo-star demo-s1">&#10022;</div>
+              <div class="demo-star demo-s2">&#10022;</div>
+              <div class="demo-star demo-s3">&#9733;</div>
+              <div class="demo-star demo-s4">&#10022;</div>
+
+              <div class="demo-header">
+                <div class="demo-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+                <div class="demo-free-tag">ABSOLUTELY FREE</div>
+              </div>
+
+              <div class="demo-hero">
+                <div class="demo-free-word">FREE</div>
+                <div class="demo-demo-word">DEMO CLASS</div>
+              </div>
+
+              <div class="demo-course">{{fv('courseName') || 'Course Name'}}</div>
+
+              <div class="demo-info-box">
+                <div class="demo-info-row">
+                  <span class="demo-info-icon">&#128197;</span>
+                  <span>{{formatDate(fv('demoDate')) || 'Date TBD'}}</span>
+                </div>
+                <div class="demo-info-row">
+                  <span class="demo-info-icon">&#9200;</span>
+                  <span>{{fv('demoTime') || 'Time TBD'}}</span>
+                </div>
+                <div class="demo-info-row">
+                  <span class="demo-info-icon">&#128205;</span>
+                  <span>{{fv('platform') || 'Platform TBD'}}</span>
+                </div>
+              </div>
+
+              <div class="demo-topics" *ngIf="fv('keyTopics')">
+                <div class="demo-topics-label">Topics Covered</div>
+                <div class="demo-topics-list">{{fv('keyTopics')}}</div>
+              </div>
+
+              <div class="demo-cta">
+                <span>Register Now</span>
+                <span class="demo-cta-contact">{{fv('contact')}}</span>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: placement-success
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-placement-success" *ngIf="canvas.templateId==='placement-success'">
+              <div class="ps-glow"></div>
+              <div class="ps-glow ps-glow2"></div>
+
+              <div class="ps-header">
+                <div class="ps-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+                <div class="ps-badge">&#127942; PLACEMENT SUCCESS</div>
+              </div>
+
+              <div class="ps-hero">
+                <div class="ps-trophy">&#127942;</div>
+                <div class="ps-congrats">Congratulations!</div>
+                <div class="ps-student">{{fv('studentName') || 'Student Name'}}</div>
+              </div>
+
+              <div class="ps-placed-at">has been placed at</div>
+
+              <div class="ps-company">{{fv('companyName') || 'Company Name'}}</div>
+
+              <div class="ps-details">
+                <div class="ps-detail-pill">
+                  <span class="ps-dp-icon">&#128204;</span>
+                  <span>{{fv('role') || 'Role'}}</span>
+                </div>
+                <div class="ps-detail-pill ps-ctc-pill">
+                  <span class="ps-dp-icon">&#128176;</span>
+                  <span>{{fv('ctc') || 'Package'}}</span>
+                </div>
+              </div>
+
+              <div class="ps-course-info">
+                <div class="ps-course-label">Trained at</div>
+                <div class="ps-course-val">{{canvas.orgName || 'Your Academy'}} — {{fv('courseName')}} | {{fv('batchName')}}</div>
+              </div>
+
+              <div class="ps-stars">&#11088; &#11088; &#11088; &#11088; &#11088;</div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: placement-stats
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-placement-stats" *ngIf="canvas.templateId==='placement-stats'">
+              <div class="pst-bg-glow"></div>
+
+              <div class="pst-header">
+                <div class="pst-year-badge">{{fv('year') || '2024'}}</div>
+                <div class="pst-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+                <div class="pst-title">PLACEMENT HIGHLIGHTS</div>
+              </div>
+
+              <div class="pst-grid">
+                <div class="pst-stat pst-main">
+                  <div class="pst-num">{{fv('totalPlaced') || '0'}}</div>
+                  <div class="pst-lbl">Students Placed</div>
+                </div>
+                <div class="pst-stat pst-rate">
+                  <div class="pst-num">{{fv('placementRate') || '0'}}%</div>
+                  <div class="pst-lbl">Placement Rate</div>
+                </div>
+                <div class="pst-stat">
+                  <div class="pst-num">{{fv('companiesCount') || '0'}}+</div>
+                  <div class="pst-lbl">Companies</div>
+                </div>
+                <div class="pst-stat pst-avg">
+                  <div class="pst-num">{{fv('avgPackage') || '0'}}</div>
+                  <div class="pst-lbl">Avg LPA</div>
+                </div>
+                <div class="pst-stat pst-top">
+                  <div class="pst-num">{{fv('topPackage') || '0'}} LPA</div>
+                  <div class="pst-lbl">Top Package</div>
+                </div>
+              </div>
+
+              <div class="pst-footer">
+                <div class="pst-tagline">Your success is our mission</div>
+                <div class="pst-org-tag" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: course-completion
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-course-completion" *ngIf="canvas.templateId==='course-completion'">
+              <div class="cc-confetti cc-c1">&#9679;</div>
+              <div class="cc-confetti cc-c2">&#9632;</div>
+              <div class="cc-confetti cc-c3">&#9650;</div>
+              <div class="cc-confetti cc-c4">&#9679;</div>
+              <div class="cc-confetti cc-c5">&#9632;</div>
+              <div class="cc-confetti cc-c6">&#9650;</div>
+
+              <div class="cc-header">
+                <div class="cc-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+              </div>
+
+              <div class="cc-ribbon">
+                <span>&#127882;</span> BATCH COMPLETED <span>&#127882;</span>
+              </div>
+
+              <div class="cc-count">{{fv('studentCount') || '0'}}</div>
+              <div class="cc-count-label">Students Certified</div>
+
+              <div class="cc-course">{{fv('courseName') || 'Course Name'}}</div>
+              <div class="cc-batch">{{fv('batchName') || 'Batch'}}</div>
+
+              <div class="cc-info">
+                <div class="cc-info-row" *ngIf="fv('duration')">
+                  <span class="cc-info-icon">&#9200;</span> Duration: {{fv('duration')}}
+                </div>
+                <div class="cc-info-row" *ngIf="fv('completionDate')">
+                  <span class="cc-info-icon">&#127881;</span> Completed: {{formatDate(fv('completionDate'))}}
+                </div>
+              </div>
+
+              <div class="cc-congrats">Congratulations to all graduates! &#127881;</div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: general-holiday
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-general-holiday" *ngIf="canvas.templateId==='general-holiday'">
+              <div class="gh-orb gh-orb1"></div>
+              <div class="gh-orb gh-orb2"></div>
+              <div class="gh-orb gh-orb3"></div>
+
+              <div class="gh-header">
+                <div class="gh-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+              </div>
+
+              <div class="gh-emoji-big">{{fv('holidayEmoji') || '🎉'}}</div>
+
+              <div class="gh-wish">
+                <div class="gh-happy">HAPPY</div>
+                <div class="gh-holiday-name">{{fv('holidayName') || 'Holiday'}}</div>
+              </div>
+
+              <div class="gh-message">{{fv('wishMessage') || 'Wishing you joy and happiness!'}}</div>
+
+              <div class="gh-notice-box">
+                <div class="gh-notice-title">Notice</div>
+                <div class="gh-notice-row" *ngIf="fv('holidayDate')">
+                  Institute will remain closed on<br>
+                  <b>{{formatDate(fv('holidayDate'))}}</b>
+                </div>
+                <div class="gh-notice-row" *ngIf="fv('resumeDate')">
+                  Classes resume from <b>{{formatDate(fv('resumeDate'))}}</b>
+                </div>
+              </div>
+
+              <div class="gh-footer">
+                <div class="gh-from">— {{canvas.orgName || 'Your Academy'}} Team</div>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 TEMPLATE: general-event
+                 ════════════════════════════════════════ -->
+            <div class="tpl tpl-general-event" *ngIf="canvas.templateId==='general-event'">
+              <div class="ge-bg-arc"></div>
+
+              <div class="ge-header">
+                <div class="ge-org" *ngIf="canvas.showLogo">{{canvas.orgName}}</div>
+                <div class="ge-tag">{{fv('eventType') || 'SEMINAR'}}</div>
+              </div>
+
+              <div class="ge-invited">YOU'RE INVITED</div>
+
+              <div class="ge-event-name">{{fv('eventName') || 'Event Name'}}</div>
+
+              <div class="ge-speaker-card" *ngIf="fv('speaker')">
+                <div class="ge-speaker-avatar">&#127908;</div>
+                <div class="ge-speaker-info">
+                  <div class="ge-speaker-name">{{fv('speaker')}}</div>
+                  <div class="ge-speaker-desig">{{fv('speakerDesig')}}</div>
+                </div>
+              </div>
+
+              <div class="ge-details">
+                <div class="ge-detail-row" *ngIf="fv('eventDate')">
+                  <span class="ge-det-icon">&#128197;</span>
+                  <span>{{formatDate(fv('eventDate'))}}</span>
+                </div>
+                <div class="ge-detail-row" *ngIf="fv('eventTime')">
+                  <span class="ge-det-icon">&#9200;</span>
+                  <span>{{fv('eventTime')}}</span>
+                </div>
+                <div class="ge-detail-row" *ngIf="fv('venue')">
+                  <span class="ge-det-icon">&#128205;</span>
+                  <span>{{fv('venue')}}</span>
+                </div>
+              </div>
+
+              <div class="ge-cta">
+                <span class="ge-cta-label">Register Now</span>
+                <span class="ge-cta-contact">{{fv('contact')}}</span>
+              </div>
+            </div>
+
+            <!-- ════════════════════════════════════════
+                 INTERACTIVE CUSTOM LAYERS (Image / Badge / Text)
+                 ════════════════════════════════════════ -->
+            <div *ngFor="let el of elements"
+                 class="cvs-el"
+                 [class.is-selected]="selectedElementId === el.id"
+                 [ngStyle]="{
+                   left: el.x + 'px',
+                   top: el.y + 'px',
+                   width: el.width + 'px',
+                   height: el.height + 'px',
+                   zIndex: el.zIndex
+                 }"
+                 (pointerdown)="onElementPointerDown($event, el)">
+
+              <!-- Image Layer -->
+              <div class="el-img-wrap" *ngIf="el.type==='image'"
+                   [ngStyle]="{
+                     borderRadius: el.borderRadius ? (el.borderRadius + (el.borderRadius === 50 ? '%' : 'px')) : '0',
+                     opacity: el.opacity != null ? el.opacity : 1,
+                     filter: el.hasShadow ? 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' : 'none',
+                     transform: el.flipH ? 'scaleX(-1)' : 'none'
+                   }">
+                <img [src]="el.src" [style.object-fit]="el.objectFit || 'contain'" alt="Overlay Image" draggable="false" />
+              </div>
+
+              <!-- Text or Pill Badge Layer -->
+              <div class="el-txt-wrap" *ngIf="el.type==='text' || el.type==='badge'"
+                   [ngStyle]="{
+                     fontSize: el.fontSize + 'px',
+                     fontFamily: el.fontFamily || 'Poppins',
+                     fontWeight: el.fontWeight || '700',
+                     color: el.color || '#fff',
+                     textAlign: el.textAlign || 'left',
+                     backgroundColor: el.bgColor || 'transparent',
+                     borderColor: el.borderColor || 'transparent',
+                     borderRadius: (el.borderRadius || 0) + 'px',
+                     padding: (el.paddingY || 0) + 'px ' + (el.paddingX || 0) + 'px'
+                   }">
+                {{ el.text }}
+              </div>
+
+              <!-- Selection Outline & 8 Resize Handles -->
+              <div class="cvs-sel-box" *ngIf="selectedElementId === el.id" (pointerdown)="$event.stopPropagation()">
+                <!-- 8 Handles -->
+                <div class="rh rh-nw" (pointerdown)="onResizeHandlePointerDown($event, el, 'nw')"></div>
+                <div class="rh rh-n"  (pointerdown)="onResizeHandlePointerDown($event, el, 'n')"></div>
+                <div class="rh rh-ne" (pointerdown)="onResizeHandlePointerDown($event, el, 'ne')"></div>
+                <div class="rh rh-e"  (pointerdown)="onResizeHandlePointerDown($event, el, 'e')"></div>
+                <div class="rh rh-se" (pointerdown)="onResizeHandlePointerDown($event, el, 'se')"></div>
+                <div class="rh rh-s"  (pointerdown)="onResizeHandlePointerDown($event, el, 's')"></div>
+                <div class="rh rh-sw" (pointerdown)="onResizeHandlePointerDown($event, el, 'sw')"></div>
+                <div class="rh rh-w"  (pointerdown)="onResizeHandlePointerDown($event, el, 'w')"></div>
+
+                <!-- Floating mini action chip -->
+                <div class="floating-quick-bar">
+                  <button title="Align Left" (click)="alignElement('left')">⇤</button>
+                  <button title="Align Center" (click)="alignElement('center')">↔</button>
+                  <button title="Align Right" (click)="alignElement('right')">⇥</button>
+                  <button title="Bring Forward" (click)="bringForward()">↑</button>
+                  <button title="Send Backward" (click)="sendBackward()">↓</button>
+                  <button class="qb-del" title="Delete Layer" (click)="deleteSelected()">🗑️</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Watermark -->
+            <div class="cvs-wm" *ngIf="sel">Powered by LMS Platform</div>
+          </div>
+        </div>
+
+        <div class="export-msg" *ngIf="exportMsg">{{exportMsg}}</div>
+        <div class="export-help" *ngIf="!htmlToImageReady">
+          ⚠️ Run <code>npm install html-to-image</code> to enable PNG export.
+        </div>
+      </div>
+
+      <!-- Caption -->
+      <div class="sh-card">
+        <div class="sh-card-title-row">
+          <div class="sh-card-title">📝 Caption</div>
+          <button class="btn-copy" [class.copied]="copied" (click)="copyCaption()">
+            {{copied ? '✅ Copied!' : '📋 Copy'}}
+          </button>
+        </div>
+        <textarea class="caption-ta" [(ngModel)]="caption" rows="9" name="caption"></textarea>
+        <div class="share-btns">
+          <button class="btn-wa" (click)="shareWa()">💬 Share on WhatsApp</button>
+          <button class="btn-ig" (click)="showIg=true">📸 Post to Instagram</button>
+        </div>
+      </div>
+
+    </div>
+
+    <ng-template #noSel>
+      <div class="sh-empty">
+        <div class="ns-icon">📱</div>
+        <h2>Choose a Template</h2>
+        <p>Select a category and template from the left panel to start creating your professional marketing poster.</p>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- Instagram Modal -->
+  <div class="modal-bg" *ngIf="showIg" (click)="showIg=false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-hdr">
+        <h3>📸 How to Post to Instagram</h3>
+        <button (click)="showIg=false" class="modal-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <ol class="ig-ol">
+          <li><b>Export PNG</b> — Click "⬇️ Export PNG" to download the poster image.</li>
+          <li><b>Copy caption</b> — Click "📋 Copy" to copy the formatted caption.</li>
+          <li><b>Open Instagram</b> — Tap <b>+</b>, select your image, paste the caption.</li>
+          <li><b>Add hashtags &amp; location</b> for better reach.</li>
+          <li><b>Post!</b> — Use 9:16 for Stories/Reels; 1:1 for Feed posts.</li>
+        </ol>
+        <div class="ig-tip">💡 <b>Tip:</b> Post at 7–9 PM IST on weekdays for best engagement.</div>
+        <div class="ig-api">
+          <b>🔗 Direct Instagram API (Coming Soon)</b><br>
+          Once configured via Settings → Social Handles API, you can publish in one click.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

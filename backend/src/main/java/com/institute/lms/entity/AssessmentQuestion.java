@@ -60,10 +60,36 @@ public class AssessmentQuestion extends BaseEntity {
     @Column(name = "answer_text", columnDefinition = "TEXT")
     private String answerText;
 
+    @Column(name = "coding_starter_java", columnDefinition = "TEXT")
+    private String codingStarterJava;
+
+    @Column(name = "coding_starter_python", columnDefinition = "TEXT")
+    private String codingStarterPython;
+
+    @Column(name = "coding_constraints", columnDefinition = "TEXT")
+    private String codingConstraints;
+
+    @Column(name = "coding_input_format", columnDefinition = "TEXT")
+    private String codingInputFormat;
+
+    @Column(name = "coding_output_format", columnDefinition = "TEXT")
+    private String codingOutputFormat;
+
+    @Column(name = "coding_difficulty", length = 20)
+    private String codingDifficulty = "MEDIUM";
+
+    @Column(name = "coding_title", length = 255)
+    private String codingTitle;
+
     @JsonIgnore
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("displayOrder ASC, id ASC")
     private List<AssessmentQuestionOption> options = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC, id ASC")
+    private List<CodingTestCase> testCases = new ArrayList<>();
 
     /** Keeps both sides of the relation consistent so the FK is populated on insert. */
     public void addOption(AssessmentQuestionOption option) {
@@ -74,6 +100,19 @@ public class AssessmentQuestion extends BaseEntity {
     public void clearOptions() {
         this.options.clear();
     }
+
+    public void addTestCase(CodingTestCase testCase) {
+        testCase.setQuestion(this);
+        if (testCase.getOrganizationId() == null) {
+            testCase.setOrganizationId(this.getOrganizationId());
+        }
+        this.testCases.add(testCase);
+    }
+
+    public void clearTestCases() {
+        this.testCases.clear();
+    }
+
 
     public enum QuestionType {
         /** Exactly one correct option — rendered as radio buttons. */

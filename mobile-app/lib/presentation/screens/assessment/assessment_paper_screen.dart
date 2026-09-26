@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api_service.dart';
+import '../../../core/config/app_config.dart';
+import '../browser/in_app_browser_screen.dart';
 
 const Color _kBgDark = Color(0xFF071D43);
 const Color _kCardDark = Color(0xFF0C2B64);
@@ -914,35 +916,203 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
   Widget _textAnswerField(_Question q) {
     final controller = _textControllers.putIfAbsent(
         q.id, () => TextEditingController(text: _textAnswers[q.id] ?? ''));
+
+    if (q.isCoding) {
+      final editorUrl = '${AppConfig.webBaseUrl}/code-editor/${q.id}?assessmentType=${widget.type}&assessmentId=${widget.assessmentId}&userId=$_userId';
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kCyan.withOpacity(0.55), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: _kCyan.withOpacity(0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _kCyan.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.code_rounded, color: _kCyan, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Realtime Coding Platform',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('☕ Java 21', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('🐍 Python 3.12', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _kCorrect.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('⚡ Auto-Graded', style: TextStyle(fontSize: 11, color: _kCorrect, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Launch the online IDE to test code with custom input, verify sample test cases, and submit for instant grading mapped to your student profile.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kCyan,
+                      foregroundColor: const Color(0xFF071D43),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
+                    label: const Text(
+                      'Launch Realtime Coding IDE',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InAppBrowserScreen(
+                            url: editorUrl,
+                            title: 'Coding IDE - Question #${q.id}',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Inline manual code backup
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF051838),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _kCardDarkBorder.withOpacity(0.55)),
+            ),
+            child: TextField(
+              controller: controller,
+              maxLines: 8,
+              minLines: 4,
+              keyboardType: TextInputType.multiline,
+              style: const TextStyle(
+                fontSize: 13,
+                fontFamily: 'monospace',
+                height: 1.4,
+                color: Color(0xFF38BDF8),
+              ),
+              cursorColor: _kCyan,
+              decoration: const InputDecoration(
+                filled: true,
+                fillColor: Colors.transparent,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(12),
+                hintText: '// Optional: paste or view your code backup here...',
+                hintStyle: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  if (value.trim().isEmpty) {
+                    _textAnswers.remove(q.id);
+                  } else {
+                    _textAnswers[q.id] = value;
+                  }
+                });
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
-        color: q.isCoding ? const Color(0xFF051838) : _kCardDark.withOpacity(0.65),
+        color: _kCardDark.withOpacity(0.65),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _kCardDarkBorder.withOpacity(0.55)),
       ),
       child: TextField(
         controller: controller,
-        maxLines: q.isCoding ? 14 : 1,
-        minLines: q.isCoding ? 8 : 1,
-        keyboardType: q.isCoding ? TextInputType.multiline : TextInputType.text,
-        style: TextStyle(
+        maxLines: 1,
+        minLines: 1,
+        keyboardType: TextInputType.text,
+        style: const TextStyle(
           fontSize: 13.5,
-          fontFamily: q.isCoding ? 'monospace' : null,
-          height: q.isCoding ? 1.5 : 1.3,
-          color: q.isCoding ? const Color(0xFF38BDF8) : Colors.white,
+          color: Colors.white,
         ),
         cursorColor: _kCyan,
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
           filled: true,
           fillColor: Colors.transparent,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.all(14),
-          hintText: q.isCoding ? '// Write your code here...' : 'Type your answer...',
+          contentPadding: EdgeInsets.all(14),
+          hintText: 'Type your answer...',
           hintStyle: TextStyle(
-            fontFamily: q.isCoding ? 'monospace' : null,
-            color: q.isCoding ? const Color(0xFF64748B) : Colors.white38,
+            color: Colors.white38,
           ),
         ),
         onChanged: (value) {
