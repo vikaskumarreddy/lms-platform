@@ -38,4 +38,7 @@ public class StudentRequest {
     private String parentEmail;
 
     private String notifyMedium; // PUSH, SMS, or WHATSAPP
+
+    private java.util.Map<String, Object> customFields;
 }
+

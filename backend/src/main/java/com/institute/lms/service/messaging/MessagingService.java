@@ -15,4 +15,13 @@ public interface MessagingService {
      * breaks the caller (matches the existing safeNotify resilience pattern).
      */
     boolean send(Long organizationId, MessagingChannel channel, String toPhone, String message);
+
+    /**
+     * Detailed dispatch method returning vendor response or failure message.
+     */
+    MessagingResult sendWithResult(Long organizationId, MessagingChannel channel, String toPhone, String message);
+
+    record MessagingResult(boolean success, String responseBody, String message) {
+        public boolean isSuccess() { return success; }
+    }
 }

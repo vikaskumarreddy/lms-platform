@@ -87,6 +87,11 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "notify_medium", length = 20)
     private NotifyMedium notifyMedium = NotifyMedium.PUSH;
 
+    /** Extra/custom registration fields stored as JSON string. */
+    @Column(name = "custom_fields", columnDefinition = "TEXT")
+    private String customFields;
+
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private Set<Enrollment> enrollments;

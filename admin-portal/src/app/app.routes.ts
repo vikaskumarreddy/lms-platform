@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AdminLayoutComponent } from './layout/admin-layout.component';
 import { LoginComponent } from './pages/login/login.component';
+import { RegisterComponent } from './pages/register/register.component';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { StudentsComponent } from './pages/students/students.component';
 import { StudentDetailComponent } from './pages/students/student-detail/student-detail.component';
@@ -20,7 +21,9 @@ import { SubscriptionsAdminComponent } from './pages/subscriptions-admin/subscri
 import { EventsAdminComponent } from './pages/events-admin/events-admin.component';
 import { BookmarksAdminComponent } from './pages/bookmarks-admin/bookmarks-admin.component';
 import { BatchesComponent } from './pages/batches/batches.component';
+import { BatchRulesComponent } from './pages/batches/batch-rules/batch-rules.component';
 import { BatchCommunityComponent } from './pages/batch-community/batch-community.component';
+
 import { GradingAdminComponent } from './pages/grading-admin/grading-admin.component';
 import { AttendanceAdminComponent } from './pages/attendance-admin/attendance-admin.component';
 import { CertificatesAdminComponent } from './pages/certificates-admin/certificates-admin.component';
@@ -39,6 +42,7 @@ import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard'
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  { path: 'register', component: RegisterComponent },
   { path: 'verify/:credentialId', component: PublicVerifyComponent },
   {
     path: '',
@@ -77,6 +81,7 @@ export const routes: Routes = [
       { path: 'events-admin', component: EventsAdminComponent },
       { path: 'bookmarks-admin', component: BookmarksAdminComponent },
       { path: 'batches', component: BatchesComponent },
+      { path: 'batches/rules', component: BatchRulesComponent },
       { path: 'batch-community', component: BatchCommunityComponent },
       { path: 'payments', component: PaymentsComponent },
       // The tenant's own Razorpay credentials — fees are collected into the

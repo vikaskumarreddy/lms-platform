@@ -4,6 +4,7 @@ import com.institute.lms.entity.PdfNote;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.PdfNoteRepository;
 import com.institute.lms.repository.UserRepository;
+import com.institute.lms.service.S3StorageService;
 import com.institute.lms.util.UserContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -51,13 +52,16 @@ public class PdfNotesController {
     private final PdfNoteRepository pdfNoteRepository;
     private final UserRepository userRepository;
     private final UserContext userContext;
+    private final S3StorageService s3StorageService;
 
     public PdfNotesController(PdfNoteRepository pdfNoteRepository,
                               UserRepository userRepository,
-                              UserContext userContext) {
+                              UserContext userContext,
+                              S3StorageService s3StorageService) {
         this.pdfNoteRepository = pdfNoteRepository;
         this.userRepository = userRepository;
         this.userContext = userContext;
+        this.s3StorageService = s3StorageService;
     }
 
     @GetMapping
@@ -76,9 +80,17 @@ public class PdfNotesController {
     }
 
     @GetMapping("/{id}/file")
-    public ResponseEntity<byte[]> file(@PathVariable Long id) {
+    public ResponseEntity<?> file(@PathVariable Long id) {
         PdfNote note = pdfNoteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("PDF note not found"));
+        if (s3StorageService.isConfigured() && note.getFileName() != null && note.getFileName().startsWith("academy/")) {
+            String presigned = s3StorageService.generatePresignedUrl(note.getFileName(), java.time.Duration.ofHours(2));
+            if (presigned != null) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                        .location(java.net.URI.create(presigned))
+                        .build();
+            }
+        }
         byte[] pdf = readPdfFromDisk(note);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
@@ -96,18 +108,32 @@ public class PdfNotesController {
         if (content.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "Content is required."));
         try {
             byte[] pdfBytes = renderPdf(title, content);
-            byte[] gzipped = gzip(pdfBytes);
-            String fileName = "pdf-" + System.currentTimeMillis() + "-"
-                    + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";
-            writePdfToDisk(fileName, gzipped);
             PdfNote note = new PdfNote();
             note.setTitle(title);
             note.setContent(content);
             User me = userContext.currentUser();
             note.setCreatedByUserId(me != null ? me.getId() : null);
-            note.setFileName(fileName);
             note.setOriginalSize((long) pdfBytes.length);
-            note.setStoredSize((long) gzipped.length);
+
+            Long academyId = me != null && me.getOrganizationId() != null
+                    ? me.getOrganizationId()
+                    : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
+
+            if (s3StorageService.isConfigured()) {
+                String fileName = "pdf-" + System.currentTimeMillis() + "-"
+                        + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
+                String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
+                s3StorageService.upload(s3Key, pdfBytes, "application/pdf");
+                note.setFileName(s3Key);
+                note.setStoredSize((long) pdfBytes.length);
+            } else {
+                byte[] gzipped = gzip(pdfBytes);
+                String fileName = "pdf-" + System.currentTimeMillis() + "-"
+                        + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";
+                writePdfToDisk(fileName, gzipped);
+                note.setFileName(fileName);
+                note.setStoredSize((long) gzipped.length);
+            }
             return ResponseEntity.ok(toMap(pdfNoteRepository.save(note), request));
         } catch (IOException e) {
             return ResponseEntity.internalServerError()
@@ -121,7 +147,11 @@ public class PdfNotesController {
         PdfNote note = pdfNoteRepository.findById(id).orElse(null);
         if (note != null) {
             pdfNoteRepository.deleteById(id);
-            deleteFileFromDisk(note.getFileName());
+            if (s3StorageService.isConfigured() && note.getFileName() != null && note.getFileName().startsWith("academy/")) {
+                s3StorageService.delete(note.getFileName());
+            } else {
+                deleteFileFromDisk(note.getFileName());
+            }
         }
         return ResponseEntity.ok().build();
     }
@@ -281,6 +311,16 @@ public class PdfNotesController {
     }
 
     private byte[] readPdfFromDisk(PdfNote note) {
+        if (note.getFileName() == null || note.getFileName().isBlank()) {
+            throw new RuntimeException("PDF file is missing for note " + note.getId());
+        }
+        if (s3StorageService.isConfigured() && note.getFileName().startsWith("academy/")) {
+            try {
+                return s3StorageService.download(note.getFileName());
+            } catch (Exception e) {
+                throw new RuntimeException("Could not read PDF from S3 for note " + note.getId(), e);
+            }
+        }
         try {
             Path file = Paths.get(STORAGE_DIR, note.getFileName());
             if (!Files.exists(file)) {

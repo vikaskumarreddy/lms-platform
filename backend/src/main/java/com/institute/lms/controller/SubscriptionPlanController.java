@@ -23,8 +23,18 @@ public class SubscriptionPlanController {
     }
 
     @GetMapping
-    public List<SubscriptionPlan> getActivePlans() {
-        return subscriptionPlanRepository.findByIsActiveTrue();
+    public List<SubscriptionPlan> getActivePlans(@RequestParam(value = "orgId", required = false) Long orgId) {
+        if (orgId != null) {
+            return subscriptionPlanRepository.findActiveByOrgIdNative(orgId);
+        }
+        try {
+            List<SubscriptionPlan> plans = subscriptionPlanRepository.findByIsActiveTrue();
+            if (plans != null && !plans.isEmpty()) {
+                return plans;
+            }
+        } catch (Exception ignored) {
+        }
+        return subscriptionPlanRepository.findAllActivePlansNative();
     }
 
     @PostMapping

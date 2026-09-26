@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ConfirmService } from '../../services/confirm.service';
+import { QuotaModalService } from '../../services/quota-modal.service';
 
 interface Student {
   id: number;
@@ -242,7 +243,7 @@ interface Batch {
                 <select [(ngModel)]="studentForm.paymentMethod" name="paymentMethod">
                   <option value="CASH">Cash / offline</option>
                   <option value="ONLINE" [disabled]="!onlineAvailable">
-                    Online{{onlineAvailable ? ' - ' + formatMoney(razorpayConfig?.amountPerStudent) : ' (not set up)'}}
+                    Online{{getEffectiveOnlineAmount() ? ' (' + getEffectiveOnlineAmount() + ')' : ''}}
                   </option>
                 </select>
               </div>
@@ -252,12 +253,23 @@ interface Batch {
                   <span class="badge" [style.background]="feeBadgeBg(editingStudent)" [style.color]="feeBadgeFg(editingStudent)">
                     {{feeLabel(editingStudent)}}
                   </span>
+                  <div *ngIf="editingStudent.paymentMethod === 'ONLINE' && editingStudent.paymentStatus !== 'COMPLETED'" style="margin-top:6px;font-size:12px;color:#64748B;">
+                    💡 Changing the subscription plan will automatically update the pending payment amount due.
+                  </div>
                 </div>
               </div>
 
               <div class="full-width" *ngIf="!editingStudent && studentForm.paymentMethod === 'ONLINE'"
                    style="background:#F0FDFA;border:1px solid #5EEAD4;border-radius:10px;padding:10px 12px;font-size:13px;color:#134E4A;">
-                This student must pay {{formatMoney(razorpayConfig?.amountPerStudent)}} on their first login before the app opens.
+                <span *ngIf="getSelectedPlanPrice() !== null">
+                  💳 This student will be charged <strong>{{getEffectiveOnlineAmount()}}</strong> (subscription plan price) on their first login before access is granted.
+                </span>
+                <span *ngIf="getSelectedPlanPrice() === null && getEffectiveOnlineAmount()" style="color:#0F766E;">
+                  💳 This student will be charged <strong>{{getEffectiveOnlineAmount()}}</strong> (organization default fee) on their first login before access is granted.
+                </span>
+                <span *ngIf="getSelectedPlanPrice() === null && !getEffectiveOnlineAmount()" style="color:#B91C1C;font-weight:600;">
+                  ⚠️ Please select a Subscription Plan above so the student is charged the correct plan price.
+                </span>
               </div>
               <div class="full-width" *ngIf="!editingStudent && !onlineAvailable"
                    style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;font-size:13px;color:#78350F;">
@@ -448,13 +460,38 @@ export class StudentsComponent implements OnInit {
   };
 
     private errors = inject(ApiErrorService);
-  private confirm = inject(ConfirmService);
+    private confirm = inject(ConfirmService);
+    private quotaModal = inject(QuotaModalService);
 
     constructor(private apiService: ApiService, private router: Router) {}
 
   /** ONLINE is only selectable once the tenant has working Razorpay credentials. */
   get onlineAvailable(): boolean {
     return !!this.razorpayConfig?.paymentEnabled;
+  }
+
+  getSelectedPlan(): SubscriptionPlan | null {
+    if (!this.studentForm?.planId) return null;
+    return this.plans.find(p => p.id === Number(this.studentForm.planId)) || null;
+  }
+
+  getSelectedPlanPrice(): number | null {
+    const plan = this.getSelectedPlan();
+    if (plan && plan.price !== null && plan.price !== undefined) {
+      return Number(plan.price);
+    }
+    return null;
+  }
+
+  getEffectiveOnlineAmount(): string {
+    const price = this.getSelectedPlanPrice();
+    if (price !== null && price !== undefined) {
+      return '₹' + price.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+    if (this.razorpayConfig?.amountPerStudent && this.razorpayConfig.amountPerStudent > 0) {
+      return this.formatMoney(this.razorpayConfig.amountPerStudent);
+    }
+    return '';
   }
 
   /** Paise to a rupee string, since every amount is stored in the smallest unit. */
@@ -465,7 +502,14 @@ export class StudentsComponent implements OnInit {
 
   feeLabel(s: Student): string {
     if (s.paymentMethod !== 'ONLINE') return 'Cash';
-    return s.paymentStatus === 'COMPLETED' ? 'Paid ' + this.formatMoney(s.amountDue) : 'Due ' + this.formatMoney(s.amountDue);
+    let duePaise = s.amountDue;
+    if ((duePaise === null || duePaise === undefined || duePaise === 0) && s.planId) {
+      const p = this.plans.find(plan => plan.id === s.planId);
+      if (p && p.price) {
+        duePaise = p.price * 100;
+      }
+    }
+    return s.paymentStatus === 'COMPLETED' ? 'Paid ' + this.formatMoney(duePaise) : 'Due ' + this.formatMoney(duePaise);
   }
 
   feeBadgeBg(s: Student): string {
@@ -598,11 +642,27 @@ export class StudentsComponent implements OnInit {
   }
 
   saveStudent() {
-    this.loading = true;
     this.errorMessage = '';
 
+    if (!this.editingStudent && this.studentForm.paymentMethod === 'ONLINE') {
+      const planPrice = this.getSelectedPlanPrice();
+      const orgAmount = this.razorpayConfig?.amountPerStudent;
+      if (planPrice === null && (!orgAmount || orgAmount <= 0)) {
+        this.errorMessage = 'Please select a Subscription Plan with a price before creating an online payment student.';
+        return;
+      }
+    }
+
+    const payload = {
+      ...this.studentForm,
+      planId: this.studentForm.planId ? Number(this.studentForm.planId) : null,
+      batchId: this.studentForm.batchId ? Number(this.studentForm.batchId) : null,
+    };
+
+    this.loading = true;
+
     if (this.editingStudent) {
-      this.apiService.put(`/api/students/${this.editingStudent.id}`, this.studentForm).subscribe({
+      this.apiService.put(`/api/students/${this.editingStudent.id}`, payload).subscribe({
         next: () => {
           this.loading = false;
           this.loadStudents();
@@ -611,11 +671,14 @@ export class StudentsComponent implements OnInit {
         error: (err) => {
           this.loading = false;
           console.error('Failed to update student', err);
-          this.errorMessage = 'Failed to update student. ' + (err.error?.message || 'Please check the details and try again.');
+          const handled = this.quotaModal.handleError(err, 'Student Limit Reached');
+          if (!handled) {
+            this.errorMessage = 'Failed to update student. ' + (err.error?.message || 'Please check the details and try again.');
+          }
         }
       });
     } else {
-      this.apiService.post('/api/students', this.studentForm).subscribe({
+      this.apiService.post('/api/students', payload).subscribe({
         next: () => {
           this.loading = false;
           this.loadStudents();
@@ -624,7 +687,10 @@ export class StudentsComponent implements OnInit {
         error: (err) => {
           this.loading = false;
           console.error('Failed to create student', err);
-          this.errorMessage = 'Failed to create student. ' + (err.error?.message || 'Please check the details and try again.');
+          const handled = this.quotaModal.handleError(err, 'Student Limit Reached');
+          if (!handled) {
+            this.errorMessage = 'Failed to create student. ' + (err.error?.message || 'Please check the details and try again.');
+          }
         }
       });
     }

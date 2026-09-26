@@ -1,9 +1,10 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ConfirmService } from '../../services/confirm.service';
+import { QuotaModalService } from '../../services/quota-modal.service';
 
 interface Faculty {
   id: number;
@@ -142,6 +143,7 @@ export class FacultyComponent implements OnInit {
 
   private errors = inject(ApiErrorService);
   private confirm = inject(ConfirmService);
+  private quotaModal = inject(QuotaModalService);
 
   constructor(private apiService: ApiService) {}
 
@@ -207,7 +209,10 @@ export class FacultyComponent implements OnInit {
         error: (err) => {
           this.loading = false;
           console.error('Failed to update faculty', err);
-          this.errorMessage = 'Failed to update faculty. ' + (err.error?.message || 'Please check the details and try again.');
+          const handled = this.quotaModal.handleError(err, 'Faculty Seat Limit Reached');
+          if (!handled) {
+            this.errorMessage = 'Failed to update faculty. ' + (err.error?.message || 'Please check the details and try again.');
+          }
         }
       });
     } else {
@@ -220,7 +225,10 @@ export class FacultyComponent implements OnInit {
         error: (err) => {
           this.loading = false;
           console.error('Failed to create faculty', err);
-          this.errorMessage = 'Failed to create faculty. ' + (err.error?.message || 'Please check the details and try again.');
+          const handled = this.quotaModal.handleError(err, 'Faculty Seat Limit Reached');
+          if (!handled) {
+            this.errorMessage = 'Failed to create faculty. ' + (err.error?.message || 'Please check the details and try again.');
+          }
         }
       });
     }

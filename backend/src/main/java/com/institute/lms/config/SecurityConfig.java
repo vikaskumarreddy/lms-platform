@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/organizations/public-info").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/subscription-plans", "/api/subscription-plans/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()
                         .requestMatchers("/api/certificates/verify/**").permitAll()
                         .requestMatchers("/api/student-placements/recruiter/**").permitAll()
@@ -51,9 +53,13 @@ public class SecurityConfig {
                         // the list/upload/delete endpoints below still require a valid JWT.
                         .requestMatchers("/api/media/*/serve").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()
-                        // Gateway browser redirects land here from the checkout webview with
-                        // no JWT — the gateway's own signature/hmac in the payload authenticates them.
+                        // Gateway browser redirects and webhooks land here with no JWT —
+                        // the gateway's own signature/hmac in the payload authenticates them.
                         .requestMatchers("/api/payments/callback/**").permitAll()
+                        .requestMatchers("/api/payments/webhook", "/api/payments/webhook/**").permitAll()
+                        .requestMatchers("/api/payments/order-status/**").permitAll()
+                        .requestMatchers("/api/payments/create-order/**").permitAll()
+                        .requestMatchers("/api/payments/public-config").permitAll()
                         .requestMatchers("/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()

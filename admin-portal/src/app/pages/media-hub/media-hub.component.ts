@@ -1,9 +1,10 @@
-﻿import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MediaService, MediaItem, MediaType, compressionLabel } from '../../services/media.service';
 import { ConfirmService } from '../../services/confirm.service';
+import { QuotaModalService } from '../../services/quota-modal.service';
 
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
 const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -80,6 +81,7 @@ const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 
 export class MediaHubComponent implements OnInit {
   private sanitizer = inject(DomSanitizer);
   private confirm = inject(ConfirmService);
+  private quotaModal = inject(QuotaModalService);
   protected media = inject(MediaService);
   activeTab = signal<MediaType>('video');
   videos = signal<MediaItem[]>([]);
@@ -122,7 +124,19 @@ export class MediaHubComponent implements OnInit {
       return;
     }
     this.error.set(''); this.uploading.set(true); this.uploadPct.set(0); this.uploadName.set(file.name);
-    this.media.uploadWithProgress(file, type, (pct) => this.uploadPct.set(pct)).then((item) => { this.uploading.set(false); if (type === 'video') this.videos.update(list => [item, ...list]); else this.files.update(list => [item, ...list]); }).catch((err) => { this.uploading.set(false); this.error.set(err.message || 'Upload failed'); });
+    this.media.uploadWithProgress(file, type, (pct) => this.uploadPct.set(pct))
+      .then((item) => {
+        this.uploading.set(false);
+        if (type === 'video') this.videos.update(list => [item, ...list]);
+        else this.files.update(list => [item, ...list]);
+      })
+      .catch((err) => {
+        this.uploading.set(false);
+        const handled = this.quotaModal.handleError(err, 'Storage Limit Reached');
+        if (!handled) {
+          this.error.set(err.message || 'Upload failed');
+        }
+      });
   }
 
   isPdf(item: MediaItem | null): boolean { return !!item && (item.mimeType || '').includes('pdf'); }

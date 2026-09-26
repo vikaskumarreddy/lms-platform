@@ -42,9 +42,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         user.role == 'STUDENT' &&
         (user.paymentRequired ||
             (user.paymentMethod == 'ONLINE' &&
-             user.paymentStatus != 'COMPLETED' &&
-             user.planId != null));
-    context.go(needsPayment ? AppRoutes.paymentFor(user.planId!) : AppRoutes.home);
+             user.paymentStatus != 'COMPLETED'));
+    context.go(needsPayment ? AppRoutes.paymentFor(user.planId ?? 0) : AppRoutes.home);
   }
 
   @override

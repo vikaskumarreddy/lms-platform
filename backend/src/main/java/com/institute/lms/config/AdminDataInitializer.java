@@ -17,17 +17,22 @@ public class AdminDataInitializer {
     public CommandLineRunner seedAdminUser(UserRepository userRepository, OrganizationRepository organizationRepository,
                                             PasswordEncoder passwordEncoder, OrganizationContext organizationContext) {
         return args -> {
-            // Create default organization if not exists
-            Organization defaultOrg;
-            if (!organizationRepository.findBySlug("axisora").isPresent()) {
-                defaultOrg = new Organization();
-                defaultOrg.setName("Axisora");
+            // Find default organization (by slug 'axisora', by id 1, or by slug 'admin')
+            Organization defaultOrg = organizationRepository.findBySlug("axisora")
+                    .or(() -> organizationRepository.findById(1L))
+                    .or(() -> organizationRepository.findBySlug("admin"))
+                    .orElseGet(() -> {
+                        Organization org = new Organization();
+                        org.setName("Axisora");
+                        org.setSlug("axisora");
+                        org.setDomain("admin.axisoraforge.in");
+                        org.setSettings("{}");
+                        return organizationRepository.save(org);
+                    });
+
+            if (!"axisora".equalsIgnoreCase(defaultOrg.getSlug())) {
                 defaultOrg.setSlug("axisora");
-                defaultOrg.setDomain("localhost");
-                defaultOrg.setSettings("{}");
                 organizationRepository.save(defaultOrg);
-            } else {
-                defaultOrg = organizationRepository.findBySlug("axisora").get();
             }
 
             // This runner executes at application bootstrap, outside any HTTP request,

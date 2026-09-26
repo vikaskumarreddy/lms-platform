@@ -46,13 +46,17 @@ String videoDocument(String url, {bool youtube = false}) {
 <meta name="referrer" content="${youtube ? 'strict-origin-when-cross-origin' : 'no-referrer'}">
 <style>html,body{margin:0;background:#000;height:100%;overflow:hidden}
 video,iframe{width:100%;height:100%;border:0;object-fit:contain}</style>
-</head><body>${youtube ? '<iframe src="$escaped" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>' : '<video controls playsinline preload="metadata" src="$escaped"></video>'}
+</head><body>${youtube ? '<iframe src="$escaped" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>' : '<video controls playsinline preload="auto" width="100%" height="100%"><source src="$escaped" type="video/mp4"><source src="$escaped"></video>'}
 <script>
 var video=document.querySelector('video');
-function report(){if(video && video.error && window.flutter_inappwebview){
-window.flutter_inappwebview.callHandler('videoError',video.error.code);}}
+function report(){
+  if(video && video.error && window.flutter_inappwebview){
+    if(video.error.code !== 1 && !video.currentSrc.startsWith('data:')){
+      window.flutter_inappwebview.callHandler('videoError',video.error.code);
+    }
+  }
+}
 if(video)video.addEventListener('error',report);
-window.addEventListener('flutterInAppWebViewPlatformReady',report);
 </script></body></html>''';
 }
 

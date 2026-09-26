@@ -16,6 +16,43 @@ import java.util.*;
 public class PaymentController {
   private final StudentPaymentService paymentService;
   private final OrganizationContext organizationContext;
+  private final com.institute.lms.repository.OrganizationRepository organizationRepository;
+  private final com.institute.lms.repository.OrgRazorpayConfigRepository orgConfigRepo;
+
+  /** Public payment config for mobile registration/login. */
+  @GetMapping("/public-config")
+  public ResponseEntity<Map<String, Object>> getPublicPaymentConfig(
+      @RequestParam(required = false) Long organizationId,
+      @RequestParam(required = false) String orgSlug) {
+    Long orgId = organizationId;
+    if (orgId == null && orgSlug != null && !orgSlug.isBlank()) {
+      orgId = organizationRepository.findBySlug(orgSlug).map(com.institute.lms.entity.Organization::getId).orElse(null);
+    }
+    if (orgId == null) {
+      orgId = organizationContext.getCurrentOrgId();
+    }
+    if (orgId == null) {
+      orgId = organizationRepository.findBySlug("axisora").map(com.institute.lms.entity.Organization::getId).orElse(1L);
+    }
+
+    final Long targetOrgId = orgId;
+    String gateway = paymentService.getActiveGatewayName(targetOrgId);
+    Long amountPaise = 0L;
+    boolean enabled = false;
+
+    var rzp = orgConfigRepo.findByOrganizationId(targetOrgId).or(() -> orgConfigRepo.findAnyByOrganizationId(targetOrgId));
+    if (rzp.isPresent()) {
+      enabled = Boolean.TRUE.equals(rzp.get().getPaymentEnabled());
+      if (rzp.get().getAmountPerStudent() != null) amountPaise = rzp.get().getAmountPerStudent();
+    }
+    return ResponseEntity.ok(Map.of(
+      "organizationId", orgId,
+      "gateway", gateway,
+      "paymentEnabled", enabled,
+      "amountDue", amountPaise / 100.0,
+      "amountPaise", amountPaise
+    ));
+  }
 
   /** Every student's fee row for this tenant — the admin payments ledger. */
   @GetMapping("/transactions")
@@ -87,15 +124,47 @@ public class PaymentController {
    * Body: {orderId, paymentId, signature}
    */
   @PostMapping("/webhook")
-  public ResponseEntity<Void> handlePaymentWebhook(@RequestBody Map<String, String> payload) {
-    String orderId = payload.get("orderId");
-    String paymentId = payload.get("paymentId");
-    String signature = payload.get("signature");
+  public ResponseEntity<Void> handlePaymentWebhook(
+      @RequestBody Map<String, Object> payload,
+      @RequestHeader(value = "X-Razorpay-Signature", required = false) String rzpHeaderSignature) {
+    String orderId = null;
+    String paymentId = null;
+    String signature = rzpHeaderSignature;
 
-    log.info("Payment webhook received: orderId={}, paymentId={}", orderId, paymentId);
+    if (payload.get("orderId") != null) {
+      orderId = String.valueOf(payload.get("orderId"));
+    } else if (payload.get("razorpay_order_id") != null) {
+      orderId = String.valueOf(payload.get("razorpay_order_id"));
+    }
+
+    if (payload.get("paymentId") != null) {
+      paymentId = String.valueOf(payload.get("paymentId"));
+    } else if (payload.get("razorpay_payment_id") != null) {
+      paymentId = String.valueOf(payload.get("razorpay_payment_id"));
+    }
+
+    if (signature == null || signature.isBlank()) {
+      if (payload.get("signature") != null) signature = String.valueOf(payload.get("signature"));
+      else if (payload.get("razorpay_signature") != null) signature = String.valueOf(payload.get("razorpay_signature"));
+    }
+
+    // Support nested Razorpay webhook shape {event, payload: {payment: {entity: {...}}}}
+    if (orderId == null && payload.get("payload") instanceof Map<?, ?> plMap) {
+      if (plMap.get("payment") instanceof Map<?, ?> payMap) {
+        if (payMap.get("entity") instanceof Map<?, ?> entityMap) {
+          orderId = String.valueOf(entityMap.get("order_id"));
+          paymentId = String.valueOf(entityMap.get("id"));
+        }
+      }
+    }
+
+    log.info("Payment webhook received: orderId={}, paymentId={}, signaturePresent={}", orderId, paymentId, signature != null);
 
     try {
-      paymentService.handlePaymentSuccess(orderId, paymentId, signature);
+      if (orderId == null) {
+        throw new IllegalArgumentException("No orderId could be resolved from webhook payload");
+      }
+      paymentService.handlePaymentSuccess(orderId, paymentId, signature != null ? signature : "");
       return ResponseEntity.ok().build();
     } catch (Exception e) {
       log.error("Webhook processing failed", e);

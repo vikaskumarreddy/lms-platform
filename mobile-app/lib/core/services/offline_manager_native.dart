@@ -97,3 +97,30 @@ Future<String> saveTempPdf(List<int> bytes, [String? prefix]) async {
   return file.path;
 }
 
+Future<String> _getCachedDocsDirectoryPath() async {
+  final dir = await getApplicationDocumentsDirectory();
+  final docsDir = Directory('${dir.path}/cached_docs');
+  if (!docsDir.existsSync()) {
+    docsDir.createSync(recursive: true);
+  }
+  return docsDir.path;
+}
+
+Future<String> getCachedPdfFilePath(int lessonId) async {
+  final docsPath = await _getCachedDocsDirectoryPath();
+  return '$docsPath/lesson_pdf_$lessonId.pdf';
+}
+
+Future<bool> isPdfCached(int lessonId) async {
+  final path = await getCachedPdfFilePath(lessonId);
+  final file = File(path);
+  return file.existsSync() && file.lengthSync() > 100;
+}
+
+Future<String> saveCachedPdf(int lessonId, List<int> bytes) async {
+  final path = await getCachedPdfFilePath(lessonId);
+  final file = File(path);
+  await file.writeAsBytes(bytes, flush: true);
+  return file.path;
+}
+

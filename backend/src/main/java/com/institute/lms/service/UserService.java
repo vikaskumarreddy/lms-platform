@@ -111,14 +111,24 @@ public class UserService {
         user.setParentPhone(request.getParentPhone());
         user.setParentEmail(request.getParentEmail());
         user.setNotifyMedium(parseNotifyMedium(request.getNotifyMedium()));
+        if (request.getCustomFields() != null) {
+            try {
+                user.setCustomFields(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request.getCustomFields()));
+            } catch (Exception ignored) {}
+        }
 
-        User savedUser = userRepository.save(user);
 
         // Create payment record based on payment method selection
         String paymentMethod = request.getPaymentMethod();
         if (paymentMethod == null || paymentMethod.isEmpty()) {
             paymentMethod = "CASH"; // default to cash
         }
+        if ("ONLINE".equalsIgnoreCase(paymentMethod)) {
+            // For online payment mode, account access is withheld until payment is verified and captured
+            user.setIsActive(false);
+        }
+        User savedUser = userRepository.save(user);
+
         try {
             studentPaymentService.createPaymentForNewStudent(savedUser.getId(), orgId, paymentMethod);
         } catch (Exception e) {
@@ -162,8 +172,14 @@ public class UserService {
         if (request.getNotifyMedium() != null && !request.getNotifyMedium().isBlank()) {
             user.setNotifyMedium(parseNotifyMedium(request.getNotifyMedium()));
         }
+        if (request.getCustomFields() != null) {
+            try {
+                user.setCustomFields(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request.getCustomFields()));
+            } catch (Exception ignored) {}
+        }
 
         User saved = userRepository.save(user);
+
 
         // If the plan moved, an unpaid ONLINE student's fee must follow the new
         // plan's price — otherwise the next checkout charges the stale amount.
@@ -240,7 +256,8 @@ public class UserService {
         
         // Add subscription plan details
         if (user.getPlanId() != null) {
-            Optional<SubscriptionPlan> planOpt = subscriptionPlanRepository.findById(user.getPlanId());
+            Optional<SubscriptionPlan> planOpt = subscriptionPlanRepository.findById(user.getPlanId())
+                    .or(() -> subscriptionPlanRepository.findAnyById(user.getPlanId()));
             if (planOpt.isPresent()) {
                 SubscriptionPlan plan = planOpt.get();
                 response.setPlanName(plan.getName());

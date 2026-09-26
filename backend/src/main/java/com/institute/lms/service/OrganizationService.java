@@ -37,19 +37,22 @@ public class OrganizationService {
     private final PasswordEncoder passwordEncoder;
     private final OrgSubscriptionRepository orgSubscriptionRepository;
     private final SubscriptionLifecycleService lifecycleService;
+    private final S3StorageService s3StorageService;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                OrganizationContext organizationContext,
                                UserRepository userRepository,
                                PasswordEncoder passwordEncoder,
                                OrgSubscriptionRepository orgSubscriptionRepository,
-                               SubscriptionLifecycleService lifecycleService) {
+                               SubscriptionLifecycleService lifecycleService,
+                               S3StorageService s3StorageService) {
         this.organizationRepository = organizationRepository;
         this.organizationContext = organizationContext;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.orgSubscriptionRepository = orgSubscriptionRepository;
         this.lifecycleService = lifecycleService;
+        this.s3StorageService = s3StorageService;
     }
 
     /** Returns all organizations (including expired/inactive so renew actions are possible). */
@@ -348,22 +351,28 @@ public class OrganizationService {
         Organization org = organizationRepository.findById(orgId).orElseThrow(() ->
                 new RuntimeException("Organization not found"));
 
-        String uploadDir = "uploads/organization-logos";
-        Path uploadPath = Paths.get(uploadDir);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-
         String originalName = file.getOriginalFilename();
         String extension = originalName != null && originalName.contains(".")
                 ? originalName.substring(originalName.lastIndexOf('.'))
                 : ".png";
         String fileName = "logo-" + orgId + "-" + UUID.randomUUID().toString().substring(0, 8) + extension;
-        Path filePath = uploadPath.resolve(fileName);
 
-        Files.copy(file.getInputStream(), filePath);
+        String url;
+        if (s3StorageService.isConfigured()) {
+            String s3Key = s3StorageService.buildKey(orgId, "images", fileName);
+            s3StorageService.upload(s3Key, file.getBytes(), contentType);
+            url = "/api/media/serve-key?key=" + s3Key;
+        } else {
+            String uploadDir = "uploads/organization-logos";
+            Path uploadPath = Paths.get(uploadDir);
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+            Path filePath = uploadPath.resolve(fileName);
+            Files.copy(file.getInputStream(), filePath);
+            url = "/uploads/organization-logos/" + fileName;
+        }
 
-        String url = "/uploads/organization-logos/" + fileName;
         org.setLogoUrl(url);
         organizationRepository.save(org);
 

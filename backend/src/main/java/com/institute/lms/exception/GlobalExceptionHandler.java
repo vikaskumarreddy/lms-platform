@@ -193,8 +193,11 @@ public class GlobalExceptionHandler {
         String lower = message.toLowerCase();
 
         ErrorCode code;
-        if (lower.contains("access denied") || lower.contains("role required") || lower.contains("forbidden")) {
+        if (lower.contains("access denied") || lower.contains("role required") || lower.contains("forbidden")
+                || lower.contains("another organization") || lower.contains("sign in through") || lower.contains("portal")) {
             code = ErrorCode.FORBIDDEN;
+        } else if (lower.contains("invalid email or password") || lower.contains("bad credentials")) {
+            code = ErrorCode.UNAUTHORIZED;
         } else if (lower.contains("not found")) {
             code = ErrorCode.RESOURCE_NOT_FOUND;
         } else {

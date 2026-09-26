@@ -123,10 +123,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final user = ref.read(mobileAuthProvider).user;
       final needsPayment = user != null &&
           user.role == 'STUDENT' &&
-          user.paymentMethod == 'ONLINE' &&
-          user.paymentStatus != 'COMPLETED' &&
-          user.planId != null;
-      context.go(needsPayment ? AppRoutes.paymentFor(user!.planId!) : AppRoutes.home);
+          (user.paymentRequired ||
+              (user.paymentMethod == 'ONLINE' && user.paymentStatus != 'COMPLETED'));
+      context.go(needsPayment ? AppRoutes.paymentFor(user.planId ?? 0) : AppRoutes.home);
     } else {
       final authError = ref.read(mobileAuthProvider).errorMessage;
       ScaffoldMessenger.of(context).showSnackBar(

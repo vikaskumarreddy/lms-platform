@@ -13,6 +13,7 @@ import '../../data/models/question_model.dart';
 
 
 import '../../data/models/placement_drive_model.dart';
+import 'local_cache_service.dart';
 
 class ApiService {
   static String get baseUrl => AppConfig.apiBaseUrl;
@@ -294,18 +295,27 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
-      
       if (userId == null) return null;
 
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/students/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'profile_student_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/students/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data;
+        }
+      } catch (e) {
+        print('Network error for user profile, checking local cache: $e');
       }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) return Map<String, dynamic>.from(cached);
       return null;
     } catch (e) {
       print('Error fetching user profile: $e');
@@ -351,7 +361,11 @@ class ApiService {
         }),
       );
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        await LocalCacheService.instance.remove('profile_student_$userId');
+        return true;
+      }
+      return false;
     } catch (e) {
       print('Error updating user profile: $e');
       return false;
@@ -364,15 +378,25 @@ class ApiService {
       final userId = prefs.getInt('userId');
       if (userId == null) return {};
 
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/dashboard/student/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'dashboard_student_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/dashboard/student/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data;
+        }
+      } catch (e) {
+        print('Network error for dashboard, checking local cache: $e');
       }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) return Map<String, dynamic>.from(cached);
       return {};
     } catch (e) {
       print('Error fetching student dashboard: $e');
@@ -565,15 +589,26 @@ class ApiService {
 
   Future<List<CourseModel>> getCourses() async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/courses'),
-        headers: headers,
-      );
+      const cacheKey = 'courses_list';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/courses'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => CourseModel.fromJson(json)).toList();
+        if (response.statusCode == 200) {
+          final List<dynamic> data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data.map((json) => CourseModel.fromJson(json)).toList();
+        }
+      } catch (e) {
+        print('Network error fetching courses, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is List) {
+        return cached.map((json) => CourseModel.fromJson(Map<String, dynamic>.from(json))).toList();
       }
       return [];
     } catch (e) {
@@ -613,20 +648,32 @@ class ApiService {
 
   Future<List<AssignmentModel>> getAssignments() async {
     try {
-      final headers = await _getHeaders();
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
       if (userId == null) return [];
       
-      final response = await http.get(
-        Uri.parse('$baseUrl/assignments/user/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'assignments_user_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/assignments/user/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> assignments = data['assignments'] ?? [];
-        return assignments.map((json) => AssignmentModel.fromJson(json)).toList();
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          final List<dynamic> assignments = data['assignments'] ?? [];
+          return assignments.map((json) => AssignmentModel.fromJson(json)).toList();
+        }
+      } catch (e) {
+        print('Network error fetching assignments, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) {
+        final List<dynamic> assignments = cached['assignments'] ?? [];
+        return assignments.map((json) => AssignmentModel.fromJson(Map<String, dynamic>.from(json))).toList();
       }
       return [];
     } catch (e) {
@@ -637,19 +684,29 @@ class ApiService {
 
   Future<Map<String, dynamic>> getAssignmentsWithStats() async {
     try {
-      final headers = await _getHeaders();
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
       if (userId == null) return {'assignments': [], 'totalAssignments': 0, 'pendingCount': 0, 'submittedCount': 0, 'overdueCount': 0};
       
-      final response = await http.get(
-        Uri.parse('$baseUrl/assignments/user/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'assignments_user_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/assignments/user/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data;
+        }
+      } catch (e) {
+        print('Network error fetching assignments with stats, checking cache: $e');
       }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) return Map<String, dynamic>.from(cached);
       return {'assignments': [], 'totalAssignments': 0, 'pendingCount': 0, 'submittedCount': 0, 'overdueCount': 0};
     } catch (e) {
       print('Error fetching assignments with stats: $e');
@@ -659,20 +716,32 @@ class ApiService {
 
   Future<List<ExamModel>> getExams() async {
     try {
-      final headers = await _getHeaders();
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
       if (userId == null) return [];
       
-      final response = await http.get(
-        Uri.parse('$baseUrl/exams/user/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'exams_user_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/exams/user/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> exams = data['exams'] ?? [];
-        return exams.map((json) => ExamModel.fromJson(json)).toList();
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          final List<dynamic> exams = data['exams'] ?? [];
+          return exams.map((json) => ExamModel.fromJson(json)).toList();
+        }
+      } catch (e) {
+        print('Network error fetching exams, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) {
+        final List<dynamic> exams = cached['exams'] ?? [];
+        return exams.map((json) => ExamModel.fromJson(Map<String, dynamic>.from(json))).toList();
       }
       return [];
     } catch (e) {
@@ -683,19 +752,29 @@ class ApiService {
 
   Future<Map<String, dynamic>> getExamsWithStats() async {
     try {
-      final headers = await _getHeaders();
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId');
       if (userId == null) return {'exams': [], 'totalExams': 0, 'upcomingCount': 0, 'completedCount': 0, 'averageScore': 0.0};
       
-      final response = await http.get(
-        Uri.parse('$baseUrl/exams/user/$userId'),
-        headers: headers,
-      );
+      final cacheKey = 'exams_user_$userId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/exams/user/$userId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data;
+        }
+      } catch (e) {
+        print('Network error fetching exams with stats, checking cache: $e');
       }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) return Map<String, dynamic>.from(cached);
       return {'exams': [], 'totalExams': 0, 'upcomingCount': 0, 'completedCount': 0, 'averageScore': 0.0};
     } catch (e) {
       print('Error fetching exams with stats: $e');
@@ -748,15 +827,26 @@ class ApiService {
 
   Future<List<CourseSection>> getCourseSections(int courseId) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/courses/$courseId/sections'),
-        headers: headers,
-      );
+      final cacheKey = 'course_sections_$courseId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/courses/$courseId/sections'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => CourseSection.fromJson(json)).toList();
+        if (response.statusCode == 200) {
+          final List<dynamic> data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return data.map((json) => CourseSection.fromJson(json)).toList();
+        }
+      } catch (e) {
+        print('Network error fetching course sections, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is List) {
+        return cached.map((json) => CourseSection.fromJson(Map<String, dynamic>.from(json))).toList();
       }
       return [];
     } catch (e) {
@@ -767,16 +857,27 @@ class ApiService {
 
   Future<List<Lesson>> getModuleLessons(int moduleId) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/modules/$moduleId'),
-        headers: headers,
-      );
+      final cacheKey = 'module_lessons_$moduleId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/modules/$moduleId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> lessonsJson = data['lessons'] ?? [];
-        return lessonsJson.map((json) => Lesson.fromJson(json)).toList();
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> data = json.decode(response.body);
+          final List<dynamic> lessonsJson = data['lessons'] ?? [];
+          await LocalCacheService.instance.save(cacheKey, lessonsJson);
+          return lessonsJson.map((json) => Lesson.fromJson(json)).toList();
+        }
+      } catch (e) {
+        print('Network error fetching module lessons, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is List) {
+        return cached.map((json) => Lesson.fromJson(Map<String, dynamic>.from(json))).toList();
       }
       return [];
     } catch (e) {
@@ -787,15 +888,26 @@ class ApiService {
 
   Future<Lesson?> getLesson(int lessonId) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/lessons/$lessonId'),
-        headers: headers,
-      );
+      final cacheKey = 'lesson_detail_$lessonId';
+      try {
+        final headers = await _getHeaders();
+        final response = await http.get(
+          Uri.parse('$baseUrl/lessons/$lessonId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return Lesson.fromJson(data);
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> data = json.decode(response.body);
+          await LocalCacheService.instance.save(cacheKey, data);
+          return Lesson.fromJson(data);
+        }
+      } catch (e) {
+        print('Network error fetching lesson, checking cache: $e');
+      }
+
+      final cached = await LocalCacheService.instance.get(cacheKey);
+      if (cached is Map) {
+        return Lesson.fromJson(Map<String, dynamic>.from(cached));
       }
       return null;
     } catch (e) {
@@ -813,6 +925,7 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        await LocalCacheService.instance.remove('lesson_detail_$lessonId');
         return data['completed'] ?? false;
       }
       return false;
@@ -831,6 +944,7 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        await LocalCacheService.instance.remove('lesson_detail_$lessonId');
         return data['bookmarked'] ?? false;
       }
       return false;

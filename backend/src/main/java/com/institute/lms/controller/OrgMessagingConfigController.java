@@ -28,6 +28,7 @@ import java.util.Map;
 @Slf4j
 public class OrgMessagingConfigController {
     private final OrgMessagingConfigService configService;
+    private final com.institute.lms.service.messaging.MessagingService messagingService;
     private final OrganizationContext organizationContext;
     private final UserContext userContext;
 
@@ -39,6 +40,42 @@ public class OrgMessagingConfigController {
             body.put(channel.name(), toMap(configService.getConfig(orgId, channel).orElse(null)));
         }
         return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/{channel}/test")
+    public ResponseEntity<?> test(@PathVariable String channel, @RequestBody Map<String, Object> payload) {
+        userContext.requireOrgAdmin();
+        Long orgId = organizationContext.getCurrentOrgId();
+
+        MessagingChannel ch;
+        try {
+            ch = MessagingChannel.valueOf(channel.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Unknown channel: " + channel));
+        }
+
+        String toPhone = str(payload.get("toPhone"));
+        String message = str(payload.get("message"));
+        if (toPhone == null || toPhone.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Recipient phone number is required."));
+        }
+        if (message == null || message.isBlank()) {
+            message = "Test " + ch.name() + " notification from LMS platform. Your messaging integration is working properly!";
+        }
+
+        var result = messagingService.sendWithResult(orgId, ch, toPhone, message);
+        if (result.isSuccess()) {
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Test " + ch.name() + " message dispatched successfully!",
+                    "details", result.message()
+            ));
+        } else {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", result.message() != null ? result.message() : "Failed to dispatch test message."
+            ));
+        }
     }
 
     @PutMapping("/{channel}")

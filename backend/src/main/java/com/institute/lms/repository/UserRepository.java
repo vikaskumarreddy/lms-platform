@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,6 +63,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query(value = "SELECT * FROM users WHERE email = :email ORDER BY id", nativeQuery = true)
     List<User> findAllByEmailAcrossOrgs(@Param("email") String email);
+
+    /**
+     * Non-ghost user in a specific organization, case-insensitive.
+     * Used for strict tenant-isolated login. In org 1 (platform), the ADMIN is always recognized.
+     */
+    @Query(value = "SELECT * FROM users WHERE organization_id = :orgId AND LOWER(email) = LOWER(:email) AND (is_ghost IS NULL OR is_ghost = false OR (organization_id = 1 AND role = 'ADMIN')) LIMIT 1", nativeQuery = true)
+    Optional<User> findNonGhostByOrgIdAndEmail(@Param("orgId") Long orgId, @Param("email") String email);
+
+    /**
+     * Non-ghost accounts across all organizations sharing an email.
+     * Used to detect if an account belongs to another organization during login.
+     */
+    @Query(value = "SELECT * FROM users WHERE LOWER(email) = LOWER(:email) AND (is_ghost IS NULL OR is_ghost = false OR (organization_id = 1 AND role = 'ADMIN')) ORDER BY id", nativeQuery = true)
+    List<User> findAllNonGhostByEmailAcrossOrgs(@Param("email") String email);
+
+    /**
+     * Updates last_login timestamp directly via SQL to prevent optimistic locking race conditions.
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE users SET last_login = :lastLogin WHERE id = :id", nativeQuery = true)
+    void updateLastLogin(@Param("id") Long id, @Param("lastLogin") LocalDateTime lastLogin);
 
     /**
      * Cross-tenant listing of non-ghost administrators for an organization.

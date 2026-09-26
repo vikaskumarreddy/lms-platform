@@ -62,6 +62,7 @@ public class DashboardController {
     private final QuestionRepository questionRepository;
     private final MediaItemRepository mediaItemRepository;
     private final PdfDocumentRepository pdfDocumentRepository;
+    private final PdfNoteRepository pdfNoteRepository;
     private final OrganizationRepository organizationRepository;
     private final OrganizationContext organizationContext;
     private final EntitlementService entitlementService;
@@ -80,6 +81,7 @@ public class DashboardController {
                                PlacementDriveRepository placementDriveRepository, CompanyQuestionKitRepository companyQuestionKitRepository,
                                CompanyKitFavoriteRepository companyKitFavoriteRepository, QuestionRepository questionRepository,
                                MediaItemRepository mediaItemRepository, PdfDocumentRepository pdfDocumentRepository,
+                               PdfNoteRepository pdfNoteRepository,
                                OrganizationRepository organizationRepository, OrganizationContext organizationContext,
                                EntitlementService entitlementService, UsageService usageService,
                                MentorService mentorService, StudyTimeService studyTimeService) {
@@ -106,6 +108,7 @@ public class DashboardController {
         this.questionRepository = questionRepository;
         this.mediaItemRepository = mediaItemRepository;
         this.pdfDocumentRepository = pdfDocumentRepository;
+        this.pdfNoteRepository = pdfNoteRepository;
         this.organizationRepository = organizationRepository;
         this.organizationContext = organizationContext;
         this.entitlementService = entitlementService;
@@ -404,11 +407,17 @@ public class DashboardController {
             }
         } else {
             // Admin / Institute admin view: full platform / org-level stats
-            totalStudents = userRepository.countByRole(User.UserRole.STUDENT);
+            Long orgId = organizationContext.getCurrentOrgId();
+            totalStudents = orgId != null
+                    ? userRepository.countStudentRecordsInOrg(orgId)
+                    : userRepository.countByRole(User.UserRole.STUDENT);
             activeCourses = courseRepository.countByIsPublishedTrue();
 
             // Revenue = actual money collected from students (amountDue is in paise), converted to rupees.
-            long collectedPaise = studentPaymentInfoRepository.findAll().stream()
+            List<StudentPaymentInfo> payments = orgId != null
+                    ? studentPaymentInfoRepository.findByOrganizationId(orgId)
+                    : studentPaymentInfoRepository.findAll();
+            long collectedPaise = payments.stream()
                     .filter(StudentPaymentInfo::isPaid)
                     .mapToLong(info -> info.getAmountDue() != null ? info.getAmountDue() : 0L)
                     .sum();
@@ -474,8 +483,11 @@ public class DashboardController {
         Map<String, Object> out = new LinkedHashMap<>();
         boolean faculty = userContext.isFaculty();
         Long facultyBatchId = faculty ? userContext.facultyBatchId() : null;
+        Long orgId = organizationContext.getCurrentOrgId();
 
-        List<User> allStudents = userRepository.findByRole(User.UserRole.STUDENT);
+        List<User> allStudents = orgId != null
+                ? userRepository.findByOrganizationIdAndRole(orgId, User.UserRole.STUDENT)
+                : userRepository.findByRole(User.UserRole.STUDENT);
         List<User> scopedStudents = faculty
                 ? allStudents.stream().filter(u -> facultyBatchId != null && facultyBatchId.equals(u.getBatchId())).toList()
                 : allStudents;
@@ -546,10 +558,15 @@ public class DashboardController {
 
     /** Faculty/staff counts, revenue, subscription usage and storage — admin-only KPIs. */
     private void addAdminKpis(Map<String, Object> kpi) {
-        long totalFaculty = userRepository.countByRole(User.UserRole.INSTRUCTOR);
-        long activeSubscriptions = subscriptionRepository.countByStatus("ACTIVE");
+        Long orgId = organizationContext.getCurrentOrgId();
+        long totalFaculty = orgId != null ? userRepository.countFacultySeatsInOrg(orgId) : userRepository.countByRole(User.UserRole.INSTRUCTOR);
+        long activeSubscriptions = orgId != null
+                ? subscriptionRepository.countByOrganizationIdAndStatus(orgId, "ACTIVE")
+                : subscriptionRepository.countByStatus("ACTIVE");
 
-        List<StudentPaymentInfo> payments = studentPaymentInfoRepository.findAll();
+        List<StudentPaymentInfo> payments = orgId != null
+                ? studentPaymentInfoRepository.findByOrganizationId(orgId)
+                : studentPaymentInfoRepository.findAll();
         long collectedPaise = payments.stream()
                 .filter(StudentPaymentInfo::isPaid)
                 .mapToLong(info -> info.getAmountDue() != null ? info.getAmountDue() : 0L)
@@ -574,25 +591,29 @@ public class DashboardController {
         kpi.put("outstandingDues", outstandingDues.setScale(2, RoundingMode.HALF_UP));
         kpi.put("revenueByMode", revenueByMode);
 
-        Long orgId = organizationContext.getCurrentOrgId();
         ResolvedEntitlements resolved = entitlementService.resolve(orgId);
         Map<String, Object> quotas = new LinkedHashMap<>();
         quotas.put("maxStudents", resolved.limit(LimitKey.MAX_ACTIVE_STUDENTS));
         quotas.put("maxFaculty", resolved.limit(LimitKey.MAX_FACULTY_ACCOUNTS));
         quotas.put("storageGbLimit", resolved.limit(LimitKey.STORAGE_GB));
-        quotas.put("storageGbUsed", usageService.storageGb(orgId));
-        quotas.put("activeStudentsUsed", usageService.activeStudents(orgId));
+        quotas.put("storageGbUsed", usageService.storageGbDouble(orgId));
+        long billableStudents = usageService.activeStudents(orgId);
+        long recordStudents = orgId != null ? userRepository.countStudentRecordsInOrg(orgId) : 0;
+        quotas.put("activeStudentsUsed", Math.max(billableStudents, recordStudents));
         quotas.put("facultyUsed", usageService.facultySeats(orgId));
         kpi.put("subscriptionQuotas", quotas);
 
-        long videoBytes = mediaItemRepository.sumStoredSizeByMediaType("video");
-        long fileBytes = mediaItemRepository.sumStoredSizeByMediaType("file");
-        long pdfBytes = pdfDocumentRepository.sumStoredSize();
+        long videoBytes = orgId != null ? mediaItemRepository.sumStoredSizeByOrgIdAndMediaType(orgId, "video") : mediaItemRepository.sumStoredSizeByMediaType("video");
+        long fileBytes = orgId != null ? mediaItemRepository.sumStoredSizeByOrgIdAndMediaType(orgId, "file") : mediaItemRepository.sumStoredSizeByMediaType("file");
+        long pdfDocBytes = orgId != null ? pdfDocumentRepository.sumStoredSizeByOrgId(orgId) : pdfDocumentRepository.sumStoredSize();
+        long pdfNoteBytes = orgId != null ? pdfNoteRepository.sumStoredSizeByOrgId(orgId) : pdfNoteRepository.sumStoredSize();
+        long totalPdfBytes = pdfDocBytes + pdfNoteBytes;
+
         Map<String, Object> storage = new LinkedHashMap<>();
         storage.put("videoBytes", videoBytes);
         storage.put("fileBytes", fileBytes);
-        storage.put("pdfBytes", pdfBytes);
-        storage.put("totalBytes", videoBytes + fileBytes + pdfBytes);
+        storage.put("pdfBytes", totalPdfBytes);
+        storage.put("totalBytes", videoBytes + fileBytes + totalPdfBytes);
         kpi.put("storageBreakdown", storage);
     }
 

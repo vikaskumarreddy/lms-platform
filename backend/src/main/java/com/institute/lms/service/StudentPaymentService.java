@@ -29,9 +29,11 @@ public class StudentPaymentService {
   private final OrgPaymentGatewayConfigRepository gatewayConfigRepo;
   private final PaymentGatewayResolver gatewayResolver;
   private final SubscriptionPlanRepository subscriptionPlanRepo;
+  private final BatchRepository batchRepository;
 
   /** Null on legacy rows means RAZORPAY, the gateway every org used before this field existed. */
   private PaymentGateway resolveActiveGateway(Long organizationId) {
+    if (organizationId == null) return PaymentGateway.RAZORPAY;
     return organizationRepository.findById(organizationId)
       .map(Organization::getActiveGateway)
       .orElse(PaymentGateway.RAZORPAY);
@@ -61,21 +63,53 @@ public class StudentPaymentService {
   }
 
   /** Amount in paise the student owes for enrollment: their {@link SubscriptionPlan}
-   * price (rupees -> paise). Different subscriptions carry different prices, so the
-   * legacy hard-coded "amount per student" in payment settings is never used — if the
-   * student has no priced plan attached the amount stays 0 and the admin must fix the
-   * plan before the student can pay. */
-  private Long resolveStudentAmountDue(Long studentId, Long organizationId) {
-    Optional<User> studentOpt = userRepository.findById(studentId);
-    if (studentOpt.isPresent() && studentOpt.get().getPlanId() != null) {
-      Optional<SubscriptionPlan> planOpt = subscriptionPlanRepo.findById(studentOpt.get().getPlanId());
-      if (planOpt.isPresent() && planOpt.get().getPrice() != null) {
+   * price (rupees -> paise). If the student has no priced plan, falls back to the
+   * organization's configured amountPerStudent from payment gateway settings. */
+  public Long resolveStudentAmountDue(Long studentId, Long organizationId) {
+    Optional<User> studentOpt = userRepository.findById(studentId)
+        .or(() -> userRepository.findAnyById(studentId));
+    Long planId = null;
+    Long resolvedOrgId = organizationId;
+    if (studentOpt.isPresent()) {
+      planId = studentOpt.get().getPlanId();
+      if (resolvedOrgId == null) {
+        resolvedOrgId = studentOpt.get().getOrganizationId();
+      }
+      if (planId == null && studentOpt.get().getBatchId() != null) {
+        final Long batchId = studentOpt.get().getBatchId();
+        Batch batch = batchRepository.findById(batchId)
+            .or(() -> batchRepository.findAnyById(batchId))
+            .orElse(null);
+        if (batch != null && batch.getPlanId() != null) {
+          planId = batch.getPlanId();
+        }
+      }
+    }
+    final Long targetPlanId = planId;
+    if (targetPlanId != null) {
+      Optional<SubscriptionPlan> planOpt = subscriptionPlanRepo.findById(targetPlanId)
+          .or(() -> subscriptionPlanRepo.findAnyById(targetPlanId));
+      if (planOpt.isPresent() && planOpt.get().getPrice() != null && planOpt.get().getPrice().compareTo(BigDecimal.ZERO) > 0) {
         return planOpt.get().getPrice().multiply(BigDecimal.valueOf(100)).longValue();
       }
-      log.warn("Student {} has plan {} with no price set — amount due recorded as 0", studentId, studentOpt.get().getPlanId());
-    } else {
-      log.warn("Student {} has no subscription plan — amount due recorded as 0", studentId);
     }
+    // Fall back to organization's configured amount per student
+    final Long targetOrgId = resolvedOrgId;
+    if (targetOrgId != null) {
+      Optional<OrgRazorpayConfig> rzpConfig = orgConfigRepo.findByOrganizationId(targetOrgId)
+          .or(() -> orgConfigRepo.findAnyByOrganizationId(targetOrgId));
+      if (rzpConfig.isPresent() && rzpConfig.get().getAmountPerStudent() != null && rzpConfig.get().getAmountPerStudent() > 0) {
+        return rzpConfig.get().getAmountPerStudent();
+      }
+
+      PaymentGateway activeGateway = resolveActiveGateway(targetOrgId);
+      Optional<OrgPaymentGatewayConfig> gwConfig = gatewayConfigRepo.findByOrganizationIdAndGateway(targetOrgId, activeGateway);
+      if (gwConfig.isPresent() && gwConfig.get().getAmountPerStudent() != null && gwConfig.get().getAmountPerStudent() > 0) {
+        return gwConfig.get().getAmountPerStudent();
+      }
+    }
+
+    log.warn("Student {} in org {} has no subscription plan price or org fee configured", studentId, resolvedOrgId);
     return 0L;
   }
 
@@ -87,6 +121,7 @@ public class StudentPaymentService {
   @Transactional
   public void refreshAmountDueFromPlan(Long studentId, Long organizationId) {
     studentPaymentInfoRepo.findByStudentIdAndOrganizationId(studentId, organizationId)
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(studentId, organizationId))
       .filter(info -> "ONLINE".equals(info.getPaymentMethod()) && !info.isPaid())
       .ifPresent(info -> {
         long newAmount = resolveStudentAmountDue(studentId, organizationId);
@@ -101,11 +136,25 @@ public class StudentPaymentService {
   /** The active payment gateway name (RAZORPAY/PAYU/CASHFREE) for an organization,
    * so the mobile client knows which vendor's checkout to launch. */
   public String getActiveGatewayName(Long organizationId) {
+    if (organizationId == null) return PaymentGateway.RAZORPAY.name();
     return resolveActiveGateway(organizationId).name();
   }
 
   public Optional<StudentPaymentInfo> getPaymentInfo(Long studentId, Long organizationId) {
-    return studentPaymentInfoRepo.findByStudentIdAndOrganizationId(studentId, organizationId);
+    Optional<StudentPaymentInfo> opt = studentPaymentInfoRepo.findByStudentIdAndOrganizationId(studentId, organizationId)
+        .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(studentId, organizationId));
+    if (opt.isPresent()) {
+      StudentPaymentInfo info = opt.get();
+      if ("ONLINE".equals(info.getPaymentMethod()) && !info.isPaid() && (info.getAmountDue() == null || info.getAmountDue() <= 0)) {
+        long resolved = resolveStudentAmountDue(studentId, info.getOrganizationId() != null ? info.getOrganizationId() : organizationId);
+        if (resolved > 0) {
+          info.setAmountDue(resolved);
+          studentPaymentInfoRepo.save(info);
+          log.info("Auto-healed payment amount for student {} to {} paise", studentId, resolved);
+        }
+      }
+    }
+    return opt;
   }
 
   /** Public base URL of this backend, used to build gateway redirect targets. */
@@ -114,21 +163,60 @@ public class StudentPaymentService {
 
   @Transactional
   public Map<String, Object> createPaymentOrder(Long studentId, Long organizationId) {
-    PaymentGateway activeGateway = resolveActiveGateway(organizationId);
+    Long targetOrgId = organizationId;
+    if (targetOrgId == null) {
+      User u = userRepository.findById(studentId).or(() -> userRepository.findAnyById(studentId)).orElse(null);
+      if (u != null) {
+        targetOrgId = u.getOrganizationId();
+      }
+    }
+    final Long effectiveOrgId = targetOrgId;
+
+    PaymentGateway activeGateway = resolveActiveGateway(effectiveOrgId);
     if (activeGateway != PaymentGateway.RAZORPAY) {
-      return createPaymentOrderViaGateway(activeGateway, studentId, organizationId);
+      return createPaymentOrderViaGateway(activeGateway, studentId, effectiveOrgId);
     }
 
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
-      .findByStudentIdAndOrganizationId(studentId, organizationId)
+      .findByStudentIdAndOrganizationId(studentId, effectiveOrgId)
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(studentId, effectiveOrgId))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     if (!paymentInfo.isPaymentDue()) {
       throw new IllegalStateException("Payment already completed or not required");
     }
 
-    OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(organizationId)
+    // Auto-heal / refresh amount due from the mapped subscription plan if zero or null
+    if (paymentInfo.getAmountDue() == null || paymentInfo.getAmountDue() <= 0) {
+      Long resolvedAmount = resolveStudentAmountDue(studentId, effectiveOrgId);
+      if (resolvedAmount != null && resolvedAmount > 0) {
+        paymentInfo.setAmountDue(resolvedAmount);
+        studentPaymentInfoRepo.save(paymentInfo);
+        log.info("Refreshed zero amountDue for student {} to {} paise from plan", studentId, resolvedAmount);
+      } else {
+        throw new IllegalStateException("Cannot create payment order: student has no priced subscription plan assigned and no organization fee configured.");
+      }
+    }
+
+    OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(effectiveOrgId)
+      .or(() -> orgConfigRepo.findAnyByOrganizationId(effectiveOrgId))
       .orElseThrow(() -> new IllegalStateException("Razorpay not configured"));
+
+    User student = userRepository.findById(studentId)
+      .or(() -> userRepository.findAnyById(studentId))
+      .orElse(null);
+    String studentName = student != null && student.getName() != null ? student.getName() : "Student";
+    String studentEmail = student != null && student.getEmail() != null ? student.getEmail() : "";
+    String studentPhone = student != null && student.getPhone() != null ? student.getPhone() : "";
+    String orgName = organizationRepository.findById(effectiveOrgId).map(Organization::getName).orElse("Academy");
+
+    Map<String, String> notes = new LinkedHashMap<>();
+    notes.put("studentId", String.valueOf(studentId));
+    notes.put("organizationId", String.valueOf(effectiveOrgId));
+    notes.put("studentName", studentName);
+    notes.put("studentEmail", studentEmail);
+    notes.put("studentPhone", studentPhone);
+    notes.put("orgName", orgName);
 
     // Create order using org's Razorpay account
     Map<String, Object> orderData = razorpayService.createOrder(
@@ -136,7 +224,8 @@ public class StudentPaymentService {
       config.getRazorpayKeySecret(),
       paymentInfo.getAmountDue(),
       "INR",
-      "Student enrollment - Org #" + organizationId
+      "Enrollment: " + studentName + " - " + orgName,
+      notes
     );
 
     String razorpayOrderId = (String) orderData.get("id");
@@ -149,31 +238,60 @@ public class StudentPaymentService {
       .currency("INR")
       .status("PENDING")
       .build();
-    order.setOrganizationId(organizationId);
+    order.setOrganizationId(effectiveOrgId);
     razorpayOrderRepo.save(order);
 
-    return Map.of(
-      "orderId", razorpayOrderId,
-      "amount", paymentInfo.getAmountDue(),
-      "currency", "INR",
-      "keyId", config.getRazorpayKeyId(),
-      // Browser redirect target: the checkout page POSTs the payment result here
-      // (public endpoint — the Razorpay signature authenticates it).
-      "callbackUrl", appBaseUrl + "/api/payments/callback/razorpay/" + razorpayOrderId
-    );
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("orderId", razorpayOrderId);
+    result.put("amount", paymentInfo.getAmountDue());
+    result.put("currency", "INR");
+    result.put("keyId", config.getRazorpayKeyId());
+    result.put("callbackUrl", appBaseUrl + "/api/payments/callback/razorpay/" + razorpayOrderId);
+    result.put("studentId", studentId);
+    result.put("studentName", studentName);
+    result.put("studentEmail", studentEmail);
+    result.put("studentPhone", studentPhone);
+    result.put("organizationId", effectiveOrgId);
+    result.put("orgName", orgName);
+    result.put("gateway", "RAZORPAY");
+    return result;
   }
 
   /** Non-Razorpay counterpart to the block above, dispatched via {@link PaymentGatewayResolver}. */
   private Map<String, Object> createPaymentOrderViaGateway(PaymentGateway gateway, Long studentId, Long organizationId) {
+    Long targetOrgId = organizationId;
+    if (targetOrgId == null) {
+      User u = userRepository.findById(studentId).or(() -> userRepository.findAnyById(studentId)).orElse(null);
+      if (u != null) {
+        targetOrgId = u.getOrganizationId();
+      }
+    }
+    final Long effectiveOrgId = targetOrgId;
+
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
-      .findByStudentIdAndOrganizationId(studentId, organizationId)
+      .findByStudentIdAndOrganizationId(studentId, effectiveOrgId)
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(studentId, effectiveOrgId))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     if (!paymentInfo.isPaymentDue()) {
       throw new IllegalStateException("Payment already completed or not required");
     }
 
-    User student = userRepository.findById(studentId).orElse(null);
+    // Auto-heal / refresh amount due from the mapped subscription plan if zero or null
+    if (paymentInfo.getAmountDue() == null || paymentInfo.getAmountDue() <= 0) {
+      Long resolvedAmount = resolveStudentAmountDue(studentId, effectiveOrgId);
+      if (resolvedAmount != null && resolvedAmount > 0) {
+        paymentInfo.setAmountDue(resolvedAmount);
+        studentPaymentInfoRepo.save(paymentInfo);
+        log.info("Refreshed zero amountDue for student {} to {} paise from plan", studentId, resolvedAmount);
+      } else {
+        throw new IllegalStateException("Cannot create payment order: student has no priced subscription plan assigned and no organization fee configured.");
+      }
+    }
+
+    User student = userRepository.findById(studentId)
+      .or(() -> userRepository.findAnyById(studentId))
+      .orElse(null);
     Map<String, String> customer = new LinkedHashMap<>();
     if (student != null) {
       if (student.getName() != null) customer.put("name", student.getName());
@@ -194,18 +312,29 @@ public class StudentPaymentService {
       .currency("INR")
       .status("PENDING")
       .build();
-    order.setOrganizationId(organizationId);
-    razorpayOrderRepo.save(order);
+    String orgName = organizationRepository.findById(organizationId).map(Organization::getName).orElse("Academy");
+    Map<String, Object> result = new LinkedHashMap<>(orderData);
+    result.put("studentId", studentId);
+    if (student != null) {
+      if (student.getName() != null) result.put("studentName", student.getName());
+      if (student.getEmail() != null) result.put("studentEmail", student.getEmail());
+      if (student.getPhone() != null) result.put("studentPhone", student.getPhone());
+    }
+    result.put("organizationId", organizationId);
+    result.put("orgName", orgName);
+    result.put("gateway", gateway.name());
 
-    return orderData;
+    return result;
   }
 
   @Transactional
   public void handlePaymentSuccess(String razorpayOrderId, String razorpayPaymentId, String signature) {
     RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(razorpayOrderId)
+      .or(() -> razorpayOrderRepo.findAnyByRazorpayOrderId(razorpayOrderId))
       .orElseThrow(() -> new IllegalArgumentException("Order not found: " + razorpayOrderId));
 
     OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(order.getOrganizationId())
+      .or(() -> orgConfigRepo.findAnyByOrganizationId(order.getOrganizationId()))
       .orElseThrow(() -> new IllegalStateException("Config not found"));
 
     // Verify signature
@@ -223,11 +352,19 @@ public class StudentPaymentService {
     // Update payment info
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
       .findByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId())
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId()))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     paymentInfo.setPaymentStatus("COMPLETED");
     paymentInfo.setPaidAt(LocalDateTime.now());
     studentPaymentInfoRepo.save(paymentInfo);
+
+    // Grant access to student
+    userRepository.findById(order.getStudentId()).ifPresent(student -> {
+      student.setIsActive(true);
+      userRepository.save(student);
+      log.info("Access granted: Student {} is now active after payment", student.getId());
+    });
 
     log.info("Payment completed for student {} from org {}", order.getStudentId(), order.getOrganizationId());
   }
@@ -235,6 +372,7 @@ public class StudentPaymentService {
   @Transactional
   public void handlePaymentFailed(String razorpayOrderId, String error) {
     RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(razorpayOrderId)
+      .or(() -> razorpayOrderRepo.findAnyByRazorpayOrderId(razorpayOrderId))
       .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
     order.setStatus("FAILED");
@@ -249,12 +387,20 @@ public class StudentPaymentService {
   public void markAsPaidManual(Long studentId, Long organizationId, String notes) {
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
       .findByStudentIdAndOrganizationId(studentId, organizationId)
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(studentId, organizationId))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     paymentInfo.setPaymentStatus("COMPLETED");
     paymentInfo.setPaidAt(LocalDateTime.now());
     paymentInfo.setNotes(notes != null ? notes : "Manually marked as paid by admin");
     studentPaymentInfoRepo.save(paymentInfo);
+
+    // Grant access to student
+    userRepository.findById(studentId).ifPresent(student -> {
+      student.setIsActive(true);
+      userRepository.save(student);
+      log.info("Access granted: Student {} is now active after manual cash payment", student.getId());
+    });
 
     log.info("Manual payment recorded for student {} from org {}", studentId, organizationId);
   }
@@ -271,6 +417,7 @@ public class StudentPaymentService {
     }
 
     OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(order.getOrganizationId())
+      .or(() -> orgConfigRepo.findAnyByOrganizationId(order.getOrganizationId()))
       .orElseThrow(() -> new IllegalStateException("Config not found"));
 
     // Call Razorpay refund API
@@ -324,6 +471,7 @@ public class StudentPaymentService {
   @Transactional
   public void handleGatewayPaymentSuccess(PaymentGateway gateway, String orderId, Map<String, String> callbackParams) {
     RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(orderId)
+      .or(() -> razorpayOrderRepo.findAnyByRazorpayOrderId(orderId))
       .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
 
     String paymentId = gatewayResolver.resolve(gateway).verifyAndCapture(order.getOrganizationId(), callbackParams);
@@ -335,11 +483,19 @@ public class StudentPaymentService {
 
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
       .findByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId())
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId()))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     paymentInfo.setPaymentStatus("COMPLETED");
     paymentInfo.setPaidAt(LocalDateTime.now());
     studentPaymentInfoRepo.save(paymentInfo);
+
+    // Grant access to student
+    userRepository.findById(order.getStudentId()).ifPresent(student -> {
+      student.setIsActive(true);
+      userRepository.save(student);
+      log.info("Access granted: Student {} is now active after payment via {}", student.getId(), gateway);
+    });
 
     log.info("Payment completed for student {} from org {} via {}", order.getStudentId(), order.getOrganizationId(), gateway);
   }
@@ -352,9 +508,11 @@ public class StudentPaymentService {
   @Transactional
   public void handleRazorpayCheckoutRedirect(String razorpayOrderId, String razorpayPaymentId, String signature) {
     RazorpayOrder order = razorpayOrderRepo.findByRazorpayOrderId(razorpayOrderId)
+      .or(() -> razorpayOrderRepo.findAnyByRazorpayOrderId(razorpayOrderId))
       .orElseThrow(() -> new IllegalArgumentException("Order not found: " + razorpayOrderId));
 
     OrgRazorpayConfig config = orgConfigRepo.findByOrganizationId(order.getOrganizationId())
+      .or(() -> orgConfigRepo.findAnyByOrganizationId(order.getOrganizationId()))
       .orElseThrow(() -> new IllegalStateException("Razorpay config not found"));
 
     if (!razorpayService.verifyCheckoutSignature(razorpayOrderId, razorpayPaymentId, signature, config.getRazorpayKeySecret())) {
@@ -369,11 +527,19 @@ public class StudentPaymentService {
 
     StudentPaymentInfo paymentInfo = studentPaymentInfoRepo
       .findByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId())
+      .or(() -> studentPaymentInfoRepo.findAnyByStudentIdAndOrganizationId(order.getStudentId(), order.getOrganizationId()))
       .orElseThrow(() -> new IllegalArgumentException("Payment info not found"));
 
     paymentInfo.setPaymentStatus("COMPLETED");
     paymentInfo.setPaidAt(LocalDateTime.now());
     studentPaymentInfoRepo.save(paymentInfo);
+
+    // Grant access to student
+    userRepository.findById(order.getStudentId()).ifPresent(student -> {
+      student.setIsActive(true);
+      userRepository.save(student);
+      log.info("Access granted: Student {} is now active after Razorpay checkout redirect", student.getId());
+    });
 
     log.info("Payment completed for student {} from org {} via Razorpay checkout redirect",
         order.getStudentId(), order.getOrganizationId());

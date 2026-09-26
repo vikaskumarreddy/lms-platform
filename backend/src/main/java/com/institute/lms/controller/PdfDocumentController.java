@@ -3,6 +3,7 @@ package com.institute.lms.controller;
 import com.institute.lms.entity.PdfDocument;
 import com.institute.lms.entity.User;
 import com.institute.lms.repository.PdfDocumentRepository;
+import com.institute.lms.service.S3StorageService;
 import com.institute.lms.util.UserContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -40,10 +41,17 @@ public class PdfDocumentController {
 
     private final PdfDocumentRepository repository;
     private final UserContext userContext;
+    private final S3StorageService s3StorageService;
+    private final com.institute.lms.service.subscription.QuotaGuard quotaGuard;
 
-    public PdfDocumentController(PdfDocumentRepository repository, UserContext userContext) {
+    public PdfDocumentController(PdfDocumentRepository repository,
+                                 UserContext userContext,
+                                 S3StorageService s3StorageService,
+                                 com.institute.lms.service.subscription.QuotaGuard quotaGuard) {
         this.repository = repository;
         this.userContext = userContext;
+        this.s3StorageService = s3StorageService;
+        this.quotaGuard = quotaGuard;
     }
 
     @GetMapping
@@ -62,6 +70,14 @@ public class PdfDocumentController {
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No PDF file provided."));
         }
+
+        Long academyId = userContext.currentUser() != null && userContext.currentUser().getOrganizationId() != null
+                ? userContext.currentUser().getOrganizationId()
+                : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
+        if (academyId != null) {
+            quotaGuard.requireStorage(academyId, file.getSize());
+        }
+
         String name = file.getOriginalFilename() == null ? "document.pdf" : file.getOriginalFilename();
         String cleanTitle = (title == null || title.isBlank())
                 ? name.replaceAll("(?i)\\.pdf$", "")
@@ -106,10 +122,18 @@ public class PdfDocumentController {
     }
 
     @GetMapping("/{id}/file")
-    public ResponseEntity<byte[]> file(@PathVariable Long id) {
+    public ResponseEntity<?> file(@PathVariable Long id) {
         userContext.requireOrgAdminOrFaculty();
         PdfDocument doc = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("PDF document not found"));
+        if (s3StorageService.isConfigured() && doc.getFileName() != null && doc.getFileName().startsWith("academy/")) {
+            String presigned = s3StorageService.generatePresignedUrl(doc.getFileName(), java.time.Duration.ofHours(2));
+            if (presigned != null) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                        .location(java.net.URI.create(presigned))
+                        .build();
+            }
+        }
         byte[] pdf = readFromDisk(doc);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
@@ -124,7 +148,11 @@ public class PdfDocumentController {
         PdfDocument doc = repository.findById(id).orElse(null);
         if (doc != null) {
             repository.deleteById(id);
-            deleteFromDisk(doc.getFileName());
+            if (s3StorageService.isConfigured() && doc.getFileName() != null && doc.getFileName().startsWith("academy/")) {
+                s3StorageService.delete(doc.getFileName());
+            } else {
+                deleteFromDisk(doc.getFileName());
+            }
         }
         return ResponseEntity.ok().build();
     }
@@ -132,19 +160,44 @@ public class PdfDocumentController {
     // ------------------------------------------------------------------- disk
 
     private void store(PdfDocument doc, byte[] pdf) throws IOException {
-        byte[] gzipped = gzip(pdf);
-        String fileName = "doc-" + System.currentTimeMillis() + "-"
-                + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";
-        Path dir = Paths.get(STORAGE_DIR);
-        if (!Files.exists(dir)) Files.createDirectories(dir);
-        Files.write(dir.resolve(fileName), gzipped);
-        // Only swap the file name after the new bytes are safely on disk.
-        if (doc.getFileName() != null) deleteFromDisk(doc.getFileName());
-        doc.setFileName(fileName);
-        doc.setStoredSize((long) gzipped.length);
+        Long academyId = userContext.currentUser() != null && userContext.currentUser().getOrganizationId() != null
+                ? userContext.currentUser().getOrganizationId()
+                : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
+
+        if (s3StorageService.isConfigured()) {
+            String fileName = "doc-" + System.currentTimeMillis() + "-"
+                    + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
+            String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
+            s3StorageService.upload(s3Key, pdf, "application/pdf");
+            if (doc.getFileName() != null && doc.getFileName().startsWith("academy/")) {
+                s3StorageService.delete(doc.getFileName());
+            }
+            doc.setFileName(s3Key);
+            doc.setStoredSize((long) pdf.length);
+        } else {
+            byte[] gzipped = gzip(pdf);
+            String fileName = "doc-" + System.currentTimeMillis() + "-"
+                    + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";
+            Path dir = Paths.get(STORAGE_DIR);
+            if (!Files.exists(dir)) Files.createDirectories(dir);
+            Files.write(dir.resolve(fileName), gzipped);
+            if (doc.getFileName() != null) deleteFromDisk(doc.getFileName());
+            doc.setFileName(fileName);
+            doc.setStoredSize((long) gzipped.length);
+        }
     }
 
     private byte[] readFromDisk(PdfDocument doc) {
+        if (doc.getFileName() == null || doc.getFileName().isBlank()) {
+            throw new RuntimeException("PDF file is missing for document " + doc.getId());
+        }
+        if (s3StorageService.isConfigured() && doc.getFileName().startsWith("academy/")) {
+            try {
+                return s3StorageService.download(doc.getFileName());
+            } catch (Exception e) {
+                throw new RuntimeException("Could not read PDF from S3 for document " + doc.getId(), e);
+            }
+        }
         try {
             Path file = Paths.get(STORAGE_DIR, doc.getFileName());
             if (!Files.exists(file)) {

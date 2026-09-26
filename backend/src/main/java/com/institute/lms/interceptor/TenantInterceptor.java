@@ -147,6 +147,12 @@ public class TenantInterceptor implements HandlerInterceptor {
             if (org.isPresent()) {
                 return String.valueOf(org.get().getId());
             }
+            if ("axisora".equalsIgnoreCase(tenantSlug) || "admin".equalsIgnoreCase(tenantSlug) || "www".equalsIgnoreCase(tenantSlug)) {
+                String defaultId = findDefaultOrgId();
+                if (defaultId != null) {
+                    return defaultId;
+                }
+            }
         }
 
         // 4. Fall back to domain-based resolution
@@ -168,36 +174,34 @@ public class TenantInterceptor implements HandlerInterceptor {
      * <p>
      * Domain structure: {@code [tenant].axisoraforge.in}
      * <ul>
-     *   <li>{@code axisoraforge.in} or {@code www.axisoraforge.in} → default org ("axisora")</li>
-     *   <li>{@code axisora.axisoraforge.in} → org with slug "axisora"</li>
+     *   <li>{@code axisoraforge.in}, {@code www.axisoraforge.in}, {@code admin.axisoraforge.in} → default org ("axisora" / "admin")</li>
+     *   <li>{@code axisora.axisoraforge.in} → org with slug "axisora" (or default org)</li>
      *   <li>{@code manyasree.axisoraforge.in} → org with slug "manyasree"</li>
-     *   <li>{@code localhost}, {@code 127.0.0.1}, bare IP → default org "axisora"</li>
-     *   <li>Any unknown bare IP or tunnel host → default org "axisora"</li>
+     *   <li>{@code localhost}, {@code 127.0.0.1}, bare IP → default org</li>
      * </ul>
      */
     private String resolveTenantFromDomain(HttpServletRequest request) {
         String serverName = request.getServerName();
 
-        // Local development: always resolve to the default (axisora) org
+        // Local development: always resolve to the default (axisora/admin) org
         if (serverName.startsWith("localhost")
                 || serverName.startsWith("127.0.0.1")
                 || serverName.matches("^\\d{1,3}(\\.\\d{1,3}){3}$")) {
-            Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
-            return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
+            return findDefaultOrgId();
         }
 
         // Split the hostname into parts.
         // axisoraforge.in         → ["axisoraforge", "in"]           → 2 parts → root domain → default org
         // www.axisoraforge.in     → ["www", "axisoraforge", "in"]    → 3 parts, first = "www" → default org
-        // axisora.axisoraforge.in → ["axisora", "axisoraforge", "in"] → 3 parts, first = tenant slug
-        // tenant.sub.axisoraforge.in → ["tenant", "sub", "axisoraforge", "in"] → 4+ parts → use first part
+        // admin.axisoraforge.in   → ["admin", "axisoraforge", "in"]  → 3 parts, first = "admin" → default org
+        // axisora.axisoraforge.in → ["axisora", "axisoraforge", "in"] → 3 parts → default org
+        // manyasree.axisoraforge.in → ["manyasree", "axisoraforge", "in"] → 3 parts, first = tenant slug
         String[] parts = serverName.split("\\.");
         if (parts.length >= 3) {
             String subdomain = parts[0];
-            // "www" is not a tenant — treat as root domain → default org
-            if ("www".equalsIgnoreCase(subdomain)) {
-                Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
-                return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
+            // "www", "admin", and "axisora" are platform/root portals — treat as default org
+            if ("www".equalsIgnoreCase(subdomain) || "admin".equalsIgnoreCase(subdomain) || "axisora".equalsIgnoreCase(subdomain)) {
+                return findDefaultOrgId();
             }
             // Try to resolve subdomain as a tenant slug
             Optional<Organization> org = organizationRepository.findBySlug(subdomain);
@@ -207,9 +211,13 @@ public class TenantInterceptor implements HandlerInterceptor {
         }
 
         // Root domain (axisoraforge.in) or unrecognized host → fall back to default org.
-        // Returning null leaves tenant context empty and Hibernate's @TenantId
-        // discriminator injects a match-nothing sentinel into every query.
-        Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora");
+        return findDefaultOrgId();
+    }
+
+    private String findDefaultOrgId() {
+        Optional<Organization> defaultOrg = organizationRepository.findBySlug("axisora")
+                .or(() -> organizationRepository.findBySlug("admin"))
+                .or(() -> organizationRepository.findById(1L));
         return defaultOrg.map(org -> String.valueOf(org.getId())).orElse(null);
     }
 }

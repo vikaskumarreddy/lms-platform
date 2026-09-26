@@ -27,6 +27,10 @@ public class RazorpayService {
    * Each org has unique key_id and key_secret.
    */
   public Map<String, Object> createOrder(String keyId, String keySecret, Long amount, String currency, String description) {
+    return createOrder(keyId, keySecret, amount, currency, description, Collections.emptyMap());
+  }
+
+  public Map<String, Object> createOrder(String keyId, String keySecret, Long amount, String currency, String description, Map<String, String> notes) {
     try {
       String url = RAZORPAY_API + "/orders";
 
@@ -36,6 +40,9 @@ public class RazorpayService {
       payload.put("currency", currency);
       payload.put("receipt", "receipt_" + System.currentTimeMillis());
       payload.put("description", description);
+      if (notes != null && !notes.isEmpty()) {
+        payload.put("notes", notes);
+      }
 
       String jsonPayload = objectMapper.writeValueAsString(payload);
 
@@ -50,7 +57,7 @@ public class RazorpayService {
       var request = new org.springframework.http.HttpEntity<>(jsonPayload, headers);
       var response = restTemplate.postForEntity(url, request, String.class);
 
-      if (response.getStatusCode() == HttpStatus.CREATED) {
+      if (response.getStatusCode().is2xxSuccessful()) {
         return objectMapper.readValue(response.getBody(), Map.class);
       } else {
         throw new RuntimeException("Failed to create order: " + response.getStatusCode());

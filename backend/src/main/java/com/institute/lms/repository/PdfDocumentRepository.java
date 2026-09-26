@@ -11,4 +11,7 @@ public interface PdfDocumentRepository extends JpaRepository<PdfDocument, Long> 
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.storedSize), 0) FROM PdfDocument p")
     long sumStoredSize();
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COALESCE(SUM(COALESCE(stored_size, original_size, 0)), 0) FROM pdf_documents WHERE organization_id = :orgId", nativeQuery = true)
+    long sumStoredSizeByOrgId(@org.springframework.data.repository.query.Param("orgId") Long orgId);
 }

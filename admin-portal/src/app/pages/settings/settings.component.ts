@@ -205,6 +205,41 @@ interface FeatureToggleDef {
                 {{savingMessagingChannel === def.channel ? 'Saving…' : 'Save ' + def.label}}
               </button>
             </div>
+
+            <!-- Test Connection & Send Test Message -->
+            <div class="test-messaging-box" style="margin-top:20px;padding:16px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;">
+              <h4 style="margin:0 0 6px;font-size:13px;font-weight:600;">🧪 Test {{def.label}} Integration</h4>
+              <p style="font-size:12px;color:var(--text-secondary);margin:0 0 10px;">
+                Send a live test message through Twilio to verify credentials and phone delivery.
+              </p>
+              <div *ngIf="def.channel === 'SMS'" style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border-left:3px solid #6366F1;border-radius:4px;font-size:12px;color:var(--text);">
+                💡 <strong>Twilio Trial Accounts:</strong> Trial accounts can only send to verified phone numbers in your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified-caller-ids" target="_blank" style="color:#6366F1;text-decoration:underline;">Twilio Console</a>, and require predefined templates like <code>sms_appointment_reminders</code>.
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" [(ngModel)]="testPhoneByChannel[def.channel]" [name]="'test-phone-' + def.channel"
+                         placeholder="Recipient phone (+91XXXXXXXXXX)"
+                         style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text);" />
+                  <button type="button" class="btn" style="background:#4F46E5;color:#fff;padding:8px 14px;font-size:13px;white-space:nowrap;"
+                          [disabled]="testingMessagingChannel === def.channel || !testPhoneByChannel[def.channel]"
+                          (click)="sendTestMessage(def.channel)">
+                    {{ testingMessagingChannel === def.channel ? 'Sending…' : 'Send Test ' + def.label }}
+                  </button>
+                </div>
+                <div *ngIf="def.channel === 'SMS'" style="display:flex;align-items:center;gap:8px;">
+                  <input type="text" [(ngModel)]="testMessageByChannel['SMS']" name="test-msg-sms"
+                         placeholder="Message or template (e.g. sms_appointment_reminders)"
+                         style="flex:1;padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text);" />
+                  <span style="font-size:11px;color:var(--text-secondary);white-space:nowrap;">Template / Text</span>
+                </div>
+              </div>
+              <div class="alert alert-success" *ngIf="testSuccessByChannel[def.channel]" style="margin-top:10px;font-size:12px;padding:8px 12px;">
+                ✅ {{ testSuccessByChannel[def.channel] }}
+              </div>
+              <div class="alert alert-error" *ngIf="testErrorByChannel[def.channel]" style="margin-top:10px;font-size:12px;padding:8px 12px;word-break:break-word;">
+                ❌ {{ testErrorByChannel[def.channel] }}
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -486,6 +521,12 @@ export class SettingsComponent implements OnInit {
   messagingErrorByChannel: Record<string, string> = {};
   private openMessagingChannels = new Set<string>();
 
+  testPhoneByChannel: Record<string, string> = { SMS: '', WHATSAPP: '' };
+  testMessageByChannel: Record<string, string> = { SMS: 'sms_appointment_reminders', WHATSAPP: '' };
+  testingMessagingChannel: string | null = null;
+  testSuccessByChannel: Record<string, string> = { SMS: '', WHATSAPP: '' };
+  testErrorByChannel: Record<string, string> = { SMS: '', WHATSAPP: '' };
+
   notificationToggleDefs: FeatureToggleDef[] = [
     { key: 'notifyPlacements', label: 'Placements' },
     { key: 'notifyExams', label: 'Exams' },
@@ -622,6 +663,32 @@ export class SettingsComponent implements OnInit {
         this.savingMessagingChannel = null;
         console.error('Failed to save messaging config', def.channel, err);
         this.messagingErrorByChannel[def.channel] = err.error?.error || 'Could not save the messaging settings.';
+      }
+    });
+  }
+
+  sendTestMessage(channel: string) {
+    const toPhone = this.testPhoneByChannel[channel];
+    if (!toPhone) return;
+
+    this.testingMessagingChannel = channel;
+    this.testSuccessByChannel[channel] = '';
+    this.testErrorByChannel[channel] = '';
+
+    const msg = this.testMessageByChannel[channel]?.trim() || (channel === 'SMS' ? 'sms_appointment_reminders' : `Hello! This is a test ${channel} message from your LMS platform.`);
+    const payload = {
+      toPhone: toPhone.trim(),
+      message: msg
+    };
+
+    this.apiService.post<any>(`/api/org-messaging-config/${channel}/test`, payload).subscribe({
+      next: (res) => {
+        this.testingMessagingChannel = null;
+        this.testSuccessByChannel[channel] = res.details || res.message || `Test ${channel} message sent successfully!`;
+      },
+      error: (err) => {
+        this.testingMessagingChannel = null;
+        this.testErrorByChannel[channel] = err.error?.error || err.error?.message || `Failed to send test ${channel} message.`;
       }
     });
   }

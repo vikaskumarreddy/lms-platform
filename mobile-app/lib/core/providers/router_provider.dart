@@ -158,15 +158,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           user.role == 'STUDENT' &&
           (user.paymentRequired ||
               (user.paymentMethod == 'ONLINE' &&
-               user.paymentStatus != 'COMPLETED' &&
-               user.planId != null));
+               user.paymentStatus != 'COMPLETED'));
 
       if (!needsPayment) return null;
 
-      // Already on the payment screen for the right plan — don't redirect.
+      // Already on the payment screen — don't redirect.
       if (location.startsWith('/payment')) return null;
       // Sending the student anywhere else would let them bypass the payment.
-      return AppRoutes.paymentFor(user.planId!);
+      return AppRoutes.paymentFor(user.planId ?? 0);
     },
     routes: [
       _animatedRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),

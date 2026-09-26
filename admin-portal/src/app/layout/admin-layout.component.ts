@@ -7,6 +7,7 @@ import { ThemeService } from '../services/theme.service';
 import { ToastHostComponent } from '../components/toast-host.component';
 import { ConfirmDialogComponent } from '../components/confirm-dialog.component';
 import { AdminNotificationsComponent } from '../components/admin-notifications.component';
+import { QuotaModalComponent } from '../components/quota-modal.component';
 import { MenuItem, MenuSection, PLATFORM_SECTIONS, INSTRUCTOR_SECTIONS, TENANT_SECTIONS } from './admin-layout-menu';
 
 /** Maps a menu item id to the single emoji shown when the sidebar is collapsed to icon-only. */
@@ -24,7 +25,7 @@ const COLLAPSED_ICONS: Record<string, string> = {
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent, AdminNotificationsComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, ConfirmDialogComponent, AdminNotificationsComponent, QuotaModalComponent],
   template: `
     <div class="sidebar" [class.collapsed]="collapsed">
       <div class="logo">
@@ -71,6 +72,11 @@ const COLLAPSED_ICONS: Record<string, string> = {
           </span>
         </div>
         <div class="admin-top-right">
+          <a routerLink="/register" target="_blank" class="register-header-btn" title="Open Public Student Registration Page">
+            <span class="btn-icon">📝</span>
+            <span>Registration Page</span>
+            <span class="btn-arrow">↗</span>
+          </a>
           <app-admin-notifications></app-admin-notifications>
         </div>
       </div>
@@ -90,6 +96,7 @@ const COLLAPSED_ICONS: Record<string, string> = {
     </div>
     <app-toast-host></app-toast-host>
     <app-confirm-dialog></app-confirm-dialog>
+    <app-quota-modal></app-quota-modal>
   `,
   styles: [`
     .admin-top-bar {
@@ -123,6 +130,29 @@ const COLLAPSED_ICONS: Record<string, string> = {
       display: flex;
       align-items: center;
       gap: 12px;
+    }
+    .register-header-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary, #4F46E5);
+      background: color-mix(in srgb, var(--primary, #4F46E5) 8%, #ffffff);
+      border: 1px solid color-mix(in srgb, var(--primary, #4F46E5) 25%, transparent);
+      text-decoration: none;
+      transition: all 0.15s ease-in-out;
+    }
+    .register-header-btn:hover {
+      background: var(--primary, #4F46E5);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    }
+    .register-header-btn .btn-arrow {
+      font-size: 11px;
+      opacity: 0.8;
     }
     .nav-group {
       padding: 16px 20px 6px;

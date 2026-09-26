@@ -10,6 +10,10 @@ public interface RazorpayOrderRepository extends JpaRepository<RazorpayOrder, Lo
   Optional<RazorpayOrder> findByRazorpayOrderId(String razorpayOrderId);
   Optional<RazorpayOrder> findByRazorpayPaymentId(String razorpayPaymentId);
 
+  /** Cross-tenant lookup by orderId used by webhooks and gateway callbacks without tenant context. */
+  @org.springframework.data.jpa.repository.Query(value = "SELECT * FROM razorpay_orders WHERE razorpay_order_id = :orderId LIMIT 1", nativeQuery = true)
+  Optional<RazorpayOrder> findAnyByRazorpayOrderId(@org.springframework.data.repository.query.Param("orderId") String orderId);
+
   /** Newest first, so the caller can take the most recent attempt for a student. */
   java.util.List<RazorpayOrder> findByStudentIdOrderByIdDesc(Long studentId);
 }

@@ -70,6 +70,7 @@ export const TENANT_SECTIONS: MenuSection[] = [
       { id: 'students', label: '🎓 Students', route: '/students' },
       { id: 'daily-attendance', label: '🗓️ Daily Attendance', route: '/attendance-admin', categories: ['SCHOOL'] },
       { id: 'batches', label: '👥 Batches', route: '/batches' },
+      { id: 'batch-rules', label: '⚡ Batch Rules', route: '/batches/rules' },
       { id: 'batch-community', label: '💬 Batch Community', route: '/batch-community' },
       { id: 'courses', label: '📚 Courses', route: '/courses' },
       { id: 'faculty', label: '👨🏫 Faculty', route: '/faculty' },

@@ -176,6 +176,32 @@ public class QuotaGuard {
         throw error;
     }
 
+    /**
+     * Guards storage consumption against the tenant's STORAGE_GB limit.
+     */
+    public void requireStorage(Long organizationId, long additionalBytes) {
+        if (organizationId == null) {
+            return;
+        }
+        ResolvedEntitlements resolved = entitlementService.resolve(organizationId);
+        if (!resolved.hasSubscription()) {
+            throw SubscriptionInactiveException.missing(describeOrg(organizationId));
+        }
+        if (resolved.isUnlimited(LimitKey.STORAGE_GB)) {
+            return;
+        }
+
+        long limitGb = resolved.limit(LimitKey.STORAGE_GB);
+        long limitBytes = limitGb * 1024L * 1024L * 1024L;
+        long currentBytes = usageService.storageBytes(organizationId);
+        if (currentBytes + additionalBytes <= limitBytes) {
+            return;
+        }
+
+        long currentGb = usageService.storageGb(organizationId);
+        throw buildQuotaError(LimitKey.STORAGE_GB, limitGb, currentGb, (int) Math.max(1, (additionalBytes + 1024L * 1024L * 1024L - 1) / (1024L * 1024L * 1024L)), resolved);
+    }
+
     // =====================================================================
     // Feature guards
     // =====================================================================

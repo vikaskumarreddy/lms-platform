@@ -26,17 +26,20 @@ public class NotificationController {
     private final UserRepository userRepository;
     private final com.institute.lms.repository.CourseRepository courseRepository;
     private final FcmService fcmService;
+    private final com.institute.lms.service.messaging.MessagingService messagingService;
     private final UserContext userContext;
 
     public NotificationController(NotificationRepository notificationRepository,
                                   UserRepository userRepository,
                                   com.institute.lms.repository.CourseRepository courseRepository,
                                   FcmService fcmService,
+                                  com.institute.lms.service.messaging.MessagingService messagingService,
                                   UserContext userContext) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.fcmService = fcmService;
+        this.messagingService = messagingService;
         this.userContext = userContext;
     }
 
@@ -47,6 +50,44 @@ public class NotificationController {
             notificationRepository.deleteByCreatedAtBefore(LocalDateTime.now().minusHours(48));
         } catch (Exception e) {
             System.err.println("Failed to purge stale notifications: " + e.getMessage());
+        }
+    }
+
+    /** Dispatches a notification to a student via Push, SMS, and/or WhatsApp depending on selected channel. */
+    private void dispatchToStudent(User student, String title, String message, String actionUrl, String channel) {
+        if (student == null) return;
+
+        // In-app FCM push
+        if (channel == null || "PUSH".equalsIgnoreCase(channel) || "ALL".equalsIgnoreCase(channel)) {
+            pushToStudent(student, title, message, actionUrl);
+        }
+
+        // WhatsApp message
+        if ("WHATSAPP".equalsIgnoreCase(channel) || "ALL".equalsIgnoreCase(channel)) {
+            String phone = (student.getPhone() != null && !student.getPhone().isBlank())
+                    ? student.getPhone() : student.getParentPhone();
+            if (phone != null && !phone.isBlank() && student.getOrganizationId() != null) {
+                try {
+                    messagingService.send(student.getOrganizationId(), com.institute.lms.entity.MessagingChannel.WHATSAPP,
+                            phone, "*" + title + "*\n\n" + message);
+                } catch (Exception e) {
+                    System.err.println("Failed to send WhatsApp message to student " + student.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+
+        // SMS message
+        if ("SMS".equalsIgnoreCase(channel) || "ALL".equalsIgnoreCase(channel)) {
+            String phone = (student.getPhone() != null && !student.getPhone().isBlank())
+                    ? student.getPhone() : student.getParentPhone();
+            if (phone != null && !phone.isBlank() && student.getOrganizationId() != null) {
+                try {
+                    messagingService.send(student.getOrganizationId(), com.institute.lms.entity.MessagingChannel.SMS,
+                            phone, title + ": " + message);
+                } catch (Exception e) {
+                    System.err.println("Failed to send SMS message to student " + student.getId() + ": " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -143,6 +184,7 @@ public class NotificationController {
         String type = (String) payload.getOrDefault("type", "info");
         String targetType = (String) payload.getOrDefault("targetType", "ALL");
         Long targetId = payload.get("targetId") != null ? Long.valueOf(payload.get("targetId").toString()) : null;
+        String channel = (String) payload.getOrDefault("channel", "PUSH");
         String actionUrl = (String) payload.get("actionUrl");
         Boolean broadcast = (Boolean) payload.getOrDefault("broadcast", false);
 
@@ -153,10 +195,11 @@ public class NotificationController {
                 : new ArrayList<>();
 
         List<Notification> created = new ArrayList<>();
+        Long currentOrgId = userContext.currentUser() != null ? userContext.currentUser().getOrganizationId() : null;
 
         switch (targetType) {
             case "ALL":
-                // Create one broadcast notification + individual notifications for all students
+                // Create one broadcast notification + individual notifications for all students of this org
                 Notification broadcastNotif = new Notification();
                 broadcastNotif.setTitle(title);
                 broadcastNotif.setMessage(message);
@@ -167,8 +210,10 @@ public class NotificationController {
                 broadcastNotif.setIsRead(false);
                 created.add(notificationRepository.save(broadcastNotif));
 
-                // Also create individual notifications for each student
-                List<User> allStudents = userRepository.findByRole(User.UserRole.STUDENT);
+                // Also create individual notifications for each student in the organization
+                List<User> allStudents = currentOrgId != null
+                        ? userRepository.findByOrganizationIdAndRole(currentOrgId, User.UserRole.STUDENT)
+                        : userRepository.findByRole(User.UserRole.STUDENT);
                 for (User student : allStudents) {
                     Notification n = new Notification();
                     n.setUserId(student.getId());
@@ -179,7 +224,7 @@ public class NotificationController {
                     n.setActionUrl(actionUrl);
                     n.setIsRead(false);
                     created.add(notificationRepository.save(n));
-                    pushToStudent(student, title, message, actionUrl);
+                    dispatchToStudent(student, title, message, actionUrl, channel);
                 }
                 break;
 
@@ -187,6 +232,11 @@ public class NotificationController {
                 // Send to all students with the specified planId
                 if (targetId != null) {
                     List<User> studentsWithPlan = userRepository.findByRoleAndPlanId(User.UserRole.STUDENT, targetId);
+                    if (currentOrgId != null) {
+                        studentsWithPlan = studentsWithPlan.stream()
+                                .filter(s -> currentOrgId.equals(s.getOrganizationId()))
+                                .collect(Collectors.toList());
+                    }
                     for (User student : studentsWithPlan) {
                         Notification n = new Notification();
                         n.setUserId(student.getId());
@@ -198,7 +248,7 @@ public class NotificationController {
                         n.setActionUrl(actionUrl);
                         n.setIsRead(false);
                         created.add(notificationRepository.save(n));
-                        pushToStudent(student, title, message, actionUrl);
+                        dispatchToStudent(student, title, message, actionUrl, channel);
                     }
                 }
                 break;
@@ -218,7 +268,7 @@ public class NotificationController {
                         n.setActionUrl(actionUrl);
                         n.setIsRead(false);
                         created.add(notificationRepository.save(n));
-                        pushToStudent(student, title, message, actionUrl);
+                        dispatchToStudent(student, title, message, actionUrl, channel);
                     }
                 }
                 break;
@@ -235,7 +285,7 @@ public class NotificationController {
                     n.setActionUrl(actionUrl);
                     n.setIsRead(false);
                     created.add(notificationRepository.save(n));
-                    userRepository.findById(uid).ifPresent(student -> pushToStudent(student, title, message, actionUrl));
+                    userRepository.findById(uid).ifPresent(student -> dispatchToStudent(student, title, message, actionUrl, channel));
                 }
                 break;
 

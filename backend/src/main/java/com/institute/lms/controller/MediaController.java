@@ -4,6 +4,7 @@ import com.institute.lms.entity.MediaItem;
 import com.institute.lms.entity.User;
 import com.institute.lms.exception.ResourceNotFoundException;
 import com.institute.lms.repository.MediaItemRepository;
+import com.institute.lms.service.subscription.QuotaGuard;
 import com.institute.lms.util.UserContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -49,10 +50,17 @@ public class MediaController {
 
     private final MediaItemRepository repository;
     private final UserContext userContext;
+    private final com.institute.lms.service.S3StorageService s3StorageService;
+    private final QuotaGuard quotaGuard;
 
-    public MediaController(MediaItemRepository repository, UserContext userContext) {
+    public MediaController(MediaItemRepository repository,
+                           UserContext userContext,
+                           com.institute.lms.service.S3StorageService s3StorageService,
+                           QuotaGuard quotaGuard) {
         this.repository = repository;
         this.userContext = userContext;
+        this.s3StorageService = s3StorageService;
+        this.quotaGuard = quotaGuard;
     }
 
     @GetMapping
@@ -81,6 +89,14 @@ public class MediaController {
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No file provided."));
         }
+
+        Long academyId = userContext.currentUser() != null && userContext.currentUser().getOrganizationId() != null
+                ? userContext.currentUser().getOrganizationId()
+                : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
+        if (academyId != null) {
+            quotaGuard.requireStorage(academyId, file.getSize());
+        }
+
         String mediaType = "video".equalsIgnoreCase(type) ? "video" : "file";
         long maxBytes = "video".equals(mediaType) ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
         if (file.getSize() > maxBytes) {
@@ -105,7 +121,7 @@ public class MediaController {
             item.setOriginalSize((long) bytes.length);
             User me = userContext.currentUser();
             item.setCreatedByUserId(me != null ? me.getId() : null);
-            store(item, bytes);
+            store(item, bytes, name);
             MediaItem saved = repository.save(item);
             return ResponseEntity.ok(Map.of("item", toMap(saved)));
         } catch (IOException e) {
@@ -120,18 +136,25 @@ public class MediaController {
      * header; the request still resolves its tenant via the `token`/`tenant`
      * query params (see TenantInterceptor), so cross-tenant ids 404 correctly.
      *
-     * <p>Supports HTTP Range requests (206 Partial Content) — video elements in
-     * WebViews issue a Range: bytes=0-1 probe before playing and then seek via
-     * further ranged requests; without Accept-Ranges/Content-Range support the
-     * WebView's media pipeline can refuse to play the file at all (observed as
-     * a stuck 0:00 duration even though the byte response itself was a 200).
+     * <p>When stored in S3, redirects to an S3 presigned URL which natively
+     * supports HTTP Range requests (206 Partial Content) for seeking.
      */
     @GetMapping("/{id}/serve")
-    public ResponseEntity<byte[]> serve(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<?> serve(@PathVariable Long id, HttpServletRequest request) {
         MediaItem item = repository.findById(id).orElse(null);
         if (item == null) {
             return ResponseEntity.notFound().build();
         }
+
+        if (s3StorageService.isConfigured() && item.getFileName() != null && item.getFileName().startsWith("academy/")) {
+            String presignedUrl = s3StorageService.generatePresignedUrl(item.getFileName(), java.time.Duration.ofHours(2));
+            if (presignedUrl != null) {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(java.net.URI.create(presignedUrl))
+                        .build();
+            }
+        }
+
         byte[] bytes = readFromDisk(item);
         MediaType contentType;
         try {
@@ -139,9 +162,6 @@ public class MediaController {
                     ? MediaType.parseMediaType(item.getMimeType())
                     : MediaType.APPLICATION_OCTET_STREAM;
         } catch (Exception e) {
-            // A browser-supplied Content-Type the parser rejects (e.g. with extra
-            // codec params) must never turn into a 400/500 for what is otherwise
-            // a perfectly servable file — fall back to a generic octet-stream type.
             contentType = MediaType.APPLICATION_OCTET_STREAM;
         }
 
@@ -187,39 +207,82 @@ public class MediaController {
                 .body(body);
     }
 
+    /**
+     * Serves an arbitrary S3 key via 302 redirect to a presigned URL.
+     */
+    @GetMapping("/serve-key")
+    public ResponseEntity<?> serveKey(@RequestParam("key") String key) {
+        if (s3StorageService.isConfigured() && key != null && !key.isBlank()) {
+            String presignedUrl = s3StorageService.generatePresignedUrl(key, java.time.Duration.ofHours(2));
+            if (presignedUrl != null) {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(java.net.URI.create(presignedUrl))
+                        .build();
+            }
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         userContext.requireOrgAdminOrFaculty();
         MediaItem item = repository.findById(id).orElse(null);
         if (item != null) {
             repository.deleteById(id);
-            deleteFromDisk(item.getFileName());
+            deleteMedia(item.getFileName());
         }
         return ResponseEntity.ok().build();
     }
 
-    // ------------------------------------------------------------------- disk
+    // ------------------------------------------------------------------- storage
 
-    private void store(MediaItem item, byte[] raw) throws IOException {
-        byte[] gzipped = gzip(raw);
+    private void store(MediaItem item, byte[] raw, String originalName) throws IOException {
+        Long academyId = userContext.currentUser() != null && userContext.currentUser().getOrganizationId() != null
+                ? userContext.currentUser().getOrganizationId()
+                : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
+
+        String extension = "";
+        if (originalName != null && originalName.contains(".")) {
+            extension = originalName.substring(originalName.lastIndexOf('.'));
+        } else if ("video".equalsIgnoreCase(item.getMediaType())) {
+            extension = ".mp4";
+        } else if (item.getMimeType() != null && item.getMimeType().contains("pdf")) {
+            extension = ".pdf";
+        }
+
         String fileName = "media-" + System.currentTimeMillis() + "-"
-                + UUID.randomUUID().toString().substring(0, 8) + ".bin.gz";
-        Path dir = Paths.get(STORAGE_DIR);
-        if (!Files.exists(dir)) Files.createDirectories(dir);
-        Files.write(dir.resolve(fileName), gzipped);
-        item.setFileName(fileName);
-        item.setStoredSize((long) gzipped.length);
+                + UUID.randomUUID().toString().substring(0, 8) + extension;
+        String category = s3StorageService.normalizeCategory(item.getMediaType(), originalName);
+
+        if (s3StorageService.isConfigured()) {
+            String s3Key = s3StorageService.buildKey(academyId, category, fileName);
+            s3StorageService.upload(s3Key, raw, item.getMimeType());
+            item.setFileName(s3Key);
+            item.setStoredSize((long) raw.length);
+        } else {
+            byte[] gzipped = gzip(raw);
+            String localFileName = fileName + ".bin.gz";
+            Path dir = Paths.get(STORAGE_DIR);
+            if (!Files.exists(dir)) Files.createDirectories(dir);
+            Files.write(dir.resolve(localFileName), gzipped);
+            item.setFileName(localFileName);
+            item.setStoredSize((long) gzipped.length);
+        }
     }
 
     private byte[] readFromDisk(MediaItem item) {
-        Path file = Paths.get(STORAGE_DIR, item.getFileName() == null ? "" : item.getFileName());
-        if (item.getFileName() == null || !Files.exists(file)) {
-            // The DB row survived (Postgres has its own volume) but the bytes on
-            // disk did not — typically an uploads/ directory that was never
-            // mounted as a persistent Docker volume, so a container
-            // rebuild/restart wiped every uploaded file. A 404 here (not a bare
-            // 500/400) lets the client show "this file is no longer available"
-            // instead of a raw stack-trace-shaped error.
+        if (item.getFileName() == null || item.getFileName().isBlank()) {
+            throw ResourceNotFoundException.of("Media file", item.getId());
+        }
+        if (s3StorageService.isConfigured() && item.getFileName().startsWith("academy/")) {
+            try {
+                return s3StorageService.download(item.getFileName());
+            } catch (Exception e) {
+                throw new RuntimeException("Could not read media file from S3: " + item.getFileName(), e);
+            }
+        }
+        Path file = Paths.get(STORAGE_DIR, item.getFileName());
+        if (!Files.exists(file)) {
             throw ResourceNotFoundException.of("Media file", item.getId());
         }
         try {
@@ -233,11 +296,15 @@ public class MediaController {
         }
     }
 
-    private void deleteFromDisk(String fileName) {
-        if (fileName == null) return;
-        try {
-            Files.deleteIfExists(Paths.get(STORAGE_DIR, fileName));
-        } catch (IOException ignored) { }
+    private void deleteMedia(String fileName) {
+        if (fileName == null || fileName.isBlank()) return;
+        if (s3StorageService.isConfigured() && fileName.startsWith("academy/")) {
+            s3StorageService.delete(fileName);
+        } else {
+            try {
+                Files.deleteIfExists(Paths.get(STORAGE_DIR, fileName));
+            } catch (IOException ignored) { }
+        }
     }
 
     private byte[] gzip(byte[] data) throws IOException {
@@ -263,6 +330,12 @@ public class MediaController {
         m.put("height", item.getHeight());
         m.put("createdByName", item.getCreatedBy());
         m.put("createdAt", item.getCreatedAt());
+        m.put("s3Key", item.getFileName());
+        if (s3StorageService.isConfigured() && item.getFileName() != null && item.getFileName().startsWith("academy/")) {
+            m.put("url", s3StorageService.generatePresignedUrl(item.getFileName(), java.time.Duration.ofHours(24)));
+        } else {
+            m.put("url", "/api/media/" + item.getId() + "/serve");
+        }
         return m;
     }
 

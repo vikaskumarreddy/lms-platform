@@ -57,6 +57,16 @@ export class AuthService {
     );
   }
 
+  register(form: { name: string; email: string; password: string; phone: string }) {
+    return this.http.post<LoginResponse>(`${this.baseUrl}/api/auth/register`, form).pipe(
+      tap(response => {
+        localStorage.setItem('access_token', response.accessToken);
+        localStorage.setItem('refresh_token', response.refreshToken);
+        localStorage.setItem('user', JSON.stringify(response.user));
+      })
+    );
+  }
+
   get token(): string | null {
     return localStorage.getItem('access_token');
   }

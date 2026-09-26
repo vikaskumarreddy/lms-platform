@@ -146,9 +146,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = ref.watch(orgThemeProvider);
+    final user = ref.watch(mobileAuthProvider).user;
     return Scaffold(
       backgroundColor: theme.background,
-      appBar: const CommonHeader(title: 'Payment'),
+      appBar: CommonHeader(
+        title: 'Payment',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await ref.read(mobileAuthProvider.notifier).logout();
+              if (context.mounted) context.go(AppRoutes.login);
+            },
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _success
@@ -208,20 +221,33 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Your enrollment is one payment away',
+                            Text('Student & Enrollment Details',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 15,
                                     color: theme.textPrimary)),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
+                            if (user?.fullName != null && user!.fullName.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text('Student: ${user.fullName}',
+                                    style: TextStyle(color: theme.textSecondary, fontSize: 13)),
+                              ),
+                            if (user?.email != null && user!.email.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text('Email / Username: ${user.email}',
+                                    style: TextStyle(color: theme.textSecondary, fontSize: 13)),
+                              ),
+                            Text('Payment Method: Online (${_gatewayLabel()})',
+                                style: TextStyle(color: theme.textSecondary, fontSize: 13)),
+                            const SizedBox(height: 8),
                             Text(
-                              'Tapping Pay opens the gateway secure checkout. Cards, UPI, '
-                              'netbanking and wallets are supported. Once the payment is '
-                              'verified you will be taken to your dashboard automatically.',
+                              'Once your payment is completed and verified by our servers via the secure webhook, your app access will be activated immediately.',
                               style: TextStyle(
                                   color: theme.textSecondary,
-                                  fontSize: 13,
-                                  height: 1.4),
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic),
                             ),
                           ],
                         ),

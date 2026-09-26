@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -52,19 +52,34 @@ interface NotificationRecord {
       <div style="display:grid;gap:16px;">
         <input [(ngModel)]="formData.title" placeholder="Title" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
         <textarea [(ngModel)]="formData.message" placeholder="Message" rows="3" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);"></textarea>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <select [(ngModel)]="formData.type" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
-            <option value="info">Info</option>
-            <option value="success">Success</option>
-            <option value="warning">Warning</option>
-            <option value="error">Error</option>
-          </select>
-          <select [(ngModel)]="formData.targetType" (change)="onTargetTypeChange()" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
-            <option value="ALL">All Students</option>
-            <option value="SUBSCRIPTION">Specific Subscription</option>
-            <option value="BATCH">Specific Batch</option>
-            <option value="USER">Specific Student</option>
-          </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Type</label>
+            <select [(ngModel)]="formData.type" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
+              <option value="info">Info</option>
+              <option value="success">Success</option>
+              <option value="warning">Warning</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Target Audience</label>
+            <select [(ngModel)]="formData.targetType" (change)="onTargetTypeChange()" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
+              <option value="ALL">All Students</option>
+              <option value="SUBSCRIPTION">Specific Subscription</option>
+              <option value="BATCH">Specific Batch</option>
+              <option value="USER">Specific Student</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Channel / Delivery</label>
+            <select [(ngModel)]="formData.channel" style="width:100%;padding:10px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface);color:var(--text);">
+              <option value="PUSH">🔔 In-App & Push</option>
+              <option value="WHATSAPP">💬 WhatsApp Only</option>
+              <option value="SMS">📱 SMS Only</option>
+              <option value="ALL">🚀 All Channels (App + WhatsApp + SMS)</option>
+            </select>
+          </div>
         </div>
         <div *ngIf="formData.targetType === 'SUBSCRIPTION'" style="display:grid;gap:8px;">
           <label style="font-weight:600;font-size:14px;">Select Subscription Plan</label>
@@ -149,7 +164,8 @@ export class NotificationsAdminComponent implements OnInit {
     targetType: 'ALL',
     targetId: null as number | null,
     userIds: '',
-    actionUrl: ''
+    actionUrl: '',
+    channel: 'PUSH'
   };
 
   ngOnInit() {
@@ -246,6 +262,7 @@ export class NotificationsAdminComponent implements OnInit {
       targetId: this.formData.targetType === 'USER' ? this.selectedStudentId : this.formData.targetId,
       userIds: userIdsArray,
       actionUrl: this.formData.actionUrl,
+      channel: this.formData.channel,
       broadcast: true
     };
 
@@ -274,7 +291,7 @@ export class NotificationsAdminComponent implements OnInit {
   resetForm() {
     this.formData = {
       title: '', message: '', type: 'info', targetType: 'ALL',
-      targetId: null, userIds: '', actionUrl: ''
+      targetId: null, userIds: '', actionUrl: '', channel: 'PUSH'
     };
     this.selectedStudentId = null;
     this.showForm = false;

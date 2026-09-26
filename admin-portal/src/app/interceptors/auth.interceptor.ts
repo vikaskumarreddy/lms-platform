@@ -31,14 +31,24 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
  * and finally to 'axisora' only when nothing else is available.
  */
 function deriveTenantSlug(): string {
-  const stored = localStorage.getItem('tenant_slug');
-  if (stored) {
-    return stored;
-  }
   const hostname = window.location.hostname;
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+  // In production / domain environments, subdomain is the ground truth
+  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    const parts = hostname.split('.');
+    if (parts.length >= 3) {
+      const sub = parts[0].toLowerCase();
+      if (sub === 'admin' || sub === 'www') {
+        return 'axisora';
+      }
+      return sub;
+    }
     return 'axisora';
   }
-  const firstPart = hostname.split('.')[0];
-  return firstPart && firstPart !== 'localhost' ? firstPart : 'axisora';
+
+  // Local development / direct IP fallback
+  const stored = localStorage.getItem('tenant_slug');
+  if (stored && stored.trim()) {
+    return stored.trim();
+  }
+  return 'axisora';
 }

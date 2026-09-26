@@ -19,4 +19,5 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     List<Subscription> findByUserId(Long userId);
 
     long countByStatus(String status);
+    long countByOrganizationIdAndStatus(Long organizationId, String status);
 }

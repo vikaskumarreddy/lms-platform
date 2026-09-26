@@ -42,6 +42,21 @@ class OfflineManager {
     return _native.saveTempPdf(bytes, prefix);
   }
 
+  Future<String> getCachedPdfFilePath(int lessonId) async {
+    if (kIsWeb) return '';
+    return _native.getCachedPdfFilePath(lessonId);
+  }
+
+  Future<bool> isPdfCached(int lessonId) async {
+    if (kIsWeb) return false;
+    return _native.isPdfCached(lessonId);
+  }
+
+  Future<String> saveCachedPdf(int lessonId, List<int> bytes) async {
+    if (kIsWeb) return '';
+    return _native.saveCachedPdf(lessonId, bytes);
+  }
+
   Future<List<int>> getDownloadedLessonIds() async {
     if (kIsWeb) return [];
     final prefs = await SharedPreferences.getInstance();

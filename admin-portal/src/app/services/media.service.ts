@@ -81,8 +81,16 @@ export class MediaService {
           reject(new Error('Not authorized to upload — please log in again.'));
         } else {
           let msg = `Upload failed (${xhr.status})`;
-          try { msg = JSON.parse(xhr.responseText)?.error || msg; } catch { /* ignore */ }
-          reject(new Error(msg));
+          let jsonBody: any = null;
+          try {
+            jsonBody = JSON.parse(xhr.responseText);
+            msg = jsonBody?.message || jsonBody?.error || msg;
+          } catch { /* ignore */ }
+          const err: any = new Error(msg);
+          err.status = xhr.status;
+          err.code = jsonBody?.code || (xhr.status === 409 ? 'QUOTA_STORAGE_EXCEEDED' : '');
+          err.error = jsonBody;
+          reject(err);
         }
       };
       xhr.onerror = () => reject(new Error('Network error during upload'));
@@ -92,14 +100,22 @@ export class MediaService {
 
   /** Mirrors auth.interceptor.ts's deriveTenantSlug() so XHR uploads resolve the same organization. */
   private tenantSlug(): string {
-    const stored = localStorage.getItem('tenant_slug');
-    if (stored) return stored;
     const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      const parts = hostname.split('.');
+      if (parts.length >= 3) {
+        const sub = parts[0].toLowerCase();
+        if (sub === 'admin' || sub === 'www') {
+          return 'axisora';
+        }
+        return sub;
+      }
       return 'axisora';
     }
-    const firstPart = hostname.split('.')[0];
-    return firstPart && firstPart !== 'localhost' ? firstPart : 'axisora';
+
+    const stored = localStorage.getItem('tenant_slug');
+    if (stored && stored.trim()) return stored.trim();
+    return 'axisora';
   }
 
   /**

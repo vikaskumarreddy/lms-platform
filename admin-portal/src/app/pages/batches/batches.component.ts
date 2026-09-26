@@ -1,11 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ConfirmService } from '../../services/confirm.service';
 
 interface Batch {
+
   id: number;
   name: string;
   description?: string;
@@ -45,14 +47,21 @@ interface SubscriptionPlan {
 @Component({
   selector: 'app-batches',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">👥 Batches</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">👥 Batches</h1>
       <button class="btn btn-primary" (click)="openAddModal()">+ Create Batch</button>
     </div>
 
+    <!-- Submenu navigation tabs -->
+    <div class="batch-tabs">
+      <a routerLink="/batches" class="batch-tab-btn active">👥 All Batches</a>
+      <a routerLink="/batches/rules" class="batch-tab-btn">⚡ Batch Rules</a>
+    </div>
+
     <div class="card" style="margin-bottom:20px;">
+
       <table>
         <thead>
           <tr>
@@ -417,7 +426,31 @@ interface SubscriptionPlan {
       color: var(--text);
       border-color: var(--border-light);
     }
+    .batch-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 2px solid var(--border-light);
+      margin-bottom: 20px;
+    }
+    .batch-tab-btn {
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .batch-tab-btn:hover {
+      color: var(--primary);
+    }
+    .batch-tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
     @media (max-width: 768px) {
+
       .modal-content {
         padding: 16px;
         max-height: 94vh;

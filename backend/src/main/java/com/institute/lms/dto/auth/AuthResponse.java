@@ -17,6 +17,8 @@ public class AuthResponse {
     private String tokenType;
     private long expiresIn;
     private UserInfo user;
+    private java.util.Map<String, Object> paymentOrder;
+    private String gateway;
 
     @Data
     @Builder

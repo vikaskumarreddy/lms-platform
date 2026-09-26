@@ -39,6 +39,9 @@ public class UsageService {
     private final UserRepository userRepository;
     private final BranchRepository branchRepository;
     private final OrganizationRepository organizationRepository;
+    private final com.institute.lms.repository.MediaItemRepository mediaItemRepository;
+    private final com.institute.lms.repository.PdfDocumentRepository pdfDocumentRepository;
+    private final com.institute.lms.repository.PdfNoteRepository pdfNoteRepository;
 
     private final TrainingHoursSource trainingHoursSource;
 
@@ -46,11 +49,17 @@ public class UsageService {
                         UserRepository userRepository,
                         BranchRepository branchRepository,
                         OrganizationRepository organizationRepository,
+                        com.institute.lms.repository.MediaItemRepository mediaItemRepository,
+                        com.institute.lms.repository.PdfDocumentRepository pdfDocumentRepository,
+                        com.institute.lms.repository.PdfNoteRepository pdfNoteRepository,
                         Optional<TrainingHoursSource> trainingHoursSource) {
         this.activityRepository = activityRepository;
         this.userRepository = userRepository;
         this.branchRepository = branchRepository;
         this.organizationRepository = organizationRepository;
+        this.mediaItemRepository = mediaItemRepository;
+        this.pdfDocumentRepository = pdfDocumentRepository;
+        this.pdfNoteRepository = pdfNoteRepository;
         // Absent until a training agreement module is present, in which case there are
         // no delivered hours to report and zero is the correct answer.
         this.trainingHoursSource = trainingHoursSource.orElse((orgId, period) -> BigDecimal.ZERO);
@@ -107,20 +116,35 @@ public class UsageService {
         return organizationId == null ? 0 : branchRepository.countInOrg(organizationId);
     }
 
-    /** Storage consumed, in bytes. */
+    /** Storage consumed, in bytes. Computed dynamically from all media, files, and PDFs stored for this tenant. */
     public long storageBytes(Long organizationId) {
         if (organizationId == null) {
             return 0;
         }
-        return organizationRepository.findById(organizationId)
+        long mediaBytes = mediaItemRepository.sumStoredSizeByOrgId(organizationId);
+        long pdfDocBytes = pdfDocumentRepository.sumStoredSizeByOrgId(organizationId);
+        long pdfNoteBytes = pdfNoteRepository.sumStoredSizeByOrgId(organizationId);
+        long totalCalculated = mediaBytes + pdfDocBytes + pdfNoteBytes;
+
+        long orgBytes = organizationRepository.findById(organizationId)
                 .map(Organization::getStorageBytesUsed)
                 .orElse(0L);
+
+        return Math.max(totalCalculated, orgBytes);
     }
 
     /** Storage consumed, rounded up to whole GB so a part-used GB counts against the plan. */
     public long storageGb(Long organizationId) {
         long bytes = storageBytes(organizationId);
         return bytes <= 0 ? 0 : (bytes + BYTES_PER_GB - 1) / BYTES_PER_GB;
+    }
+
+    /** Storage consumed in GB as double rounded to 2 decimal places, for UI display. */
+    public double storageGbDouble(Long organizationId) {
+        long bytes = storageBytes(organizationId);
+        if (bytes <= 0) return 0.0;
+        double gb = bytes / (double) BYTES_PER_GB;
+        return Math.round(gb * 100.0) / 100.0;
     }
 
     /**

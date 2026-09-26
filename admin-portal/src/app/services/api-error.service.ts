@@ -1,5 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { QuotaModalService } from './quota-modal.service';
 
 /**
  * The error envelope the backend returns for every failure
@@ -49,6 +50,8 @@ export interface Toast {
  */
 @Injectable({ providedIn: 'root' })
 export class ApiErrorService {
+  private quotaModal = inject(QuotaModalService);
+
   /** Active toasts, rendered by ToastHostComponent in the layout. */
   readonly toasts = signal<Toast[]>([]);
 
@@ -143,6 +146,9 @@ export class ApiErrorService {
   /** Parses and shows an error, returning it so callers can branch on the code. */
   show(err: unknown, fallbackTitle = 'That did not work'): ApiError {
     const parsed = this.parse(err);
+    if (parsed.isQuota || parsed.code.startsWith('QUOTA_')) {
+      this.quotaModal.handleError(err, this.titleFor(parsed, fallbackTitle));
+    }
     this.push({
       id: this.nextId++,
       severity: parsed.isQuota || parsed.isEntitlement || parsed.isSubscriptionState ? 'warning' : 'error',

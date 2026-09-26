@@ -20,4 +20,16 @@ public class RegisterRequest {
 
     private String role;
     private Long organizationId;
+    private Long planId;
+    private String paymentMethod;
+
+    private String linkedin;
+    private String github;
+    private String parentName;
+    private String parentPhone;
+    private String parentEmail;
+    private String notifyMedium;
+
+    private java.util.Map<String, Object> customFields;
 }
+

@@ -18,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.institute.lms.repository.SubscriptionPlanRepository;
+
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +36,7 @@ public class OrganizationController {
     private final PasswordEncoder passwordEncoder;
     private final UserContext userContext;
     private final OrganizationContext organizationContext;
+    private final SubscriptionPlanRepository subscriptionPlanRepository;
 
     public OrganizationController(OrganizationService organizationService,
                                   OrganizationRepository organizationRepository,
@@ -41,7 +44,8 @@ public class OrganizationController {
                                   UserRepository userRepository,
                                   PasswordEncoder passwordEncoder,
                                   UserContext userContext,
-                                  OrganizationContext organizationContext) {
+                                  OrganizationContext organizationContext,
+                                  SubscriptionPlanRepository subscriptionPlanRepository) {
         this.organizationService = organizationService;
         this.organizationRepository = organizationRepository;
         this.orgSubscriptionRepository = orgSubscriptionRepository;
@@ -49,6 +53,7 @@ public class OrganizationController {
         this.passwordEncoder = passwordEncoder;
         this.userContext = userContext;
         this.organizationContext = organizationContext;
+        this.subscriptionPlanRepository = subscriptionPlanRepository;
     }
 
 
@@ -73,6 +78,35 @@ public class OrganizationController {
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.ok(toOrgMap(org));
+    }
+
+    @GetMapping("/public-info")
+    public ResponseEntity<Map<String, Object>> getPublicInfo(@RequestParam(value = "slug", required = false) String slug) {
+        Organization org = null;
+        if (slug != null && !slug.isBlank()) {
+            org = organizationRepository.findBySlug(slug).orElse(null);
+        }
+        if (org == null) {
+            org = organizationService.getCurrentOrganization();
+        }
+        if (org == null) {
+            List<Organization> all = organizationRepository.findAll();
+            if (!all.isEmpty()) org = all.get(0);
+        }
+        if (org == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("id", org.getId());
+        res.put("name", org.getName());
+        res.put("slug", org.getSlug());
+        res.put("logoUrl", org.getLogoUrl());
+        res.put("theme", resolveTheme(org));
+        res.put("settings", org.getSettings());
+        try {
+            res.put("subscriptionPlans", subscriptionPlanRepository.findActiveByOrgIdNative(org.getId()));
+        } catch (Exception ignored) {}
+        return ResponseEntity.ok(res);
     }
 
     @GetMapping("/{id}")
@@ -309,6 +343,25 @@ public class OrganizationController {
         Organization saved = organizationRepository.findById(id).orElse(org);
         return ResponseEntity.ok(toOrgMap(saved));
     }
+
+    /**
+     * Updates the registration page dynamic field configuration in organization settings.
+     */
+    @PutMapping("/{id}/registration-fields")
+    public ResponseEntity<Map<String, Object>> updateRegistrationFields(@PathVariable Long id,
+                                                                        @RequestBody Map<String, Object> body) {
+        userContext.requireOrgAdmin();
+        Organization org = organizationRepository.findById(id).orElse(null);
+        if (org == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> updates = new LinkedHashMap<>();
+        updates.put("registrationFormConfig", body == null ? Map.of() : body);
+        organizationService.updateOrgSettings(id, updates);
+        Organization saved = organizationRepository.findById(id).orElse(org);
+        return ResponseEntity.ok(toOrgMap(saved));
+    }
+
 
     /** Updates organization settings as key-value pairs. */
     @PutMapping("/{id}/settings")

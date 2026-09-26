@@ -295,6 +295,21 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       return;
     }
 
+    // Reuse persistently cached PDF from local storage if already retrieved
+    try {
+      final isCached = await OfflineManager.instance.isPdfCached(widget.lessonId);
+      if (isCached) {
+        final cachedPath = await OfflineManager.instance.getCachedPdfFilePath(widget.lessonId);
+        if (mounted) {
+          setState(() {
+            _pdfLocalPath = cachedPath;
+            _pdfLoading = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+
     try {
       final url = _absoluteMediaUrl(pdfUrl);
       final response =
@@ -308,7 +323,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         setState(() => _pdfError = 'Notes for this lesson are empty.');
         return;
       }
-      final path = await OfflineManager.instance.saveTempPdf(bytes, 'lesson_notes_${widget.lessonId}');
+      final path = await OfflineManager.instance.saveCachedPdf(widget.lessonId, bytes);
       if (mounted) setState(() => _pdfLocalPath = path);
     } catch (_) {
       if (mounted)
@@ -345,13 +360,18 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     try {
       String? path = _pdfLocalPath;
       if (path == null) {
-        final url = _absoluteMediaUrl(pdfUrl);
-        final response =
-            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
-        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-          throw Exception('download failed');
+        final isCached = await OfflineManager.instance.isPdfCached(widget.lessonId);
+        if (isCached) {
+          path = await OfflineManager.instance.getCachedPdfFilePath(widget.lessonId);
+        } else {
+          final url = _absoluteMediaUrl(pdfUrl);
+          final response =
+              await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+          if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+            throw Exception('download failed');
+          }
+          path = await OfflineManager.instance.saveCachedPdf(widget.lessonId, response.bodyBytes);
         }
-        path = await OfflineManager.instance.saveTempPdf(response.bodyBytes, 'lesson_notes_${widget.lessonId}');
       }
       final safeName = (_lesson?.title ?? 'Lesson Notes')
           .replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '')
@@ -747,64 +767,105 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         child: CircularProgressIndicator(color: Color(0xFF27D9D3)),
       );
     } else {
-      content = Stack(
-        children: [
-          // Native PDF View stretches to fill the entire container
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: _buildPdfView(_pdfLocalPath!),
-            ),
-          ),
-          // Transparent floating controls overlay at top-right
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_pdfLoading)
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      shape: BoxShape.circle,
+      if (kIsWeb) {
+        content = Column(
+          children: [
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0C2B64).withOpacity(0.7),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.description, size: 16, color: Color(0xFF27D9D3)),
+                  const SizedBox(width: 8),
+                  const Text('Lesson Notes (PDF)',
+                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      backgroundColor: Colors.white.withOpacity(0.12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Color(0xFF27D9D3)),
-                    ),
+                    onPressed: _openFullscreenPdf,
+                    icon: const Icon(Icons.fullscreen, color: Colors.white, size: 16),
+                    label: const Text('Expand',
+                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
-                Material(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _openFullscreenPdf,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Icon(Icons.fullscreen, color: Colors.white, size: 20),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Transparent floating page navigation pill overlay at bottom
-          if (_pdfTotalPages > 0)
-            Positioned(
-              bottom: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _buildPdfPageControls(primaryColor),
+                ],
               ),
             ),
-        ],
-      );
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+                child: _buildPdfView(_pdfLocalPath!),
+              ),
+            ),
+          ],
+        );
+      } else {
+        content = Stack(
+          children: [
+            // Native PDF View stretches to fill the entire container
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: _buildPdfView(_pdfLocalPath!),
+              ),
+            ),
+            // Transparent floating controls overlay at top-right
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_pdfLoading)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Color(0xFF27D9D3)),
+                      ),
+                    ),
+                  Material(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _openFullscreenPdf,
+                      child: const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: Icon(Icons.fullscreen, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Transparent floating page navigation pill overlay at bottom
+            if (_pdfTotalPages > 0)
+              Positioned(
+                bottom: 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _buildPdfPageControls(primaryColor),
+                ),
+              ),
+          ],
+        );
+      }
     }
 
     if (fill) {
@@ -833,12 +894,35 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
-  /// Download / Bookmark / Share / Mark-complete buttons matching the
-  /// 2-row design in the provided mockup.
+  /// Download / Bookmark / Share / Mark-complete buttons.
+  /// On Web (kIsWeb), "Download PDF" and "Save Video Offline" are hidden and
+  /// "Add to Bookmarks" and "Complete Lesson" are placed in the same row to save space.
   Widget _buildActionButtons(
       Lesson lesson, Color primaryColor, Color secondaryColor,
       {required bool isNavBarHidden}) {
     final hasVideo = lesson.videoUrl.trim().isNotEmpty;
+
+    if (kIsWeb) {
+      return AnimatedPadding(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 40,
+              child: _buildBookmarkCard(lesson),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 60,
+              child: _buildCompleteLessonCard(lesson),
+            ),
+          ],
+        ),
+      );
+    }
+
     return AnimatedPadding(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
@@ -846,362 +930,365 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
-          // ── Row 1: 3 cards (Download PDF, Add to Bookmarks, Save Offline) ──
           Row(
             children: [
-              // 1. Download PDF (Purple-to-Blue gradient)
               Expanded(
                 flex: 38,
-                child: Material(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Ink(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF7C3AED).withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: (lesson.isLocked || _pdfSaving || lesson.pdfNotesUrl.isEmpty)
-                          ? null
-                          : _downloadPdf,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        child: Row(
-                          children: [
-                            if (_pdfSaving)
-                              const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            else
-                              const Icon(Icons.file_download_outlined,
-                                  color: Colors.white, size: 20),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      'Download PDF',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      _pdfSaving ? 'Saving...' : 'Save to your device',
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.85),
-                                        fontSize: 9.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: _buildDownloadPdfCard(lesson),
               ),
               const SizedBox(width: 8),
-
-              // 2. Add to Bookmarks (White glassy card with subtle border)
               Expanded(
                 flex: 36,
-                child: Material(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: lesson.isLocked ? null : _toggleBookmark,
-                    child: Container(
-                      height: 52,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFDBEAFE), width: 1.2),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                            color: const Color(0xFF2563EB),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    _isBookmarked ? 'Bookmarked' : 'Add to Bookmarks',
-                                    style: const TextStyle(
-                                      color: Color(0xFF1E293B),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11.5,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                const FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Quick access later',
-                                    style: TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontSize: 9.5,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                child: _buildBookmarkCard(lesson),
               ),
-              const SizedBox(width: 8),
-
-              // 3. Save Video Offline (White glassy card — only show if has video)
-              if (hasVideo && !lesson.isLocked)
+              if (hasVideo && !lesson.isLocked) ...[
+                const SizedBox(width: 8),
                 Expanded(
                   flex: 26,
-                  child: Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: _isDownloadingVideo
-                          ? null
-                          : _isOfflineDownloaded
-                              ? _deleteDownloadedVideo
-                              : _downloadVideo,
-                      child: Container(
-                        height: 52,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: _isOfflineDownloaded
-                                ? const Color(0xFF10B981).withOpacity(0.4)
-                                : const Color(0xFFDBEAFE),
-                            width: 1.2,
-                          ),
-                          color: _isOfflineDownloaded
-                              ? const Color(0xFF10B981).withOpacity(0.08)
-                              : Colors.white,
-                        ),
-                        child: Row(
-                          children: [
-                            if (_isDownloadingVideo)
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  value: _downloadProgress > 0
-                                      ? _downloadProgress
-                                      : null,
-                                  strokeWidth: 2,
-                                  color: const Color(0xFF27D9D3),
-                                ),
-                              )
-                            else
-                              Icon(
-                                _isOfflineDownloaded
-                                    ? Icons.offline_pin
-                                    : Icons.download_for_offline_outlined,
-                                color: _isOfflineDownloaded
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFF2563EB),
-                                size: 19,
-                              ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      _isDownloadingVideo
-                                          ? '${(_downloadProgress * 100).toInt()}%'
-                                          : _isOfflineDownloaded
-                                              ? 'Saved'
-                                              : 'Save Offline',
-                                      style: TextStyle(
-                                        color: _isOfflineDownloaded
-                                            ? const Color(0xFF10B981)
-                                            : const Color(0xFF1E293B),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      _isOfflineDownloaded
-                                          ? 'Tap to remove'
-                                          : 'Watch offline',
-                                      style: const TextStyle(
-                                        color: Color(0xFF64748B),
-                                        fontSize: 9.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _buildSaveOfflineCard(lesson),
                 ),
+              ],
             ],
           ),
-
           const SizedBox(height: 8),
+          _buildCompleteLessonCard(lesson),
+        ],
+      ),
+    );
+  }
 
-          // ── Row 2: Full-width Lesson Completed / Mark Complete card ──
-          Material(
-            color: const Color(0xFFECFDF5),
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: (lesson.isLocked || _togglingComplete)
-                  ? null
-                  : _completeAndNavigateNext,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFA7F3D0), width: 1.2),
-                ),
-                child: Row(
-                  children: [
-                    // Circular check badge
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isCompleted
-                            ? const Color(0xFF059669)
-                            : Colors.transparent,
-                        border: _isCompleted
-                            ? null
-                            : Border.all(color: const Color(0xFF059669), width: 2),
-                      ),
-                      child: _togglingComplete
-                          ? const Center(
-                              child: SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFF059669),
-                                ),
-                              ),
-                            )
-                          : Icon(
-                              Icons.check_rounded,
-                              size: 18,
-                              color: _isCompleted
-                                  ? Colors.white
-                                  : const Color(0xFF059669),
-                            ),
+  Widget _buildDownloadPdfCard(Lesson lesson) {
+    return Material(
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        height: 52,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7C3AED).withOpacity(0.3),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: (lesson.isLocked || _pdfSaving || lesson.pdfNotesUrl.isEmpty)
+              ? null
+              : _downloadPdf,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                if (_pdfSaving)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
                     ),
-                    const SizedBox(width: 10),
-
-                    // Title & Subtitle
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _isCompleted ? 'Lesson Completed' : 'Complete Lesson',
-                            style: const TextStyle(
-                              color: Color(0xFF065F46),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
+                  )
+                else
+                  const Icon(Icons.file_download_outlined,
+                      color: Colors.white, size: 20),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Download PDF',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _isCompleted
-                                ? "Great job! You've completed this lesson."
-                                : "Tap to complete & continue to next lesson.",
-                            style: TextStyle(
-                              color: const Color(0xFF047857).withOpacity(0.9),
-                              fontSize: 10.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Party popper + forward chevron
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text('🎉', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: Color(0xFF059669),
-                          size: 22,
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _pdfSaving ? 'Saving...' : 'Save to your device',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 9.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookmarkCard(Lesson lesson) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: lesson.isLocked ? null : _toggleBookmark,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFDBEAFE), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                color: const Color(0xFF2563EB),
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _isBookmarked ? 'Bookmarked' : 'Add to Bookmarks',
+                        style: const TextStyle(
+                          color: Color(0xFF1E293B),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Quick access later',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 9.5,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveOfflineCard(Lesson lesson) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _isDownloadingVideo
+            ? null
+            : _isOfflineDownloaded
+                ? _deleteDownloadedVideo
+                : _downloadVideo,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isOfflineDownloaded
+                  ? const Color(0xFF10B981).withOpacity(0.4)
+                  : const Color(0xFFDBEAFE),
+              width: 1.2,
+            ),
+            color: _isOfflineDownloaded
+                ? const Color(0xFF10B981).withOpacity(0.08)
+                : Colors.white,
+          ),
+          child: Row(
+            children: [
+              if (_isDownloadingVideo)
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    value: _downloadProgress > 0 ? _downloadProgress : null,
+                    strokeWidth: 2,
+                    color: const Color(0xFF27D9D3),
+                  ),
+                )
+              else
+                Icon(
+                  _isOfflineDownloaded
+                      ? Icons.offline_pin
+                      : Icons.download_for_offline_outlined,
+                  color: _isOfflineDownloaded
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFF2563EB),
+                  size: 19,
+                ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _isDownloadingVideo
+                            ? '${(_downloadProgress * 100).toInt()}%'
+                            : _isOfflineDownloaded
+                                ? 'Saved'
+                                : 'Save Offline',
+                        style: TextStyle(
+                          color: _isOfflineDownloaded
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF1E293B),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _isOfflineDownloaded
+                            ? 'Tap to remove'
+                            : 'Watch offline',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 9.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompleteLessonCard(Lesson lesson) {
+    return Material(
+      color: const Color(0xFFECFDF5),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: (lesson.isLocked || _togglingComplete)
+            ? null
+            : _completeAndNavigateNext,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFA7F3D0), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isCompleted
+                      ? const Color(0xFF059669)
+                      : Colors.transparent,
+                  border: _isCompleted
+                      ? null
+                      : Border.all(color: const Color(0xFF059669), width: 2),
+                ),
+                child: _togglingComplete
+                    ? const Center(
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        Icons.check_rounded,
+                        size: 18,
+                        color: _isCompleted
+                            ? Colors.white
+                            : const Color(0xFF059669),
+                      ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _isCompleted ? 'Lesson Completed' : 'Complete Lesson',
+                        style: const TextStyle(
+                          color: Color(0xFF065F46),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _isCompleted
+                            ? "Completed! Tap to review."
+                            : "Tap to complete & next",
+                        style: TextStyle(
+                          color: const Color(0xFF047857).withOpacity(0.9),
+                          fontSize: 9.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Text('🎉', style: TextStyle(fontSize: 16)),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF059669),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1215,7 +1302,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   Widget _buildFloatingVideo(Lesson lesson, bool isNavBarHidden) {
     final size = MediaQuery.of(context).size;
     final double w = _videoExpanded ? size.width - 24 : 224.0;
-    final double h = _videoExpanded ? w * 9 / 16 : 132.0;
+    final double h = _videoExpanded
+        ? (w * 9 / 16) + (kIsWeb ? 30.0 : 0.0)
+        : (kIsWeb ? 156.0 : 132.0);
     // Default position: lower half of the screen (above the action buttons).
     _videoOffset ??= Offset(size.width - w - 16, size.height * 0.45);
     final double dx = _videoOffset!.dx
@@ -1242,63 +1331,104 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           borderRadius: BorderRadius.circular(12),
           color: Colors.black,
           clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: KeyedSubtree(
-                  key: _videoKey,
-                  child: _buildVideoPlayer(lesson),
-                ),
-              ),
-              if (_isOfflineDownloaded)
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.offline_pin, size: 10, color: Colors.white),
-                        SizedBox(width: 3),
-                        Text('OFFLINE',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ),
-              // Popup controls (expand + close)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+          child: kIsWeb
+              ? Column(
                   children: [
-                    _pipButton(
-                      _videoExpanded ? Icons.compress : Icons.open_in_full,
-                      tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
-                      onTap: () =>
-                          setState(() => _videoExpanded = !_videoExpanded),
+                    Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      color: const Color(0xFF0F172A),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.ondemand_video, size: 14, color: Color(0xFF27D9D3)),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              'Video',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          _pipButton(
+                            _videoExpanded ? Icons.compress : Icons.open_in_full,
+                            tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
+                            onTap: () => setState(() => _videoExpanded = !_videoExpanded),
+                          ),
+                          const SizedBox(width: 4),
+                          _pipButton(
+                            Icons.close,
+                            tooltip: 'Hide video',
+                            onTap: () => setState(() => _videoHidden = true),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 4),
-                    _pipButton(
-                      Icons.close,
-                      tooltip: 'Hide video',
-                      onTap: () => setState(() => _videoHidden = true),
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: _videoKey,
+                        child: _buildVideoPlayer(lesson),
+                      ),
+                    ),
+                  ],
+                )
+              : Stack(
+                  children: [
+                    Positioned.fill(
+                      child: KeyedSubtree(
+                        key: _videoKey,
+                        child: _buildVideoPlayer(lesson),
+                      ),
+                    ),
+                    if (_isOfflineDownloaded)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.offline_pin, size: 10, color: Colors.white),
+                              SizedBox(width: 3),
+                              Text('OFFLINE',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    // Popup controls (expand + close)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _pipButton(
+                            _videoExpanded ? Icons.compress : Icons.open_in_full,
+                            tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
+                            onTap: () =>
+                                setState(() => _videoExpanded = !_videoExpanded),
+                          ),
+                          const SizedBox(width: 4),
+                          _pipButton(
+                            Icons.close,
+                            tooltip: 'Hide video',
+                            onTap: () => setState(() => _videoHidden = true),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -1389,6 +1519,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       url = video.url;
     }
 
+    final isNgrok = origin.contains('ngrok') || url.contains('ngrok');
+
     return InAppWebView(
       key: ValueKey('video_${_videoRetryKey}_${isOffline ? 'offline' : 'online'}'),
       initialData: InAppWebViewInitialData(
@@ -1401,12 +1533,15 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         javaScriptEnabled: true,
         allowsInlineMediaPlayback: true,
         mediaPlaybackRequiresUserGesture: false,
-        useHybridComposition: true,
+        useHybridComposition: false,
         allowFileAccess: true,
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,
-        // Non-browser agent prevents ngrok warning HTML on media range requests.
-        userAgent: youtube ? null : 'LMSStudentMedia/1.0',
+        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+        useWideViewPort: true,
+        cacheEnabled: true,
+        // Only set custom agent for ngrok URLs; default Chromium UA enables native media and S3 streaming
+        userAgent: (youtube || !isNgrok) ? null : 'LMSStudentMedia/1.0',
       ),
       onWebViewCreated: (controller) {
         controller.addJavaScriptHandler(
@@ -1433,8 +1568,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// work as expected.
   Widget _buildPdfView(String path) {
     if (kIsWeb) {
+      final googleDocsUrl = 'https://docs.google.com/viewer?embedded=true&url=${Uri.encodeComponent(path)}';
       return InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(path)),
+        initialUrlRequest: URLRequest(url: WebUri(googleDocsUrl)),
         initialSettings: InAppWebViewSettings(
           supportMultipleWindows: false,
           javaScriptEnabled: true,
@@ -1577,9 +1713,9 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
     final canNext = _currentPage < _totalPages - 1;
     return Scaffold(
       backgroundColor: const Color(0xFF071D43),
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: !kIsWeb,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: kIsWeb ? const Color(0xFF0C2B64) : Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
         title: Container(
@@ -1608,19 +1744,22 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: kIsWeb
-                ? InAppWebView(
-                    initialUrlRequest: URLRequest(url: WebUri(widget.path)),
-                    initialSettings: InAppWebViewSettings(
-                      supportMultipleWindows: false,
-                      javaScriptEnabled: true,
-                    ),
-                  )
-                : PDFView(
-              filePath: widget.path,
+      body: kIsWeb
+          ? SafeArea(
+              child: InAppWebView(
+                initialUrlRequest: URLRequest(
+                    url: WebUri('https://docs.google.com/viewer?embedded=true&url=${Uri.encodeComponent(widget.path)}')),
+                initialSettings: InAppWebViewSettings(
+                  supportMultipleWindows: false,
+                  javaScriptEnabled: true,
+                ),
+              ),
+            )
+          : Stack(
+              children: [
+                Positioned.fill(
+                  child: PDFView(
+                    filePath: widget.path,
               enableSwipe: true,
               swipeHorizontal: false,
               autoSpacing: true,
