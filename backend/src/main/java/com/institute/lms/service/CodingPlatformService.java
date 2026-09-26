@@ -127,6 +127,7 @@ public class CodingPlatformService {
         public List<TestCaseItem> sampleTestCases = new ArrayList<>();
         public int totalTestCases;
         public int totalTestCasesCount;
+        public String tenantSlug;
         public String orgName;
         public String orgLogoUrl;
         public Map<String, Object> orgBranding = new HashMap<>();
@@ -160,6 +161,9 @@ public class CodingPlatformService {
                 ? q.getCodingStarterPython() : DEFAULT_PYTHON_STARTER;
 
         List<CodingTestCase> allTcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(questionId);
+        if (allTcs.isEmpty() && q.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+            allTcs = recoverTestCasesFromMasterBank(q);
+        }
         dto.totalTestCases = allTcs.size();
         dto.totalTestCasesCount = allTcs.size();
 
@@ -192,9 +196,10 @@ public class CodingPlatformService {
         }
 
         // Add Organisation Branding
-        resolveOrgBranding(orgId, dto.orgBranding);
+        resolveOrgBranding(orgId != null ? orgId : q.getOrganizationId(), dto.orgBranding);
         dto.orgName = (String) dto.orgBranding.get("orgName");
         dto.orgLogoUrl = (String) dto.orgBranding.get("logoUrl");
+        dto.tenantSlug = (String) dto.orgBranding.get("tenantSlug");
 
         return dto;
     }
@@ -213,11 +218,72 @@ public class CodingPlatformService {
         if (org != null) {
             branding.put("orgId", org.getId());
             branding.put("orgName", org.getName());
+            branding.put("slug", org.getSlug());
+            branding.put("tenantSlug", org.getSlug());
             branding.put("logoUrl", org.getLogoUrl());
         } else {
             branding.put("orgName", "LMS Code Academy");
+            branding.put("tenantSlug", "axisora");
             branding.put("logoUrl", null);
         }
+    }
+
+    @Transactional
+    public List<CodingTestCase> recoverTestCasesFromMasterBank(AssessmentQuestion q) {
+        if (q == null) return Collections.emptyList();
+        List<AssessmentQuestion> bankQuestions = questionRepository.findCodingBankQuestions(AssessmentQuestion.QuestionType.CODING);
+        for (AssessmentQuestion bq : bankQuestions) {
+            if (bq.getId().equals(q.getId())) continue;
+            boolean matchesTitle = q.getCodingTitle() != null && !q.getCodingTitle().isBlank()
+                    && q.getCodingTitle().trim().equalsIgnoreCase(bq.getCodingTitle() != null ? bq.getCodingTitle().trim() : "");
+            boolean matchesText = q.getQuestionText() != null && !q.getQuestionText().isBlank()
+                    && q.getQuestionText().trim().equalsIgnoreCase(bq.getQuestionText() != null ? bq.getQuestionText().trim() : "");
+            if (matchesTitle || matchesText) {
+                boolean changed = false;
+                if ((q.getCodingStarterJava() == null || q.getCodingStarterJava().isBlank()) && bq.getCodingStarterJava() != null) {
+                    q.setCodingStarterJava(bq.getCodingStarterJava());
+                    changed = true;
+                }
+                if ((q.getCodingStarterPython() == null || q.getCodingStarterPython().isBlank()) && bq.getCodingStarterPython() != null) {
+                    q.setCodingStarterPython(bq.getCodingStarterPython());
+                    changed = true;
+                }
+                if ((q.getCodingConstraints() == null || q.getCodingConstraints().isBlank()) && bq.getCodingConstraints() != null) {
+                    q.setCodingConstraints(bq.getCodingConstraints());
+                    changed = true;
+                }
+                if ((q.getCodingInputFormat() == null || q.getCodingInputFormat().isBlank()) && bq.getCodingInputFormat() != null) {
+                    q.setCodingInputFormat(bq.getCodingInputFormat());
+                    changed = true;
+                }
+                if ((q.getCodingOutputFormat() == null || q.getCodingOutputFormat().isBlank()) && bq.getCodingOutputFormat() != null) {
+                    q.setCodingOutputFormat(bq.getCodingOutputFormat());
+                    changed = true;
+                }
+                if (changed) {
+                    questionRepository.save(q);
+                }
+
+                List<CodingTestCase> bankTcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(bq.getId());
+                if (!bankTcs.isEmpty()) {
+                    log.info("Auto-syncing test cases for assessment question #{} from Coding Bank master question #{}", q.getId(), bq.getId());
+                    List<CodingTestCase> backfilled = new ArrayList<>();
+                    for (CodingTestCase btc : bankTcs) {
+                        CodingTestCase newTc = new CodingTestCase();
+                        newTc.setQuestion(q);
+                        newTc.setOrganizationId(q.getOrganizationId() != null ? q.getOrganizationId() : btc.getOrganizationId());
+                        newTc.setInput(btc.getInput());
+                        newTc.setExpectedOutput(btc.getExpectedOutput());
+                        newTc.setIsSample(btc.getIsSample());
+                        newTc.setExplanation(btc.getExplanation());
+                        newTc.setDisplayOrder(btc.getDisplayOrder());
+                        backfilled.add(testCaseRepository.save(newTc));
+                    }
+                    return backfilled;
+                }
+            }
+        }
+        return Collections.emptyList();
     }
 
     // ------------------------------------------------------------------ Run Code
@@ -253,6 +319,12 @@ public class CodingPlatformService {
             List<CodingTestCase> samples = testCaseRepository.findByQuestionIdAndIsSampleTrueOrderByDisplayOrderAscIdAsc(req.questionId);
             if (samples.isEmpty()) {
                 List<CodingTestCase> allTcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(req.questionId);
+                if (allTcs.isEmpty()) {
+                    AssessmentQuestion q = questionRepository.findById(req.questionId).orElse(null);
+                    if (q != null && q.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+                        allTcs = recoverTestCasesFromMasterBank(q);
+                    }
+                }
                 samples = allTcs.stream().limit(2).collect(Collectors.toList());
             }
             for (int i = 0; i < samples.size(); i++) {
@@ -266,16 +338,21 @@ public class CodingPlatformService {
             }
         }
 
-        // Fallback to customTestCases sent by client if testCasesToRun is empty
-        if (testCasesToRun.isEmpty() && req.customTestCases != null && !req.customTestCases.isEmpty()) {
-            for (int i = 0; i < req.customTestCases.size(); i++) {
-                TestCaseItem ctc = req.customTestCases.get(i);
-                CodeExecutionService.TestCaseRun item = new CodeExecutionService.TestCaseRun();
-                item.testCaseIndex = i + 1;
-                item.input = ctc.input != null ? ctc.input : "";
-                item.expectedOutput = ctc.expectedOutput != null ? ctc.expectedOutput : "";
-                item.isSample = true;
-                testCasesToRun.add(item);
+        // Fallback to customTestCases sent by client if testCasesToRun is empty or all DB cases had empty inputs
+        boolean allDbCasesEmpty = testCasesToRun.isEmpty() || testCasesToRun.stream().allMatch(tc -> tc.input == null || tc.input.isBlank());
+        if (allDbCasesEmpty && req.customTestCases != null && !req.customTestCases.isEmpty()) {
+            boolean hasNonEmptyCustom = req.customTestCases.stream().anyMatch(c -> c.input != null && !c.input.isBlank());
+            if (hasNonEmptyCustom || testCasesToRun.isEmpty()) {
+                testCasesToRun.clear();
+                for (int i = 0; i < req.customTestCases.size(); i++) {
+                    TestCaseItem ctc = req.customTestCases.get(i);
+                    CodeExecutionService.TestCaseRun item = new CodeExecutionService.TestCaseRun();
+                    item.testCaseIndex = i + 1;
+                    item.input = ctc.input != null ? ctc.input : "";
+                    item.expectedOutput = ctc.expectedOutput != null ? ctc.expectedOutput : "";
+                    item.isSample = true;
+                    testCasesToRun.add(item);
+                }
             }
         }
 
@@ -347,6 +424,9 @@ public class CodingPlatformService {
         List<CodingTestCase> allTestCases = Collections.emptyList();
         if (question != null) {
             allTestCases = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(req.questionId);
+            if (allTestCases.isEmpty() && question.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+                allTestCases = recoverTestCasesFromMasterBank(question);
+            }
         }
 
         List<CodeExecutionService.TestCaseRun> runnerItems = new ArrayList<>();
@@ -356,8 +436,8 @@ public class CodingPlatformService {
                 CodingTestCase tc = allTestCases.get(i);
                 CodeExecutionService.TestCaseRun item = new CodeExecutionService.TestCaseRun();
                 item.testCaseIndex = i + 1;
-                item.input = tc.getInput();
-                item.expectedOutput = tc.getExpectedOutput();
+                item.input = tc.getInput() != null ? tc.getInput() : "";
+                item.expectedOutput = tc.getExpectedOutput() != null ? tc.getExpectedOutput() : "";
                 item.isSample = Boolean.TRUE.equals(tc.getIsSample());
                 runnerItems.add(item);
             }
@@ -488,20 +568,59 @@ public class CodingPlatformService {
     private void syncAssessmentSubmission(AssessmentType type, Long assessmentId, Long userId) {
         if (type == null || assessmentId == null || userId == null) return;
 
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+
         List<AssessmentResponse> allResponses = responseRepository.findByAssessmentTypeAndAssessmentIdAndUserId(type, assessmentId, userId);
         int totalScore = allResponses.stream().mapToInt(r -> r.getMarksAwarded() != null ? r.getMarksAwarded() : 0).sum();
+        long correctCount = allResponses.stream().filter(r -> Boolean.TRUE.equals(r.getIsCorrect())).count();
+        long totalQuestions = questionRepository.countByAssessmentTypeAndAssessmentId(type, assessmentId);
 
         if (type == AssessmentType.ASSIGNMENT) {
-            assignmentSubmissionRepository.findByUserIdAndAssignmentId(userId, assessmentId).ifPresent(sub -> {
-                sub.setMarksObtained(totalScore);
-                sub.setIsGraded(true);
-                assignmentSubmissionRepository.save(sub);
+            AssignmentSubmission sub = assignmentSubmissionRepository
+                    .findByUserIdAndAssignmentId(userId, assessmentId)
+                    .orElseGet(AssignmentSubmission::new);
+            sub.setAssignmentId(assessmentId);
+            sub.setUser(user);
+            sub.setMarksObtained(totalScore);
+            sub.setIsGraded(true);
+            if (sub.getSubmittedAt() == null) {
+                sub.setSubmittedAt(LocalDateTime.now());
+            }
+            String summary = "Auto-graded: " + correctCount + "/" + (totalQuestions > 0 ? totalQuestions : allResponses.size())
+                    + " correct, " + totalScore + " marks";
+            sub.setSubmission(summary);
+            sub.setFeedback(summary);
+            AssignmentSubmission savedSub = assignmentSubmissionRepository.save(sub);
+
+            allResponses.forEach(r -> {
+                if (r.getSubmissionId() == null) {
+                    r.setSubmissionId(savedSub.getId());
+                    responseRepository.save(r);
+                }
             });
         } else if (type == AssessmentType.EXAM) {
-            examSubmissionRepository.findByUserIdAndExamId(userId, assessmentId).ifPresent(sub -> {
-                sub.setMarksObtained(totalScore);
-                sub.setIsGraded(true);
-                examSubmissionRepository.save(sub);
+            ExamSubmission sub = examSubmissionRepository
+                    .findByUserIdAndExamId(userId, assessmentId)
+                    .orElseGet(ExamSubmission::new);
+            sub.setExamId(assessmentId);
+            sub.setUser(user);
+            sub.setMarksObtained(totalScore);
+            sub.setIsGraded(true);
+            if (sub.getSubmittedAt() == null) {
+                sub.setSubmittedAt(LocalDateTime.now());
+            }
+            String summary = "Auto-graded: " + correctCount + "/" + (totalQuestions > 0 ? totalQuestions : allResponses.size())
+                    + " correct, " + totalScore + " marks";
+            sub.setAnswers(summary);
+            sub.setRemarks(summary);
+            ExamSubmission savedSub = examSubmissionRepository.save(sub);
+
+            allResponses.forEach(r -> {
+                if (r.getSubmissionId() == null) {
+                    r.setSubmissionId(savedSub.getId());
+                    responseRepository.save(r);
+                }
             });
         }
     }
@@ -610,10 +729,10 @@ public class CodingPlatformService {
                     CodingTestCase tc = new CodingTestCase();
                     tc.setQuestion(saved);
                     tc.setOrganizationId(targetOrgId);
-                    tc.setInput(map.get("input") != null ? (String) map.get("input") : "");
-                    tc.setExpectedOutput(map.get("expectedOutput") != null ? (String) map.get("expectedOutput") : "");
-                    tc.setIsSample(Boolean.TRUE.equals(map.get("isSample")));
-                    tc.setExplanation((String) map.get("explanation"));
+                    tc.setInput(map.get("input") != null ? String.valueOf(map.get("input")) : "");
+                    tc.setExpectedOutput(map.get("expectedOutput") != null ? String.valueOf(map.get("expectedOutput")) : "");
+                    tc.setIsSample(Boolean.TRUE.equals(map.get("isSample")) || "true".equalsIgnoreCase(String.valueOf(map.get("isSample"))));
+                    tc.setExplanation(map.get("explanation") != null ? String.valueOf(map.get("explanation")) : null);
                     tc.setDisplayOrder(order++);
                     testCaseRepository.save(tc);
                 }

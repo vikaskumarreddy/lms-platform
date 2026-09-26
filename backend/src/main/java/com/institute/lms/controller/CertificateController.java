@@ -21,13 +21,16 @@ public class CertificateController {
     private final CertificateRepository certificateRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final com.institute.lms.repository.OrganizationRepository organizationRepository;
     private final UserContext userContext;
 
     public CertificateController(CertificateRepository certificateRepository, UserRepository userRepository,
+                                 com.institute.lms.repository.OrganizationRepository organizationRepository,
                                  UserContext userContext,
                                  NotificationService notificationService) {
         this.certificateRepository = certificateRepository;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
         this.userContext = userContext;
         this.notificationService = notificationService;
     }
@@ -118,6 +121,12 @@ public class CertificateController {
         map.put("duration", cert.getDuration());
         map.put("credentialId", cert.getCredentialId());
         map.put("issueDate", cert.getIssueDate() != null ? cert.getIssueDate().toString() : null);
+        if (cert.getOrganizationId() != null) {
+            organizationRepository.findById(cert.getOrganizationId()).ifPresent(org -> {
+                map.put("tenantSlug", org.getSlug());
+                map.put("organizationSlug", org.getSlug());
+            });
+        }
         return map;
     }
 }

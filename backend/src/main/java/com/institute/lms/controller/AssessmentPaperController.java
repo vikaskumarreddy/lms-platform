@@ -150,7 +150,7 @@ public class AssessmentPaperController {
                                                      @RequestParam(required = false) Long userId) {
         AssessmentType assessmentType = AssessmentType.from(type);
         Map<String, Object> body = new LinkedHashMap<>();
-        List<Map<String, Object>> questions = paperService.studentPaper(assessmentType, assessmentId);
+        List<Map<String, Object>> questions = paperService.studentPaper(assessmentType, assessmentId, userId);
         body.put("questions", questions);
         body.put("questionCount", questions.size());
         body.put("totalMarks", paperService.paperMarks(assessmentType, assessmentId));

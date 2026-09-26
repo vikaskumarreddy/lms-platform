@@ -266,6 +266,26 @@
                 <span class="sync-icon">✅</span>
                 <span>Grading recorded for <strong>User #{{ userId }}</strong> on <strong>{{ assessmentType }} #{{ assessmentId }}</strong></span>
               </div>
+
+              <!-- Return to Questions / Assessment Action -->
+              <div class="return-paper-card">
+                <div class="return-countdown-meta">
+                  <span *ngIf="autoRedirectCountdown > 0" class="countdown-pulse">
+                    ⏱️ Returning to questions list in <strong>{{ autoRedirectCountdown }}s</strong>...
+                  </span>
+                  <span *ngIf="autoRedirectCountdown === 0" class="countdown-ready">
+                    ✓ Score saved to your assessment paper.
+                  </span>
+                </div>
+                <div class="return-btns-row">
+                  <button type="button" class="btn-return-now" (click)="returnToAssessment()">
+                    ← Back to Questions & Assessment
+                  </button>
+                  <button *ngIf="autoRedirectCountdown > 0" type="button" class="btn-stay-ide" (click)="cancelAutoRedirect()">
+                    Stay on IDE
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- Per-Test-Case List -->
@@ -346,13 +366,15 @@
         <!-- Console Tabs Header -->
         <div class="console-tabs-bar">
           <div class="console-tabs-left">
-            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'cases'" (click)="consoleTab = 'cases'">
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'cases'" (click)="switchConsoleTab('cases')">
               <span class="tab-icon">🧪</span> Test Cases
+              <span *ngIf="problem?.sampleTestCases?.length" class="tab-badge">{{ problem?.sampleTestCases?.length }}</span>
             </button>
-            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'custom'" (click)="consoleTab = 'custom'">
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'custom'" (click)="switchConsoleTab('custom')">
               <span class="tab-icon">⚙️</span> Custom Input
+              <span *ngIf="customInput && customInput.trim().length > 0" class="tab-badge custom-badge">Active</span>
             </button>
-            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'results'" (click)="consoleTab = 'results'">
+            <button type="button" class="console-tab-btn" [class.active]="consoleTab === 'results'" (click)="switchConsoleTab('results')">
               <span class="tab-icon">📊</span> Console & Results
               <span *ngIf="runResponse || submitResponse" class="results-dot" [style.background]="activeVerdictColor"></span>
             </button>
@@ -369,7 +391,7 @@
         <div class="console-body">
           <!-- TAB 1: SAMPLE TEST CASES -->
           <div *ngIf="consoleTab === 'cases'" class="console-pane">
-            <div class="testcases-subnav">
+            <div class="testcases-subnav" *ngIf="problem?.sampleTestCases && problem?.sampleTestCases?.length">
               <button
                 *ngFor="let tc of problem?.sampleTestCases; let idx = index"
                 type="button"
@@ -391,6 +413,13 @@
                 <pre class="tc-code-block">{{ problem?.sampleTestCases?.[selectedCaseTab]?.expectedOutput }}</pre>
               </div>
             </div>
+
+            <div *ngIf="!problem?.sampleTestCases || !problem?.sampleTestCases?.length" class="no-cases-box">
+              <p class="no-cases-msg">No predefined sample test cases for this question.</p>
+              <button type="button" class="use-custom-btn" (click)="switchConsoleTab('custom')">
+                Provide Stdin Input in Custom Input Tab ➔
+              </button>
+            </div>
           </div>
 
           <!-- TAB 2: CUSTOM INPUT -->
@@ -398,15 +427,18 @@
             <div class="custom-input-header">
               <label class="custom-input-check">
                 <input type="checkbox" [(ngModel)]="useCustomInput">
-                <span>Use Custom Input for "Run Code"</span>
+                <span>Feed this input to standard input (stdin) on "Run Code"</span>
               </label>
-              <span class="custom-input-help">When checked, Run Code will feed this input to your program's stdin.</span>
+              <span class="custom-input-badge" [class.badge-active]="useCustomInput && customInput && customInput.trim().length > 0">
+                {{ (useCustomInput && customInput && customInput.trim().length > 0) ? '✓ Stdin Ready' : 'Empty / Disabled' }}
+              </span>
             </div>
             <textarea
               class="custom-input-textarea"
               [(ngModel)]="customInput"
+              (ngModelChange)="onCustomInputChange()"
               rows="4"
-              placeholder="Enter stdin input here (e.g. arguments or test case numbers)..."
+              placeholder="Enter standard input (stdin) here (e.g. test arguments, numbers, strings)..."
             ></textarea>
           </div>
 

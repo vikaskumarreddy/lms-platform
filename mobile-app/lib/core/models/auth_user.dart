@@ -13,6 +13,8 @@ class AuthUser {
   final String? paymentMethod; // CASH | ONLINE
   final String? paymentStatus; // PENDING | COMPLETED | FAILED
   final int? amountDue; // paise
+  final String? tenantSlug;
+  final String? organizationName;
 
   AuthUser({
     this.id,
@@ -25,6 +27,8 @@ class AuthUser {
     this.paymentMethod,
     this.paymentStatus,
     this.amountDue,
+    this.tenantSlug,
+    this.organizationName,
   });
 
   /// Builds an [AuthUser] from the nested `user` object in the auth response.
@@ -46,6 +50,8 @@ class AuthUser {
       amountDue: json['amountDue'] is int
           ? json['amountDue']
           : int.tryParse(json['amountDue']?.toString() ?? ''),
+      tenantSlug: json['tenantSlug'] as String?,
+      organizationName: json['organizationName'] as String?,
     );
   }
 
@@ -61,6 +67,8 @@ class AuthUser {
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
       'amountDue': amountDue,
+      'tenantSlug': tenantSlug,
+      'organizationName': organizationName,
     };
   }
 
@@ -75,6 +83,8 @@ class AuthUser {
     String? paymentMethod,
     String? paymentStatus,
     int? amountDue,
+    String? tenantSlug,
+    String? organizationName,
   }) {
     return AuthUser(
       id: id ?? this.id,
@@ -87,6 +97,8 @@ class AuthUser {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       amountDue: amountDue ?? this.amountDue,
+      tenantSlug: tenantSlug ?? this.tenantSlug,
+      organizationName: organizationName ?? this.organizationName,
     );
   }
 }

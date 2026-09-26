@@ -52,6 +52,8 @@ public class SecurityConfig {
                         // Authorization header — only the byte-serving endpoint is public,
                         // the list/upload/delete endpoints below still require a valid JWT.
                         .requestMatchers("/api/media/*/serve").permitAll()
+                        // Coding IDE & Playground endpoints (for embedded mobile webviews and student exams)
+                        .requestMatchers("/api/coding/**").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()
                         // Gateway browser redirects and webhooks land here with no JWT —
                         // the gateway's own signature/hmac in the payload authenticates them.

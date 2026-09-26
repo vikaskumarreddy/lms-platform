@@ -116,7 +116,7 @@ public class AssignmentController {
                         detail.put("submittedAt", submission.getSubmittedAt());
                         detail.put("marksObtained", submission.getMarksObtained());
                         detail.put("isGraded", submission.getIsGraded());
-                        detail.put("status", "Submitted");
+                        detail.put("status", Boolean.TRUE.equals(submission.getIsGraded()) ? "Graded" : "Submitted");
                     } else if (assignment.getDueDate() != null && assignment.getDueDate().isBefore(now)) {
                         detail.put("status", "Overdue");
                     } else {
@@ -141,7 +141,8 @@ public class AssignmentController {
                 .collect(Collectors.toList());
 
         long pendingCount = assignmentDetails.stream().filter(a -> "Pending".equals(a.get("status"))).count();
-        long submittedCount = assignmentDetails.stream().filter(a -> "Submitted".equals(a.get("status"))).count();
+        long submittedCount = assignmentDetails.stream().filter(a -> "Submitted".equals(a.get("status")) || "Graded".equals(a.get("status"))).count();
+        long gradedCount = assignmentDetails.stream().filter(a -> "Graded".equals(a.get("status"))).count();
         long overdueCount = assignmentDetails.stream().filter(a -> "Overdue".equals(a.get("status"))).count();
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -149,6 +150,7 @@ public class AssignmentController {
         response.put("totalAssignments", assignments.size());
         response.put("pendingCount", pendingCount);
         response.put("submittedCount", submittedCount);
+        response.put("gradedCount", gradedCount);
         response.put("overdueCount", overdueCount);
 
         return ResponseEntity.ok(response);

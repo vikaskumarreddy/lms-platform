@@ -77,7 +77,9 @@ public class AssessmentPaperService {
             question.setDisplayOrder((int) questionCount(type, assessmentId));
         }
         apply(question, form);
-        return questionRepository.save(question);
+        AssessmentQuestion saved = questionRepository.save(question);
+        applyTestCases(saved, form.testCases);
+        return saved;
     }
 
     @Transactional
@@ -94,7 +96,9 @@ public class AssessmentPaperService {
             question.setAssessmentId(assessmentId);
             question.setDisplayOrder(form.displayOrder != null ? form.displayOrder : (currentCount + i));
             apply(question, form);
-            savedList.add(questionRepository.save(question));
+            AssessmentQuestion saved = questionRepository.save(question);
+            applyTestCases(saved, form.testCases);
+            savedList.add(saved);
         }
         return savedList;
     }
@@ -104,7 +108,9 @@ public class AssessmentPaperService {
         AssessmentQuestion question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found: " + questionId));
         apply(question, form);
-        return questionRepository.save(question);
+        AssessmentQuestion saved = questionRepository.save(question);
+        applyTestCases(saved, form.testCases);
+        return saved;
     }
 
     @Transactional
@@ -172,10 +178,14 @@ public class AssessmentPaperService {
             question.addOption(option);
         }
 
-        if (question.getId() != null && form.testCases != null) {
+    }
+
+    private void applyTestCases(AssessmentQuestion question, List<TestCaseForm> testCases) {
+        if (question == null || question.getId() == null) return;
+        if (testCases != null && !testCases.isEmpty()) {
             testCaseRepository.deleteByQuestionId(question.getId());
             int tcOrder = 0;
-            for (TestCaseForm tcForm : form.testCases) {
+            for (TestCaseForm tcForm : testCases) {
                 CodingTestCase tc = new CodingTestCase();
                 tc.setQuestion(question);
                 tc.setOrganizationId(question.getOrganizationId());
@@ -186,7 +196,40 @@ public class AssessmentPaperService {
                 tc.setDisplayOrder(tcOrder++);
                 testCaseRepository.save(tc);
             }
+        } else if (question.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
+            copyTestCasesFromBankIfAvailable(question);
         }
+    }
+
+    public List<CodingTestCase> copyTestCasesFromBankIfAvailable(AssessmentQuestion question) {
+        if (question == null || question.getId() == null) return Collections.emptyList();
+        List<AssessmentQuestion> bankQuestions = questionRepository.findCodingBankQuestions(AssessmentQuestion.QuestionType.CODING);
+        for (AssessmentQuestion bq : bankQuestions) {
+            if (bq.getId().equals(question.getId())) continue;
+            boolean matchesTitle = question.getCodingTitle() != null && !question.getCodingTitle().isBlank()
+                    && question.getCodingTitle().trim().equalsIgnoreCase(bq.getCodingTitle() != null ? bq.getCodingTitle().trim() : "");
+            boolean matchesText = question.getQuestionText() != null && !question.getQuestionText().isBlank()
+                    && question.getQuestionText().trim().equalsIgnoreCase(bq.getQuestionText() != null ? bq.getQuestionText().trim() : "");
+            if (matchesTitle || matchesText) {
+                List<CodingTestCase> bankTcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(bq.getId());
+                if (!bankTcs.isEmpty()) {
+                    List<CodingTestCase> copied = new ArrayList<>();
+                    for (CodingTestCase btc : bankTcs) {
+                        CodingTestCase tc = new CodingTestCase();
+                        tc.setQuestion(question);
+                        tc.setOrganizationId(question.getOrganizationId() != null ? question.getOrganizationId() : btc.getOrganizationId());
+                        tc.setInput(btc.getInput());
+                        tc.setExpectedOutput(btc.getExpectedOutput());
+                        tc.setIsSample(btc.getIsSample());
+                        tc.setExplanation(btc.getExplanation());
+                        tc.setDisplayOrder(btc.getDisplayOrder());
+                        copied.add(testCaseRepository.save(tc));
+                    }
+                    return copied;
+                }
+            }
+        }
+        return Collections.emptyList();
     }
 
     // ------------------------------------------------------------------ delivery
@@ -197,6 +240,15 @@ public class AssessmentPaperService {
      * answer key can simply be read out of the network response.
      */
     public List<Map<String, Object>> studentPaper(AssessmentType type, Long assessmentId) {
+        return studentPaper(type, assessmentId, null);
+    }
+
+    public List<Map<String, Object>> studentPaper(AssessmentType type, Long assessmentId, Long userId) {
+        Map<Long, AssessmentResponse> byQuestion = (userId != null)
+                ? responseRepository.findByAssessmentTypeAndAssessmentIdAndUserId(type, assessmentId, userId).stream()
+                        .collect(Collectors.toMap(AssessmentResponse::getQuestionId, r -> r, (a, b) -> a))
+                : Collections.emptyMap();
+
         return questions(type, assessmentId).stream().map(q -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", q.getId());
@@ -218,8 +270,28 @@ public class AssessmentPaperService {
                 return opt;
             }).collect(Collectors.toList()));
 
+            AssessmentResponse resp = byQuestion.get(q.getId());
+            if (resp != null) {
+                item.put("answered", true);
+                item.put("answerText", resp.getAnswerText());
+                item.put("selectedOptionIds", resp.getSelectedOptionIds());
+                item.put("marksAwarded", resp.getMarksAwarded());
+                item.put("isCorrect", resp.getIsCorrect());
+                item.put("testCasesPassed", resp.getTestCasesPassed());
+                item.put("totalTestCases", resp.getTotalTestCases());
+            } else {
+                item.put("answered", false);
+            }
+
             if (q.getQuestionType() == AssessmentQuestion.QuestionType.CODING) {
                 List<CodingTestCase> samples = testCaseRepository.findByQuestionIdAndIsSampleTrueOrderByDisplayOrderAscIdAsc(q.getId());
+                if (samples.isEmpty()) {
+                    List<CodingTestCase> allTcs = testCaseRepository.findByQuestionIdOrderByDisplayOrderAscIdAsc(q.getId());
+                    if (allTcs.isEmpty()) {
+                        allTcs = copyTestCasesFromBankIfAvailable(q);
+                    }
+                    samples = allTcs.stream().limit(2).collect(Collectors.toList());
+                }
                 item.put("sampleTestCases", samples.stream().map(tc -> {
                     Map<String, Object> t = new LinkedHashMap<>();
                     t.put("id", tc.getId());
@@ -325,7 +397,11 @@ public class AssessmentPaperService {
             }
         }
 
-        // A re-attempt overwrites the previous answers rather than appending to them.
+        Map<Long, AssessmentResponse> existingByQuestion = responseRepository
+                .findByAssessmentTypeAndAssessmentIdAndUserId(type, assessmentId, userId).stream()
+                .collect(Collectors.toMap(AssessmentResponse::getQuestionId, r -> r, (a, b) -> a));
+
+        // A re-attempt overwrites previous answers
         responseRepository.deleteByAssessmentTypeAndAssessmentIdAndUserId(type, assessmentId, userId);
 
         int totalMarks = 0;
@@ -351,10 +427,18 @@ public class AssessmentPaperService {
                 correct = match;
                 awarded = match ? questionMarks : 0;
             } else if (questionType == AssessmentQuestion.QuestionType.CODING) {
-                // No sandbox/test-case runner - a coding answer is never auto-graded.
                 selected = Collections.emptyList();
-                correct = null;
-                awarded = 0;
+                AssessmentResponse existingCoding = existingByQuestion.get(question.getId());
+                if (existingCoding != null) {
+                    correct = existingCoding.getIsCorrect();
+                    awarded = existingCoding.getMarksAwarded() != null ? existingCoding.getMarksAwarded() : 0;
+                    if (typedAnswer == null || typedAnswer.isBlank()) {
+                        typedAnswer = existingCoding.getAnswerText();
+                    }
+                } else {
+                    correct = false;
+                    awarded = 0;
+                }
             } else {
                 Set<Long> correctIds = question.getOptions().stream()
                         .filter(o -> Boolean.TRUE.equals(o.getIsCorrect()))
@@ -388,6 +472,15 @@ public class AssessmentPaperService {
             response.setAnswerText(typedAnswer);
             response.setIsCorrect(correct);
             response.setMarksAwarded(awarded);
+
+            AssessmentResponse existing = existingByQuestion.get(question.getId());
+            if (existing != null) {
+                response.setLanguage(existing.getLanguage());
+                response.setTestCasesPassed(existing.getTestCasesPassed());
+                response.setTotalTestCases(existing.getTotalTestCases());
+                response.setCodeOutput(existing.getCodeOutput());
+            }
+
             responseRepository.save(response);
 
             Map<String, Object> review = withKey(question);

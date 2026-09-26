@@ -56,6 +56,7 @@ export interface CodingQuestionData {
     explanation?: string;
   }>;
   totalTestCases?: number;
+  tenantSlug?: string;
   orgName?: string;
   orgLogoUrl?: string;
   orgBrandColor?: string;
@@ -143,16 +144,30 @@ export class CodeEditorComponent implements OnInit, OnDestroy {
       if (qParams.get('userId')) {
         this.userId = Number(qParams.get('userId'));
       }
+      const tenantParam = qParams.get('tenant') || qParams.get('tenantSlug');
+      if (tenantParam && tenantParam.trim()) {
+        try {
+          localStorage.setItem('tenant_slug', tenantParam.trim().toLowerCase());
+        } catch (_) {}
+      }
+      const tokenParam = qParams.get('token') || qParams.get('authToken') || qParams.get('access_token');
+      if (tokenParam && tokenParam.trim()) {
+        try {
+          localStorage.setItem('access_token', tokenParam.trim());
+        } catch (_) {}
+      }
 
       this.loadQuestion();
     });
   }
 
-  ngOnDestroy(): void {}
+  ngOnDestroy(): void {
+    this.cancelAutoRedirect();
+  }
 
   loadQuestion(): void {
     if (!this.questionId) {
-      // Load fallback demo question if no questionId
+      // Load clean boilerplate starter if no questionId
       this.problem = this.getDefaultProblem();
       this.initCodeTemplates();
       this.loadingProblem = false;
@@ -160,18 +175,38 @@ export class CodeEditorComponent implements OnInit, OnDestroy {
     }
 
     this.loadingProblem = true;
-    this.api.get<CodingQuestionData>(`/api/coding/questions/${this.questionId}`).subscribe({
+    const tenantParam = this.route.snapshot.queryParamMap.get('tenant') || this.route.snapshot.queryParamMap.get('tenantSlug');
+    const query = tenantParam ? `?tenant=${encodeURIComponent(tenantParam.trim().toLowerCase())}` : '';
+    this.api.get<CodingQuestionData>(`/api/coding/questions/${this.questionId}${query}`).subscribe({
       next: (data) => {
         this.problem = data;
         if (data.orgName) this.orgName = data.orgName;
         if (data.orgLogoUrl) this.orgLogoUrl = data.orgLogoUrl;
         if (data.orgBrandColor) this.orgBrandColor = data.orgBrandColor;
+        if (data.tenantSlug) {
+          try {
+            localStorage.setItem('tenant_slug', data.tenantSlug.toLowerCase());
+          } catch (_) {}
+        }
         this.initCodeTemplates();
         this.loadingProblem = false;
       },
-      error: () => {
-        // Fallback gracefully so student or tester can still code
-        this.problem = this.getDefaultProblem();
+      error: (err) => {
+        console.warn('Failed to load coding question from backend:', err);
+        this.problem = {
+          id: this.questionId || 0,
+          title: `Coding Challenge #${this.questionId || ''}`,
+          marks: 10,
+          difficulty: 'MEDIUM',
+          questionText: err?.status === 404
+            ? `Question #${this.questionId} could not be found in the current organization bank.`
+            : 'Unable to load question details. Please ensure the backend is running.',
+          starterJava: `import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        // Write your solution here\n        \n    }\n}`,
+          starterPython: `import sys\n\ndef main():\n    # Write your solution here\n    pass\n\nif __name__ == '__main__':\n    main()\n`,
+          sampleTestCases: [],
+          totalTestCases: 0,
+          orgName: this.orgName
+        };
         this.initCodeTemplates();
         this.loadingProblem = false;
       }
@@ -181,29 +216,18 @@ export class CodeEditorComponent implements OnInit, OnDestroy {
   private getDefaultProblem(): CodingQuestionData {
     return {
       id: 0,
-      title: 'Sum of Two Integers',
+      title: 'Coding Playground',
       difficulty: 'EASY',
       marks: 10,
-      questionText: 'Given two integers a and b, compute and return their sum. You should read values from standard input and print the result to standard output.',
-      inputFormat: 'The first line contains an integer T denoting the number of test cases. Each subsequent line contains two space-separated integers a and b.',
-      outputFormat: 'For each test case, print the sum of a and b on a new line.',
-      constraints: '-10^9 <= a, b <= 10^9\n1 <= T <= 100\nTime Limit: 5.0 seconds\nMemory Limit: 256 MB',
-      starterJava: `import java.util.Scanner;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        if (!scanner.hasNextInt()) return;\n        int t = scanner.nextInt();\n        while (t-- > 0) {\n            long a = scanner.nextLong();\n            long b = scanner.nextLong();\n            System.out.println(a + b);\n        }\n    }\n}`,
-      starterPython: `import sys\n\ndef main():\n    lines = sys.stdin.read().split()\n    if not lines:\n        return\n    t = int(lines[0])\n    idx = 1\n    for _ in range(t):\n        a = int(lines[idx])\n        b = int(lines[idx + 1])\n        print(a + b)\n        idx += 2\n\nif __name__ == '__main__':\n    main()`,
-      sampleTestCases: [
-        {
-          input: '2\n5 7\n10 -3',
-          expectedOutput: '12\n7',
-          explanation: '5 + 7 = 12, and 10 + (-3) = 7.'
-        },
-        {
-          input: '1\n100 200',
-          expectedOutput: '300',
-          explanation: '100 + 200 = 300.'
-        }
-      ],
-      totalTestCases: 2,
-      orgName: 'Axisora LMS'
+      questionText: 'Welcome to the Realtime Coding Playground. Write and execute Java or Python solutions with custom inputs or verify against test cases.',
+      inputFormat: 'Read from standard input (stdin).',
+      outputFormat: 'Print result to standard output (stdout).',
+      constraints: 'Time Limit: 5.0 seconds\nMemory Limit: 256 MB',
+      starterJava: `import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        // Write your solution here\n        \n    }\n}`,
+      starterPython: `import sys\n\ndef main():\n    # Write your solution here\n    pass\n\nif __name__ == '__main__':\n    main()\n`,
+      sampleTestCases: [],
+      totalTestCases: 0,
+      orgName: this.orgName || 'Axisora LMS'
     };
   }
 
@@ -237,7 +261,24 @@ if __name__ == '__main__':
     this.updateLineNumbers();
 
     if (this.problem?.sampleTestCases && this.problem.sampleTestCases.length > 0) {
-      this.customInput = this.problem.sampleTestCases[0].input;
+      this.customInput = this.problem.sampleTestCases[0].input || '';
+      this.consoleTab = 'cases';
+    } else {
+      this.consoleTab = 'custom';
+      this.useCustomInput = true;
+    }
+  }
+
+  switchConsoleTab(tab: 'cases' | 'custom' | 'results'): void {
+    this.consoleTab = tab;
+    if (tab === 'custom') {
+      this.useCustomInput = true;
+    }
+  }
+
+  onCustomInputChange(): void {
+    if (this.customInput && this.customInput.trim().length > 0) {
+      this.useCustomInput = true;
     }
   }
 
@@ -320,6 +361,7 @@ if __name__ == '__main__':
   runCode(): void {
     if (this.isRunning || this.isSubmitting) return;
 
+    const userWasOnCustomTab = this.consoleTab === 'custom';
     this.isRunning = true;
     this.mobileViewTab = 'editor';
     this.consoleTab = 'results';
@@ -332,14 +374,20 @@ if __name__ == '__main__':
       sourceCode: this.sourceCode
     };
 
-    if (this.useCustomInput && this.customInput) {
+    const hasCustomInput = !!(this.customInput && this.customInput.trim().length > 0);
+    const hasSampleCases = !!(this.problem?.sampleTestCases && this.problem.sampleTestCases.length > 0);
+    const shouldUseCustom = this.useCustomInput || userWasOnCustomTab || (!hasSampleCases && hasCustomInput);
+
+    if (shouldUseCustom && hasCustomInput) {
       payload.customInput = this.customInput;
     } else {
       if (this.questionId && this.questionId > 0) {
         payload.questionId = this.questionId;
       }
-      if (this.problem?.sampleTestCases && this.problem.sampleTestCases.length > 0) {
+      if (hasSampleCases && this.problem?.sampleTestCases) {
         payload.customTestCases = this.problem.sampleTestCases;
+      } else if (hasCustomInput) {
+        payload.customInput = this.customInput;
       }
     }
 
@@ -449,6 +497,10 @@ if __name__ == '__main__':
         if (mappedResults.length > 0) {
           this.selectedCaseTab = 0;
         }
+
+        if (this.assessmentType && this.assessmentId) {
+          this.startAutoRedirectCountdown();
+        }
       },
       error: (err) => {
         this.isSubmitting = false;
@@ -518,11 +570,69 @@ if __name__ == '__main__':
     this.isDraggingDivider = false;
   }
 
+  autoRedirectCountdown: number = 0;
+  private redirectTimer: any = null;
+
+  startAutoRedirectCountdown(): void {
+    this.cancelAutoRedirect();
+    this.autoRedirectCountdown = 3;
+    this.redirectTimer = setInterval(() => {
+      this.autoRedirectCountdown--;
+      if (this.autoRedirectCountdown <= 0) {
+        this.cancelAutoRedirect();
+        this.returnToAssessment();
+      }
+    }, 1000);
+  }
+
+  cancelAutoRedirect(): void {
+    if (this.redirectTimer) {
+      clearInterval(this.redirectTimer);
+      this.redirectTimer = null;
+    }
+    this.autoRedirectCountdown = 0;
+  }
+
   navigateBack(): void {
-    if (this.assessmentType && this.assessmentId) {
-      this.router.navigate(['/assessment-paper', this.assessmentType, this.assessmentId]);
-    } else {
+    this.returnToAssessment();
+  }
+
+  returnToAssessment(): void {
+    this.cancelAutoRedirect();
+
+    // 1. Notify Flutter in_app_browser via JS handler
+    try {
+      if ((window as any).flutter_inappwebview?.callHandler) {
+        (window as any).flutter_inappwebview.callHandler('returnToPaper', {
+          questionId: this.questionId,
+          score: this.submitResponse?.marksAwarded,
+          allPassed: this.submitResponse?.success,
+          code: this.sourceCode
+        });
+        return;
+      }
+    } catch (_) {}
+
+    // 2. Post message to parent window (if in popup / iframe)
+    try {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'CODING_SUBMISSION_COMPLETE',
+          questionId: this.questionId,
+          score: this.submitResponse?.marksAwarded,
+          verdict: this.submitResponse?.verdict,
+          code: this.sourceCode
+        }, '*');
+        window.close();
+        return;
+      }
+    } catch (_) {}
+
+    // 3. Fallback to browser history back or custom scheme
+    if (window.history.length > 1) {
       window.history.back();
+    } else {
+      window.location.href = `lms://return-to-paper?questionId=${this.questionId}&score=${this.submitResponse?.marksAwarded || 0}&assessmentId=${this.assessmentId || 0}&type=${this.assessmentType || ''}`;
     }
   }
 }

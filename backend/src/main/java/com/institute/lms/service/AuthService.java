@@ -335,6 +335,16 @@ public class AuthService {
         String refreshToken = jwtService.generateRefreshToken(user);
         String roleName = user.getRole() != null ? user.getRole().name() : "STUDENT";
 
+        String tenantSlug = null;
+        String orgName = null;
+        if (user.getOrganizationId() != null) {
+            Optional<Organization> orgOpt = organizationRepository.findById(user.getOrganizationId());
+            if (orgOpt.isPresent()) {
+                tenantSlug = orgOpt.get().getSlug();
+                orgName = orgOpt.get().getName();
+            }
+        }
+
         // Payment info for students
         AuthResponse.UserInfo.UserInfoBuilder userInfoBuilder = AuthResponse.UserInfo.builder()
                 .id(user.getId())
@@ -344,7 +354,9 @@ public class AuthService {
                 .roles(List.of(roleName))
                 .planId(user.getPlanId())
                 .batchId(user.getBatchId())
-                .organizationId(user.getOrganizationId());
+                .organizationId(user.getOrganizationId())
+                .tenantSlug(tenantSlug)
+                .organizationName(orgName);
 
         if (user.getRole() == User.UserRole.STUDENT && user.getOrganizationId() != null) {
             Optional<StudentPaymentInfo> paymentInfo = studentPaymentService.getPaymentInfo(user.getId(), user.getOrganizationId());

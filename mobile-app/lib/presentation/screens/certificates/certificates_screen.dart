@@ -108,7 +108,8 @@ class _CertificateCard extends StatelessWidget {
     final courseName = cert['courseName'] ?? 'Certification';
     final instituteName = cert['instituteName'] ?? 'Institute';
     final credentialId = cert['credentialId'] ?? '';
-    final verifyUrl = AppConfig.certificateVerifyUrl(credentialId);
+    final tenantSlug = cert['tenantSlug'] ?? cert['organizationSlug'];
+    final verifyUrl = AppConfig.certificateVerifyUrl(credentialId, tenantSlug);
     final uri = Uri.parse(
       'https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME'
       '&name=${Uri.encodeComponent(courseName)}'

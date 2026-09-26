@@ -14,6 +14,7 @@ class MobileAuthService {
   static const String _userKey = 'auth_user';
   static const String _userIdKey = 'userId';
   static const String _batchIdKey = 'batchId';
+  static const String _tenantSlugKey = 'tenant_slug';
 
   /// Checks whether the user is currently logged in.
   ///
@@ -87,13 +88,16 @@ class MobileAuthService {
     final token = body['accessToken'] ?? '';
     final user = AuthUser.fromJson(body['user'] ?? body);
 
-        await prefs.setString(_tokenKey, token);
+    await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, json.encode(user.toJson()));
     if (user.id != null) {
       await prefs.setInt(_userIdKey, user.id!);
       if (user.batchId != null) {
         await prefs.setInt(_batchIdKey, user.batchId!);
       }
+    }
+    if (user.tenantSlug != null && user.tenantSlug!.isNotEmpty) {
+      await prefs.setString(_tenantSlugKey, user.tenantSlug!.trim().toLowerCase());
     }
 
     return AuthResponse(token: token, user: user);
@@ -134,7 +138,7 @@ class MobileAuthService {
     final token = body['accessToken'] ?? '';
     final user = AuthUser.fromJson(body['user'] ?? body);
 
-        await prefs.setString(_tokenKey, token);
+    await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, json.encode(user.toJson()));
     if (user.id != null) {
       await prefs.setInt(_userIdKey, user.id!);
@@ -142,8 +146,20 @@ class MobileAuthService {
         await prefs.setInt(_batchIdKey, user.batchId!);
       }
     }
+    if (user.tenantSlug != null && user.tenantSlug!.isNotEmpty) {
+      await prefs.setString(_tenantSlugKey, user.tenantSlug!.trim().toLowerCase());
+    }
 
     return AuthResponse(token: token, user: user);
+  }
+
+  /// Returns the current tenant slug, if stored or associated with the user.
+  Future<String?> getTenantSlug() async {
+    final prefs = await SharedPreferences.getInstance();
+    final slug = prefs.getString(_tenantSlugKey);
+    if (slug != null && slug.isNotEmpty) return slug.trim().toLowerCase();
+    final user = await getUser();
+    return user?.tenantSlug?.trim().toLowerCase();
   }
 
   /// Clears all stored auth data, effectively logging the user out.

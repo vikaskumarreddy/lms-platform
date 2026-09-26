@@ -33,6 +33,8 @@ public class AuthResponse {
         private Long planId;
         private Long batchId;
         private Long organizationId;
+        private String tenantSlug;
+        private String organizationName;
         // Payment info for students
         private Boolean paymentRequired;
         private String paymentMethod;

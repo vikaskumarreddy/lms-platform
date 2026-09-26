@@ -65,6 +65,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
   bool _submitting = false;
   String? _error;
   int? _userId;
+  String? _tenantSlug;
+  String? _authToken;
+  bool _isCodingIdeOpen = false;
 
   List<_Question> _questions = [];
   int _paperMarks = 0;
@@ -116,10 +119,13 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Proctoring is active only during a live unsubmitted graded assessment/exam
-    if (widget.practiceMode || _result != null || _loading || _submitting) return;
+    // Proctoring is active only during a live unsubmitted graded assessment/exam,
+    // and is paused while the student is inside the internal coding IDE.
+    if (widget.practiceMode || _result != null || _loading || _submitting || _isCodingIdeOpen) return;
 
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    // Only flag true app-backgrounding (paused), not transient focus changes (inactive)
+    // which occur when Android displays system dialogs, dropdown pickers, or keyboard.
+    if (state == AppLifecycleState.paused) {
       _proctorViolations++;
       if (_proctorViolations >= 3) {
         if (mounted) {
@@ -226,6 +232,13 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
         return;
       }
       _userId = userId;
+      _authToken = prefs.getString('access_token');
+
+      String? tenantSlug = prefs.getString('tenant_slug');
+      if (tenantSlug == null || tenantSlug.isEmpty) {
+        tenantSlug = await _api.getCurrentOrganizationSlug();
+      }
+      _tenantSlug = tenantSlug;
 
       final paper = await _api.getAssessmentPaper(widget.type, widget.assessmentId, userId);
       if (paper == null) {
@@ -918,7 +931,14 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
         q.id, () => TextEditingController(text: _textAnswers[q.id] ?? ''));
 
     if (q.isCoding) {
-      final editorUrl = '${AppConfig.webBaseUrl}/code-editor/${q.id}?assessmentType=${widget.type}&assessmentId=${widget.assessmentId}&userId=$_userId';
+      final editorUrl = AppConfig.codeEditorUrl(
+        questionId: q.id,
+        assessmentType: widget.type,
+        assessmentId: widget.assessmentId,
+        userId: _userId,
+        tenantSlug: _tenantSlug,
+        token: _authToken,
+      );
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1024,8 +1044,9 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
                       'Launch Realtime Coding IDE',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      _isCodingIdeOpen = true;
+                      final res = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => InAppBrowserScreen(
@@ -1034,6 +1055,23 @@ class _AssessmentPaperScreenState extends State<AssessmentPaperScreen> with Widg
                           ),
                         ),
                       );
+                      _isCodingIdeOpen = false;
+                      if (res != null) {
+                        if (res is Map && res['code'] != null && res['code'].toString().isNotEmpty) {
+                          final codeStr = res['code'].toString();
+                          setState(() {
+                            _textAnswers[q.id] = codeStr;
+                            controller.text = codeStr;
+                          });
+                        } else {
+                          setState(() {
+                            if ((_textAnswers[q.id] ?? '').isEmpty) {
+                              _textAnswers[q.id] = '// Code submitted and graded in Realtime IDE';
+                              controller.text = '// Code submitted and graded in Realtime IDE';
+                            }
+                          });
+                        }
+                      }
                     },
                   ),
                 ),

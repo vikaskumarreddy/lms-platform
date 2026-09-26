@@ -315,15 +315,27 @@ public class CodeExecutionService {
             process = pb.start();
             final Process p = process;
 
-            // Feed stdin if provided
-            if (input != null && !input.isEmpty()) {
-                try (OutputStream os = p.getOutputStream()) {
-                    os.write(input.getBytes(StandardCharsets.UTF_8));
-                    os.flush();
+            // Prepare stdin data: normalize line endings and ensure trailing newline so Scanner/readline does not hit premature EOF
+            String normalizedInput = "";
+            if (input != null && !input.isBlank()) {
+                normalizedInput = input.replace("\r\n", "\n").replace("\r", "\n");
+                if (!normalizedInput.endsWith("\n")) {
+                    normalizedInput = normalizedInput + "\n";
                 }
-            } else {
-                p.getOutputStream().close();
             }
+            final String stdinData = normalizedInput;
+
+            // Asynchronously feed stdin to child process so pipe remains open while JVM/process initializes
+            CompletableFuture<Void> stdinFuture = CompletableFuture.runAsync(() -> {
+                try (OutputStream os = p.getOutputStream()) {
+                    if (!stdinData.isEmpty()) {
+                        os.write(stdinData.getBytes(StandardCharsets.UTF_8));
+                        os.flush();
+                    }
+                } catch (IOException ignored) {
+                    // Child process may terminate early or close stdin, which is normal
+                }
+            });
 
             // Capture streams in parallel
             Future<String> stdoutFuture = CompletableFuture.supplyAsync(() -> readStream(p.getInputStream()));
@@ -346,7 +358,15 @@ public class CodeExecutionService {
 
             if (process.exitValue() != 0) {
                 tc.status = Status.RUNTIME_ERROR;
-                tc.error = stderr != null && !stderr.isBlank() ? stderr : "Process exited with code " + process.exitValue();
+                String err = stderr != null && !stderr.isBlank() ? stderr : "Process exited with code " + process.exitValue();
+
+                // Enhance user-friendly hint if NoSuchElementException occurs due to empty stdin
+                if (err.contains("NoSuchElementException") && stdinData.isEmpty()) {
+                    err = err + "\n\n[LMS Notice] The program attempted to read from standard input (stdin/Scanner), but standard input was empty.\n💡 Solution: Switch to the 'Custom Input' tab in the console panel below, enter the input data your program requires, and click 'Run Code'.";
+                } else if (err.contains("EOFError") && stdinData.isEmpty()) {
+                    err = err + "\n\n[LMS Notice] The program attempted to read from standard input (sys.stdin/input()), but standard input was empty.\n💡 Solution: Switch to the 'Custom Input' tab in the console panel below, enter the input data your program requires, and click 'Run Code'.";
+                }
+                tc.error = err;
                 tc.actualOutput = stdout != null ? stdout : "";
             } else {
                 tc.status = Status.SUCCESS;

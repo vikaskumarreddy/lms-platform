@@ -31,24 +31,45 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
  * and finally to 'axisora' only when nothing else is available.
  */
 function deriveTenantSlug(): string {
-  const hostname = window.location.hostname;
-  // In production / domain environments, subdomain is the ground truth
-  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-    const parts = hostname.split('.');
-    if (parts.length >= 3) {
-      const sub = parts[0].toLowerCase();
-      if (sub === 'admin' || sub === 'www') {
-        return 'axisora';
-      }
-      return sub;
+  if (typeof window !== 'undefined' && window.location) {
+    // 1. URL Query parameter takes top precedence (e.g. from mobile app or direct link)
+    if (window.location.search) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const queryTenant = params.get('tenant') || params.get('tenantSlug');
+        if (queryTenant && queryTenant.trim()) {
+          const clean = queryTenant.trim().toLowerCase();
+          try { localStorage.setItem('tenant_slug', clean); } catch (_) {}
+          return clean;
+        }
+      } catch (_) {}
     }
-    return 'axisora';
+
+    const hostname = window.location.hostname;
+    // 2. In production / domain environments, subdomain is the ground truth
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      const parts = hostname.split('.');
+      if (parts.length >= 3) {
+        const sub = parts[0].toLowerCase();
+        if (sub === 'admin' || sub === 'www') {
+          return 'axisora';
+        }
+        return sub;
+      }
+      // If root domain (axisoraforge.in) but localStorage has a tenant saved, use it
+      const stored = localStorage.getItem('tenant_slug');
+      if (stored && stored.trim()) {
+        return stored.trim().toLowerCase();
+      }
+      return 'axisora';
+    }
+
+    // 3. Local development / direct IP fallback
+    const stored = localStorage.getItem('tenant_slug');
+    if (stored && stored.trim()) {
+      return stored.trim().toLowerCase();
+    }
   }
 
-  // Local development / direct IP fallback
-  const stored = localStorage.getItem('tenant_slug');
-  if (stored && stored.trim()) {
-    return stored.trim();
-  }
   return 'axisora';
 }

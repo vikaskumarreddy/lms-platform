@@ -295,6 +295,22 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
             ),
             onWebViewCreated: (controller) {
               _webViewController = controller;
+              controller.addJavaScriptHandler(
+                handlerName: 'returnToPaper',
+                callback: (args) {
+                  if (mounted) Navigator.of(context).pop(args.isNotEmpty ? args.first : true);
+                },
+              );
+            },
+            shouldOverrideUrlLoading: (controller, navigationAction) async {
+              final uri = navigationAction.request.url?.uriValue;
+              if (uri != null) {
+                if (uri.scheme == 'lms' || uri.path.contains('/return-to-paper') || uri.queryParameters.containsKey('returnToPaper')) {
+                  if (mounted) Navigator.of(context).pop(true);
+                  return NavigationActionPolicy.CANCEL;
+                }
+              }
+              return NavigationActionPolicy.ALLOW;
             },
             onProgressChanged: (controller, progress) {
               setState(() {

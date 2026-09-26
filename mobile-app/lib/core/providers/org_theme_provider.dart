@@ -66,3 +66,10 @@ final orgNameProvider = FutureProvider<String>((ref) async {
   final name = await ApiService().getCurrentOrganizationName();
   return (name == null || name.isEmpty) ? 'Axisora' : name;
 });
+
+/// The current organization's tenant slug (e.g. "manyasree" or "axisora"),
+/// used to resolve tenant URLs across web views and integrations.
+final tenantSlugProvider = FutureProvider<String>((ref) async {
+  final slug = await ApiService().getCurrentOrganizationSlug();
+  return (slug == null || slug.isEmpty) ? 'axisora' : slug;
+});

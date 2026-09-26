@@ -1963,11 +1963,47 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body) as Map<String, dynamic>;
-        return (decoded['name'] as String?)?.trim();
+        final name = (decoded['name'] as String?)?.trim();
+        final slug = (decoded['slug'] as String?)?.trim().toLowerCase();
+        if (slug != null && slug.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('tenant_slug', slug);
+        }
+        return name;
       }
       return null;
     } catch (e) {
       print('Error fetching organization name: $e');
+      return null;
+    }
+  }
+
+  /// The current organization's tenant slug (e.g. "manyasree" or "axisora"),
+  /// used to construct tenant-scoped web URLs (such as the Coding Playground).
+  Future<String?> getCurrentOrganizationSlug() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('tenant_slug');
+      if (cached != null && cached.trim().isNotEmpty) {
+        return cached.trim().toLowerCase();
+      }
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/organizations/current'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        final slug = (decoded['slug'] as String?)?.trim().toLowerCase();
+        if (slug != null && slug.isNotEmpty) {
+          await prefs.setString('tenant_slug', slug);
+          return slug;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching organization slug: $e');
       return null;
     }
   }
