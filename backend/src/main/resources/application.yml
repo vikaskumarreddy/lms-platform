@@ -63,8 +63,8 @@ aws:
   region: ${AWS_REGION:us-east-1}
   s3:
     bucket: ${AWS_S3_BUCKET:axisora-lms-media}
-    access-key: ${AWS_ACCESS_KEY_ID:AKIA4YEATDV5BT4U5QFV}
-    secret-key: ${AWS_SECRET_ACCESS_KEY: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}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
     endpoint: ${AWS_S3_ENDPOINT:https://s3.us-east-1.amazonaws.com}
     enabled: ${AWS_S3_ENABLED:true}
 springdoc:
