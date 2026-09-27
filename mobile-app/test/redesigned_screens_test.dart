@@ -149,6 +149,13 @@ void main() {
     await tester.tap(find.text('Ask'));
     await tester.pumpAndSettle();
     expect(find.text('Ask a Question'), findsOneWidget);
+    expect(find.text('FORMAT:'), findsOneWidget);
+    expect(find.text('Preview'), findsOneWidget);
+
+    // Tap preview toggle
+    await tester.tap(find.text('Preview'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsOneWidget);
   });
 
   testWidgets('Company Questions Screen renders CommonHeaderScaffold',

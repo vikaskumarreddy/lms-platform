@@ -36,7 +36,7 @@ public class SecurityConfig {
                 // Spring Security's default X-Frame-Options: DENY blocks the admin
                 // portal's own <iframe> PDF viewer (Media & Files / Company Questions /
                 // course lessons), since that's a same-origin embed, not clickjacking.
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/organizations/public-info").permitAll()
@@ -51,7 +51,7 @@ public class SecurityConfig {
                         // <iframe src>, which are plain browser GETs that cannot attach an
                         // Authorization header — only the byte-serving endpoint is public,
                         // the list/upload/delete endpoints below still require a valid JWT.
-                        .requestMatchers("/api/media/*/serve").permitAll()
+                        .requestMatchers("/api/media/*/serve", "/api/media/*/serve/**").permitAll()
                         // Coding IDE & Playground endpoints (for embedded mobile webviews and student exams)
                         .requestMatchers("/api/coding/**").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()

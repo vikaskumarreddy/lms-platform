@@ -1,19 +1,22 @@
 {
-    "name": "Academy LMS",
-    "short_name": "Academy LMS",
+    "name": "Axisora LMS",
+    "short_name": "Axisora LMS",
     "start_url": ".",
-    "display": "fullscreen",
+    "display": "standalone",
     "display_override": [
-        "window-controls-overlay",
-        "fullscreen",
         "standalone"
     ],
     "background_color": "#071D43",
     "theme_color": "#071D43",
-    "description": "Academy LMS Student Mobile Platform",
+    "description": "Axisora LMS Student Mobile Platform",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
+        {
+            "src": "favicon.png",
+            "sizes": "64x64",
+            "type": "image/png"
+        },
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
@@ -35,6 +38,11 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        },
+        {
+            "src": "apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png"
         }
     ]
 }

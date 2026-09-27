@@ -20,19 +20,23 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#071D43">
-  <meta name="description" content="Academy LMS Student Portal">
+  <meta name="description" content="Axisora LMS Student Mobile Portal">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Academy LMS">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Axisora LMS">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <!-- Favicon & Android shortcuts -->
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/Icon-192.png"/>
 
-  <title>Academy LMS</title>
+  <title>Axisora LMS</title>
   <link rel="manifest" href="manifest.json">
 
   <style>
@@ -43,8 +47,75 @@
       height: 100%;
       background-color: #071D43;
       overflow: hidden;
-      touch-action: pan-y;
       -webkit-font-smoothing: antialiased;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #loading-container {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #0F2D6B 0%, #071D43 70%, #041029 100%);
+      z-index: 999999;
+      transition: opacity 0.4s ease-out;
+      pointer-events: none;
+    }
+    .logo-container {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(39, 217, 211, 0.2), rgba(99, 102, 241, 0.2));
+      border: 1px solid rgba(39, 217, 211, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      box-shadow: 0 0 35px rgba(39, 217, 211, 0.35);
+      animation: pulse-glow 2s ease-in-out infinite alternate;
+    }
+    @keyframes pulse-glow {
+      0% { transform: scale(0.96); box-shadow: 0 0 20px rgba(39, 217, 211, 0.25); }
+      100% { transform: scale(1.04); box-shadow: 0 0 45px rgba(39, 217, 211, 0.55); }
+    }
+    .brand-title {
+      color: #FFFFFF;
+      font-size: 20px;
+      font-weight: 700;
+      margin-top: 18px;
+      letter-spacing: 0.5px;
+    }
+    .brand-subtitle {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 13px;
+      margin-top: 6px;
+      font-weight: 400;
+    }
+    .progress-bar-container {
+      width: 180px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      margin-top: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar {
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, #27D9D3, #6366F1);
+      border-radius: 4px;
+      position: absolute;
+      animation: progress-indet 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    @keyframes progress-indet {
+      0% { left: -40%; width: 40%; }
+      50% { left: 30%; width: 60%; }
+      100% { left: 100%; width: 40%; }
     }
   </style>
 
@@ -55,14 +126,47 @@
   <script type="application/javascript" src="assets/packages/flutter_inappwebview_web/assets/web/web_support.js"></script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="loading-container">
+    <div class="logo-container">🎓</div>
+    <div class="brand-title">Axisora Forge Academy</div>
+    <div class="brand-subtitle">Loading your workspace...</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar"></div>
+    </div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Force purge any old service workers and CacheStorage
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) {
+          regs[i].unregister();
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        for (var i = 0; i < keys.length; i++) {
+          caches.delete(keys[i]);
+        }
+      });
+    }
+    function dismissLoader() {
+      var loader = document.getElementById('loading-container');
+      if (loader) {
+        loader.style.opacity = '0';
+        loader.style.pointerEvents = 'none';
+        setTimeout(function () {
+          if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 400);
+      }
+    }
+    window.addEventListener('flutter-first-frame', dismissLoader);
+    window.addEventListener('load', function() {
+      setTimeout(dismissLoader, 1200);
+    });
+    setTimeout(dismissLoader, 2500);
+  </script>
+  <script src="flutter_bootstrap.js?v=20260927_10" async></script>
 </body>
 </html>

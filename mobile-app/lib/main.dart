@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -73,10 +74,33 @@ class LmsApp extends ConsumerWidget {
       darkTheme: AppTheme.darkThemeFor(orgTheme),
       themeMode: themeMode,
       routerConfig: router,
+      scrollBehavior: const AppScrollBehavior(),
       debugShowCheckedModeBanner: false,
       supportedLocales: const [
         Locale('en'),
       ],
+    );
+  }
+}
+
+/// Custom scroll behavior providing silky smooth, continuous inertia scrolling
+/// across mobile, web, and desktop with mouse wheel, trackpad, and touch.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.unknown,
+      };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
     );
   }
 }

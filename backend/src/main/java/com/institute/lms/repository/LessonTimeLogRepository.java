@@ -25,6 +25,8 @@ public interface LessonTimeLogRepository extends JpaRepository<LessonTimeLog, Lo
     /** The session still running for this student, if any. At most one exists (partial unique index). */
     Optional<LessonTimeLog> findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(Long userId);
 
+    List<LessonTimeLog> findAllByUserIdAndEndedAtIsNullOrderByStartedAtDesc(Long userId);
+
     Optional<LessonTimeLog> findFirstByUserIdAndLessonIdAndEndedAtIsNullOrderByStartedAtDesc(
             Long userId, Long lessonId);
 

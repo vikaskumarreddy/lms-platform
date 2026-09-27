@@ -141,19 +141,25 @@ public class MediaController {
      * <p>When stored in S3, redirects to an S3 presigned URL which natively
      * supports HTTP Range requests (206 Partial Content) for seeking.
      */
-    @GetMapping("/{id}/serve")
-    public ResponseEntity<?> serve(@PathVariable Long id, HttpServletRequest request) {
+    @GetMapping(value = {"/{id}/serve", "/{id}/serve/{filename}"})
+    public ResponseEntity<?> serve(@PathVariable Long id,
+                                   @PathVariable(required = false) String filename,
+                                   HttpServletRequest request) {
         MediaItem item = repository.findById(id).orElse(null);
         if (item == null) {
             return ResponseEntity.notFound().build();
         }
 
         if (s3StorageService.isConfigured() && item.getFileName() != null && item.getFileName().startsWith("academy/")) {
-            String presignedUrl = s3StorageService.generatePresignedUrl(item.getFileName(), java.time.Duration.ofHours(2));
-            if (presignedUrl != null) {
-                return ResponseEntity.status(HttpStatus.FOUND)
-                        .location(java.net.URI.create(presignedUrl))
-                        .build();
+            try {
+                String presignedUrl = s3StorageService.generatePresignedUrl(item.getFileName(), java.time.Duration.ofHours(2));
+                if (presignedUrl != null) {
+                    return ResponseEntity.status(HttpStatus.FOUND)
+                            .location(java.net.URI.create(presignedUrl))
+                            .build();
+                }
+            } catch (Exception e) {
+                log.warn("Failed generating S3 presigned URL for item {}: {}, attempting local disk", id, e.getMessage());
             }
         }
 
@@ -200,9 +206,15 @@ public class MediaController {
                         .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + total)
                 : ResponseEntity.ok();
 
+        String ext = (item.getMimeType() != null && item.getMimeType().contains("pdf")) ? ".pdf" : "";
+        String safeName = safeFileName(item.getTitle());
+        if (!ext.isEmpty() && !safeName.toLowerCase().endsWith(ext)) {
+            safeName += ext;
+        }
+
         return builder
                 .header(HttpHeaders.CONTENT_TYPE, contentType.toString())
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeFileName(item.getTitle()) + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeName + "\"")
                 .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(body.length))

@@ -16,16 +16,17 @@ class EnvStaging {
   static const String apiBaseUrl = 'http://axisoraforge.in:8080/api';
 
   /// Live Admin / Web Portal base URL.
-  static const String webBaseUrl = 'http://axisoraforge.in';
+  static const String webBaseUrl = 'https://axisoraforge.in';
 
   /// Android emulator URL (identical to host because axisoraforge.in is a public domain).
-  static const String androidEmulatorApiBaseUrl = 'http://axisoraforge.in:8080/api';
-  static const String androidEmulatorWebBaseUrl = 'http://axisoraforge.in';
+  static const String androidEmulatorApiBaseUrl = 'https://axisoraforge.in/api';
+  static const String androidEmulatorWebBaseUrl = 'https://axisoraforge.in';
 
   /// Returns the tenant-scoped web portal URL for a given tenant slug.
-  /// e.g., tenantWebUrl('axisora')    → http://axisora.axisoraforge.in
-  /// e.g., tenantWebUrl('manyasree')  → http://manyasree.axisoraforge.in
-  static String tenantWebUrl(String tenantSlug) => 'http://$tenantSlug.$rootDomain';
+  /// e.g., tenantWebUrl('axisora')    → https://axisora.axisoraforge.in
+  /// e.g., tenantWebUrl('manyasree')  → https://manyasree.axisoraforge.in
+  static const String appDomain = 'https://app.axisoraforge.in';
+  static String tenantWebUrl(String tenantSlug) => 'https://$tenantSlug.$rootDomain';
 
   /// Public certificate verification URL template.
   static String certificateVerifyUrl(String credentialId) =>

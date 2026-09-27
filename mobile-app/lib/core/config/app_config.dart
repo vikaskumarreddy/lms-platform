@@ -42,7 +42,7 @@ class AppConfig {
           return '$origin/api';
         }
         if (Uri.base.host.contains('axisoraforge.in')) {
-          return 'http://axisoraforge.in:8080/api';
+          return 'https://axisoraforge.in/api';
         }
       } catch (_) {}
     }

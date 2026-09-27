@@ -68,6 +68,7 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:https://s3.us-east-1.amazonaws.com}
     enabled: ${AWS_S3_ENABLED:true}
 springdoc:
+
   api-docs:
     path: /api-docs
   swagger-ui:

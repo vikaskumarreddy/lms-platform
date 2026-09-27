@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -212,31 +213,37 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
       right: 0,
       child: Tooltip(
         message: isNavBarHidden ? 'Show Navigation' : 'Hide Navigation',
-        child: GestureDetector(
-          key: ValueKey(isNavBarHidden ? 'show-nav-bar-btn' : 'hide-nav-bar-btn'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            HapticFeedback.lightImpact();
-            final isHidden = ref.read(shellNavBarHiddenProvider);
-            ref.read(shellNavBarHiddenProvider.notifier).state = !isHidden;
-          },
-          onVerticalDragUpdate: (details) {
-            setState(() {
-              final currentTop = _arrowTopOffset ?? (screenHeight * 0.72);
-              final newTop = currentTop + details.delta.dy;
-              _arrowTopOffset = newTop.clamp(screenHeight * 0.25, screenHeight * 0.82);
-            });
-          },
-          onHorizontalDragEnd: (details) {
-            final vx = details.primaryVelocity ?? 0;
-            if (vx < -120) {
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            key: ValueKey(isNavBarHidden ? 'show-nav-bar-btn' : 'hide-nav-bar-btn'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
               HapticFeedback.lightImpact();
-              ref.read(shellNavBarHiddenProvider.notifier).state = false;
-            } else if (vx > 120) {
-              HapticFeedback.lightImpact();
-              ref.read(shellNavBarHiddenProvider.notifier).state = true;
-            }
-          },
+              final isHidden = ref.read(shellNavBarHiddenProvider);
+              ref.read(shellNavBarHiddenProvider.notifier).state = !isHidden;
+            },
+            onVerticalDragUpdate: kIsWeb
+                ? null
+                : (details) {
+                    setState(() {
+                      final currentTop = _arrowTopOffset ?? (screenHeight * 0.72);
+                      final newTop = currentTop + details.delta.dy;
+                      _arrowTopOffset = newTop.clamp(screenHeight * 0.25, screenHeight * 0.82);
+                    });
+                  },
+            onHorizontalDragEnd: kIsWeb
+                ? null
+                : (details) {
+                    final vx = details.primaryVelocity ?? 0;
+                    if (vx < -120) {
+                      HapticFeedback.lightImpact();
+                      ref.read(shellNavBarHiddenProvider.notifier).state = false;
+                    } else if (vx > 120) {
+                      HapticFeedback.lightImpact();
+                      ref.read(shellNavBarHiddenProvider.notifier).state = true;
+                    }
+                  },
           child: Container(
             width: 30,
             height: 54,
@@ -281,6 +288,7 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

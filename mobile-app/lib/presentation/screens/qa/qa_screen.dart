@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/widgets/common_header.dart';
 import '../../../core/services/api_service.dart';
@@ -18,6 +21,7 @@ class _QaScreenState extends ConsumerState<QaScreen> {
   final _titleController = TextEditingController();
   final _categoryController = TextEditingController();
   bool _showAskForm = false;
+  bool _previewQuestion = false;
   bool _isLoading = true;
   bool _isSubmitting = false;
   List<QuestionModel> _questions = [];
@@ -206,102 +210,136 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                 ? bottomInset + 16
                 : math.max(systemBottom + 20, isHidden ? 28.0 : 110.0);
 
-            return SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: authorColor.withOpacity(0.25),
-                          child: Text(
-                            _authorInitial(qa.authorName),
-                            style: TextStyle(
-                              color: authorColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                qa.authorName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _formatTimeAgo(qa.createdAt),
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+              ),
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 4.5,
                           decoration: BoxDecoration(
-                            color: authorColor.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: authorColor.withOpacity(0.4)),
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(3),
                           ),
-                          child: Text(
-                            qa.category,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: authorColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: authorColor.withOpacity(0.25),
+                            child: Text(
+                              _authorInitial(qa.authorName),
+                              style: TextStyle(
+                                color: authorColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      qa.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  qa.authorName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatTimeAgo(qa.createdAt),
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: authorColor.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: authorColor.withOpacity(0.4)),
+                            ),
+                            child: Text(
+                              qa.category,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: authorColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    if (qa.content.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
                       Text(
-                        qa.content,
+                        qa.title,
                         style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13.5,
-                          height: 1.45,
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
+                      if (qa.content.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: qa.content));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Question copied to clipboard'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.copy_rounded, color: Colors.white.withOpacity(0.5), size: 12),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Copy',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.5),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        _buildFormattedAnswer(qa.content),
+                      ],
                     const Divider(color: Colors.white12, height: 28),
                     Row(
                       children: [
@@ -455,9 +493,26 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                                     ),
                                   ),
                                 ],
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(6),
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: answer.content));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Answer copied to clipboard'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(Icons.copy_rounded, color: Colors.white.withOpacity(0.55), size: 14),
+                                  ),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             _buildFormattedAnswer(answer.content),
                           ],
                         ),
@@ -530,6 +585,41 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                         ),
                       ),
                     const SizedBox(height: 6),
+                    // Mini formatting bar for replies
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Text(
+                            'FORMAT: ',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          _buildMiniChip('B', () {
+                            _insertInController(answerCtrl, '**', '**');
+                            setSheetState(() {});
+                          }),
+                          const SizedBox(width: 4),
+                          _buildMiniChip('H3', () {
+                            _insertInController(answerCtrl, '### ', '');
+                            setSheetState(() {});
+                          }),
+                          const SizedBox(width: 4),
+                          _buildMiniChip('<>', () {
+                            _insertInController(answerCtrl, '```\n', '\n```');
+                            setSheetState(() {});
+                          }),
+                          const SizedBox(width: 4),
+                          _buildMiniChip('•', () {
+                            _insertInController(answerCtrl, '- ', '');
+                            setSheetState(() {});
+                          }),
+                        ],
+                      ),
+                    ),
                     // Answer input
                     Container(
                       decoration: BoxDecoration(
@@ -613,6 +703,7 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                   ],
                 ),
               ),
+             ),
             );
           },
         );
@@ -760,33 +851,125 @@ class _QaScreenState extends ConsumerState<QaScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF104476).withOpacity(0.55),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withOpacity(0.15)),
-                          ),
-                          child: TextField(
-                            controller: _questionController,
-                            cursorColor: _cyan,
-                            maxLines: 3,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13.5),
-                            decoration: const InputDecoration(
-                              filled: true,
-                              fillColor: Colors.transparent,
-                              hintText: 'Describe your question in detail...',
-                              hintStyle: TextStyle(
-                                  color: Colors.white54, fontSize: 13),
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                            ),
+                        // Rich formatting toolbar & preview toggle
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        'FORMAT:',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.45),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _buildFormatChip('B', 'Bold (**text**)', () => _insertMarkdown('**', '**', defaultText: 'bold text')),
+                                      const SizedBox(width: 5),
+                                      _buildFormatChip('H3', 'Heading (### Heading)', () => _insertMarkdown('### ', '', defaultText: 'Heading')),
+                                      const SizedBox(width: 5),
+                                      _buildFormatChip('<>', 'Code Block', () => _insertMarkdown('```\n', '\n```', defaultText: '// code here')),
+                                      const SizedBox(width: 5),
+                                      _buildFormatChip('•', 'Bullet List', () => _insertMarkdown('- ', '', defaultText: 'List item')),
+                                      const SizedBox(width: 5),
+                                      _buildFormatChip('⊞', 'Table', () => _insertMarkdown('| Header 1 | Header 2 |\n|---|---|\n| Value 1 | Value 2 |\n', '')),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () => setState(() => _previewQuestion = !_previewQuestion),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _previewQuestion ? _cyan.withOpacity(0.25) : Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: _previewQuestion ? _cyan : Colors.white24),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _previewQuestion ? Icons.edit_note_rounded : Icons.visibility_rounded,
+                                        size: 13,
+                                        color: _previewQuestion ? _cyan : Colors.white70,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _previewQuestion ? 'Edit' : 'Preview',
+                                        style: TextStyle(
+                                          color: _previewQuestion ? _cyan : Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        if (_previewQuestion)
+                          Container(
+                            constraints: const BoxConstraints(minHeight: 90, maxHeight: 220),
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF071D43).withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _cyan.withOpacity(0.4)),
+                            ),
+                            child: SingleChildScrollView(
+                              child: _questionController.text.trim().isEmpty
+                                  ? Text(
+                                      'Nothing to preview yet. Use the formatting buttons above to compose markdown with headings, code blocks, lists, and tables.',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.45),
+                                        fontStyle: FontStyle.italic,
+                                        fontSize: 12.5,
+                                      ),
+                                    )
+                                  : _buildFormattedAnswer(_questionController.text),
+                            ),
+                          )
+                        else
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF104476).withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.15)),
+                            ),
+                            child: TextField(
+                              controller: _questionController,
+                              cursorColor: _cyan,
+                              maxLines: 4,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13.5),
+                              decoration: const InputDecoration(
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                hintText: 'Describe your question in detail (supports Markdown, tables, code blocks)...',
+                                hintStyle: TextStyle(
+                                    color: Colors.white54, fontSize: 13),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -961,87 +1144,266 @@ class _QaScreenState extends ConsumerState<QaScreen> {
     );
   }
 
-  Widget _buildFormattedAnswer(String text) {
-    final lines = text.split('\n');
-    final widgets = <Widget>[];
+  void _insertMarkdown(String prefix, String suffix, {String defaultText = ''}) {
+    final text = _questionController.text;
+    final selection = _questionController.selection;
+    final start = selection.start;
+    final end = selection.end;
 
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) {
-        widgets.add(const SizedBox(height: 4));
-        continue;
-      }
+    if (start >= 0 && end >= 0 && start != end) {
+      final selectedText = text.substring(start, end);
+      final newText = text.replaceRange(start, end, '$prefix$selectedText$suffix');
+      _questionController.text = newText;
+      _questionController.selection = TextSelection(
+        baseOffset: start + prefix.length,
+        extentOffset: start + prefix.length + selectedText.length,
+      );
+    } else {
+      final insertPos = start >= 0 ? start : text.length;
+      final insertContent = '$prefix$defaultText$suffix';
+      final newText = text.replaceRange(insertPos, insertPos, insertContent);
+      _questionController.text = newText;
+      _questionController.selection = TextSelection.collapsed(
+        offset: insertPos + prefix.length + defaultText.length,
+      );
+    }
+    setState(() {});
+  }
 
-      final spans = <InlineSpan>[];
-      final pattern = RegExp(r'(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`)');
-      int lastIndex = 0;
+  void _insertInController(TextEditingController ctrl, String prefix, String suffix) {
+    final text = ctrl.text;
+    final selection = ctrl.selection;
+    final start = selection.start;
+    final end = selection.end;
+    if (start >= 0 && end >= 0 && start != end) {
+      final selectedText = text.substring(start, end);
+      final newText = text.replaceRange(start, end, '$prefix$selectedText$suffix');
+      ctrl.text = newText;
+      ctrl.selection = TextSelection(
+        baseOffset: start + prefix.length,
+        extentOffset: start + prefix.length + selectedText.length,
+      );
+    } else {
+      final insertPos = start >= 0 ? start : text.length;
+      final newText = text.replaceRange(insertPos, insertPos, '$prefix$suffix');
+      ctrl.text = newText;
+      ctrl.selection = TextSelection.collapsed(
+        offset: insertPos + prefix.length,
+      );
+    }
+  }
 
-      for (final match in pattern.allMatches(line)) {
-        if (match.start > lastIndex) {
-          spans.add(TextSpan(text: line.substring(lastIndex, match.start)));
-        }
-
-        final matched = match.group(0)!;
-        if (matched.startsWith('**') && matched.endsWith('**') && matched.length >= 4) {
-          spans.add(
-            TextSpan(
-              text: matched.substring(2, matched.length - 2),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          );
-        } else if (matched.startsWith('*') && matched.endsWith('*') && matched.length >= 2) {
-          spans.add(
-            TextSpan(
-              text: matched.substring(1, matched.length - 1),
-              style: const TextStyle(
-                fontStyle: FontStyle.italic,
-                color: Colors.white70,
-              ),
-            ),
-          );
-        } else if (matched.startsWith('`') && matched.endsWith('`') && matched.length >= 2) {
-          spans.add(
-            TextSpan(
-              text: ' ' + matched.substring(1, matched.length - 1) + ' ',
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: _cyan,
-                backgroundColor: Colors.black38,
-              ),
-            ),
-          );
-        }
-        lastIndex = match.end;
-      }
-
-      if (lastIndex < line.length) {
-        spans.add(TextSpan(text: line.substring(lastIndex)));
-      }
-
-      widgets.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1.5),
-          child: Text.rich(
-            TextSpan(children: spans),
+  Widget _buildFormatChip(String symbol, String tooltip, VoidCallback onTap) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Text(
+            symbol,
             style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-              height: 1.4,
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'monospace',
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _buildMiniChip(String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10.5,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Formats markdown content with support for GFM Tables, Headers, Code Blocks, and Lists.
+  Widget _buildFormattedAnswer(String text) {
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
+    final normalized = _normalizeMarkdown(text);
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: const Color(0xFF0C2B64),
+      ),
+      child: MarkdownBody(
+        data: normalized,
+        selectable: false,
+        onTapLink: (text, href, title) {
+          if (href != null && href.isNotEmpty) {
+            launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
+          }
+        },
+        styleSheet: MarkdownStyleSheet(
+          p: const TextStyle(
+            color: Colors.white,
+            fontSize: 13.5,
+            height: 1.55,
+          ),
+          h1: const TextStyle(
+            color: _cyan,
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h2: const TextStyle(
+            color: _cyan,
+            fontSize: 15.5,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h3: const TextStyle(
+            color: _cyan,
+            fontSize: 14.5,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h4: const TextStyle(
+            color: Colors.white,
+            fontSize: 13.5,
+            fontWeight: FontWeight.bold,
+          ),
+          strong: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          em: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontStyle: FontStyle.italic,
+          ),
+          listBullet: const TextStyle(
+            color: _cyan,
+            fontWeight: FontWeight.bold,
+          ),
+          blockquote: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+          ),
+          blockquoteDecoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            border: const Border(left: BorderSide(color: _cyan, width: 3)),
+            borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+          ),
+          code: const TextStyle(
+            color: _cyan,
+            fontSize: 12,
+            fontFamily: 'monospace',
+            backgroundColor: Color(0xFF030712),
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: const Color(0xFF030712),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white12),
+          ),
+          codeblockPadding: const EdgeInsets.all(12),
+          horizontalRuleDecoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.18), width: 1),
+            ),
+          ),
+          // Tables styling
+          tableHead: const TextStyle(
+            color: _cyan,
+            fontSize: 12.5,
+            fontWeight: FontWeight.bold,
+          ),
+          tableBody: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            height: 1.4,
+          ),
+          tableBorder: TableBorder.all(
+            color: const Color(0xFF1E5BB0).withOpacity(0.6),
+            width: 1,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          tableHeadAlign: TextAlign.left,
+          tableVerticalAlignment: TableCellVerticalAlignment.middle,
+        ),
+      ),
     );
+  }
+
+  /// Normalizes incoming AI markdown so tables and dividers format cleanly:
+  /// 1. If an AI generates a table missing a delimiter row (| --- | --- |), synthesizes one.
+  /// 2. Ensures horizontal rules (---) have double newlines so they don't convert prior text into H2 headers.
+  String _normalizeMarkdown(String raw) {
+    if (raw.isEmpty) return raw;
+
+    final lines = raw.split('\n');
+    final processed = <String>[];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      // Ensure horizontal rule --- has blank lines around it so markdown doesn't parse it as Setext header
+      if (trimmed == '---' || trimmed == '***') {
+        if (processed.isNotEmpty && processed.last.trim().isNotEmpty) {
+          processed.add('');
+        }
+        processed.add('---');
+        processed.add('');
+        continue;
+      }
+
+      // Check for table lines starting and ending with pipe |
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        processed.add(trimmed);
+
+        // Check if next line is already a delimiter (| --- | or |:--|)
+        final nextLine = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+        final isNextDelimiter = nextLine.startsWith('|') &&
+            (nextLine.contains('---') || nextLine.contains(':--') || nextLine.contains('--:'));
+
+        // If this is the first row of a table and next line is NOT a delimiter, synthesize one
+        final isPreviousTableRow = (i > 0) && lines[i - 1].trim().startsWith('|');
+        if (!isPreviousTableRow && !isNextDelimiter && nextLine.startsWith('|')) {
+          final columnCount = trimmed.split('|').length - 2;
+          if (columnCount > 0) {
+            final delimiterRow = '| ${List.filled(columnCount, ':---').join(' | ')} |';
+            processed.add(delimiterRow);
+          }
+        }
+        continue;
+      }
+
+      processed.add(line);
+    }
+
+    return processed.join('\n');
   }
 }
 
@@ -1064,6 +1426,18 @@ class _QuestionCard extends StatelessWidget {
   static const _cyan = Color(0xFF27D9D3);
   static const _green = Color(0xFF10B981);
   static const _amber = Color(0xFFF59E0B);
+
+  static String _cleanMarkdownPreview(String raw) {
+    if (raw.isEmpty) return raw;
+    return raw
+        .replaceAll(RegExp(r'#+\s*'), '')
+        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1')
+        .replaceAll(RegExp(r'\*([^*]+)\*'), r'$1')
+        .replaceAll(RegExp(r'`([^`]+)`'), r'$1')
+        .replaceAll(RegExp(r'\|'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1155,7 +1529,7 @@ class _QuestionCard extends StatelessWidget {
                 if (qa.content.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(
-                    qa.content,
+                    _cleanMarkdownPreview(qa.content),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

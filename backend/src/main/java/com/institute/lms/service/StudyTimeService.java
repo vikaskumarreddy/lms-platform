@@ -56,6 +56,7 @@ public class StudyTimeService {
     public LessonTimeLog startSession(User user, Long lessonId, Long courseId, String source) {
         if (user == null) return null;
         closeActiveSession(user);
+        timeLogRepository.flush();
 
         Lesson lesson = lessonId != null ? lessonRepository.findById(lessonId).orElse(null) : null;
         LessonTimeLog log = new LessonTimeLog();
@@ -66,7 +67,7 @@ public class StudyTimeService {
         log.setStartedAt(LocalDateTime.now());
         log.setActivityDate(LocalDate.now());
         log.setDurationSeconds(0);
-        return timeLogRepository.save(log);
+        return timeLogRepository.saveAndFlush(log);
     }
 
     /**
@@ -95,9 +96,14 @@ public class StudyTimeService {
     @Transactional
     public LessonTimeLog closeActiveSession(User user) {
         if (user == null) return null;
-        Optional<LessonTimeLog> open =
-                timeLogRepository.findFirstByUserIdAndEndedAtIsNullOrderByStartedAtDesc(user.getId());
-        return open.map(this::close).orElse(null);
+        List<LessonTimeLog> openList =
+                timeLogRepository.findAllByUserIdAndEndedAtIsNullOrderByStartedAtDesc(user.getId());
+        LessonTimeLog last = null;
+        for (LessonTimeLog open : openList) {
+            last = close(open);
+        }
+        timeLogRepository.flush();
+        return last;
     }
 
     private LessonTimeLog close(LessonTimeLog log) {
@@ -107,7 +113,7 @@ public class StudyTimeService {
         if (seconds > MAX_SESSION_SECONDS) seconds = MAX_SESSION_SECONDS;
         log.setEndedAt(now);
         log.setDurationSeconds((int) seconds);
-        return timeLogRepository.save(log);
+        return timeLogRepository.saveAndFlush(log);
     }
 
     /**

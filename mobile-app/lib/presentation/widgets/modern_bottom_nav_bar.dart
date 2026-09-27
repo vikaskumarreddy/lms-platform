@@ -396,6 +396,7 @@ class _GlassTab extends StatelessWidget {
         maxWidth: ModernBottomNavBar.expandedWidth + 24,
         child: Center(
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: onTap,
             child: Opacity(
               opacity: opacity,

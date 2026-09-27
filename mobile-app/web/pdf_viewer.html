@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <title>Lesson Notes Viewer</title>
+  <script src="/pdfjs/pdf.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #071D43;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      color: #FFFFFF;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #viewer-container {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 8px 76px 8px; /* bottom padding for floating controls */
+      scroll-behavior: smooth;
+    }
+    .page-container {
+      position: relative;
+      background: #FFFFFF;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .page-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    /* Subtle skeleton placeholder inside full-size white page */
+    .page-skeleton {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #F8FAFC 25%, #E2E8F0 50%, #F8FAFC 75%);
+      background-size: 200% 100%;
+      animation: pulse 1.6s infinite ease-in-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #64748B;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .page-skeleton .spinner-mini {
+      width: 26px;
+      height: 26px;
+      border: 2.5px solid rgba(39, 217, 211, 0.3);
+      border-top-color: #0C2B64;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 8px;
+    }
+    @keyframes pulse {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    /* Floating Bottom Toolbar */
+    #toolbar {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12, 43, 100, 0.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 30px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    }
+    .tool-btn {
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background 0.15s, transform 0.1s;
+      outline: none;
+    }
+    .tool-btn:active {
+      background: #27D9D3;
+      color: #071D43;
+      transform: scale(0.92);
+    }
+    .tool-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .page-badge {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #E2E8F0;
+      padding: 0 4px;
+      gap: 4px;
+    }
+    .page-input {
+      width: 40px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #FFFFFF;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 0;
+      outline: none;
+    }
+    .page-input:focus {
+      border-color: #27D9D3;
+      background: rgba(39, 217, 211, 0.2);
+    }
+    .separator {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.25);
+      margin: 0 2px;
+    }
+    /* Loading & Error Screens */
+    #loading-state, #error-state {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #071D43;
+      z-index: 500;
+      text-align: center;
+      padding: 20px;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(39, 217, 211, 0.2);
+      border-top-color: #27D9D3;
+      border-radius: 50%;
+      animation: spin 0.9s cubic-bezier(0.6, 0.2, 0.4, 0.8) infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-size: 14px;
+      color: #94A3B8;
+      letter-spacing: 0.3px;
+    }
+    .error-text {
+      color: #F87171;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .retry-btn {
+      background: #27D9D3;
+      color: #071D43;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-state">
+    <div class="spinner"></div>
+    <div class="loading-text">Loading lesson notes...</div>
+  </div>
+
+  <div id="error-state" style="display: none;">
+    <div class="error-text" id="error-msg">Failed to load notes</div>
+    <button class="retry-btn" onclick="loadPdf()">Retry</button>
+  </div>
+
+  <div id="viewer-container"></div>
+
+  <div id="toolbar" style="display: none;">
+    <button class="tool-btn" id="prev-btn" title="Previous page" onclick="changePage(-1)">‹</button>
+    <div class="page-badge">
+      <input type="number" id="current-page-input" class="page-input" value="1" min="1">
+      <span>/</span>
+      <span id="total-pages">--</span>
+    </div>
+    <button class="tool-btn" id="next-btn" title="Next page" onclick="changePage(1)">›</button>
+    <div class="separator"></div>
+    <button class="tool-btn" title="Zoom out" onclick="zoom(-0.15)">−</button>
+    <button class="tool-btn" title="Fit to width" onclick="fitToWidth()" style="font-size: 11.5px; width: 36px; border-radius: 16px;">Fit</button>
+    <button class="tool-btn" title="Zoom in" onclick="zoom(0.15)">+</button>
+  </div>
+
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+    } else {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = () => {
+        if (window.pdfjsLib) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          loadPdf();
+        }
+      };
+      document.head.appendChild(s);
+    }
+
+    let pdfDoc = null;
+    let totalPages = 0;
+    let currentPage = 1;
+    let currentScale = 1.0;
+    let isFitToWidth = true;
+    let nativePageWidth = 595;
+    let nativePageHeight = 842;
+    let renderingPages = new Set();
+    let renderedPages = new Set();
+
+    const viewerContainer = document.getElementById('viewer-container');
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const errorMsg = document.getElementById('error-msg');
+    const toolbar = document.getElementById('toolbar');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const pageInput = document.getElementById('current-page-input');
+    const totalPagesSpan = document.getElementById('total-pages');
+
+    function getPdfUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('file');
+    }
+
+    function getTargetWidth() {
+      const cw = viewerContainer.clientWidth;
+      const ww = window.innerWidth;
+      const dw = document.documentElement ? document.documentElement.clientWidth : 0;
+      const available = Math.max(cw || 0, ww || 0, dw || 0);
+      // Ensure target width is at least 320px and clamped to max 920px for desktop reading comfort
+      return Math.max(300, Math.min(920, available - 16));
+    }
+
+    function calculateScale(pageW) {
+      if (isFitToWidth) {
+        const targetW = getTargetWidth();
+        currentScale = targetW / pageW;
+        currentScale = Math.max(0.35, Math.min(3.5, currentScale));
+      }
+    }
+
+    async function loadPdf() {
+      const url = getPdfUrl();
+      if (!url) {
+        showError('No PDF URL specified.');
+        return;
+      }
+
+      loadingState.style.display = 'flex';
+      errorState.style.display = 'none';
+      toolbar.style.display = 'none';
+      viewerContainer.innerHTML = '';
+      renderingPages.clear();
+      renderedPages.clear();
+
+      try {
+        const loadingTask = pdfjsLib.getDocument({
+          url: url,
+          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+          cMapPacked: true,
+          withCredentials: false
+        });
+
+        pdfDoc = await loadingTask.promise;
+        totalPages = pdfDoc.numPages;
+        totalPagesSpan.textContent = totalPages;
+        pageInput.max = totalPages;
+
+        // Get unscaled dimensions of page 1
+        const firstPage = await pdfDoc.getPage(1);
+        const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
+        nativePageWidth = unscaledViewport.width || 595;
+        nativePageHeight = unscaledViewport.height || 842;
+
+        calculateScale(nativePageWidth);
+        createPlaceholders();
+
+        loadingState.style.display = 'none';
+        toolbar.style.display = 'flex';
+        updateToolbar();
+
+        // Render initial batch of pages immediately
+        // If document has <= 10 pages, render ALL pages right away
+        const initialBatch = totalPages <= 10 ? totalPages : Math.min(totalPages, 4);
+        for (let i = 1; i <= initialBatch; i++) {
+          renderPage(i);
+        }
+      } catch (err) {
+        console.error('Error loading PDF:', err);
+        showError('Unable to open document. ' + (err.message || ''));
+      }
+    }
+
+    function createPlaceholders() {
+      viewerContainer.innerHTML = '';
+      const w = Math.round(nativePageWidth * currentScale);
+      const h = Math.round(nativePageHeight * currentScale);
+
+      for (let i = 1; i <= totalPages; i++) {
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'page-container';
+        pageDiv.id = `page-${i}`;
+        pageDiv.dataset.pageNumber = i;
+        pageDiv.style.width = `${w}px`;
+        pageDiv.style.height = `${h}px`;
+
+        pageDiv.innerHTML = `
+          <div class="page-skeleton" id="skeleton-${i}">
+            <div class="spinner-mini"></div>
+            <span>Page ${i}</span>
+          </div>
+        `;
+
+        viewerContainer.appendChild(pageDiv);
+      }
+    }
+
+    async function renderPage(pageNum) {
+      if (renderingPages.has(pageNum) || renderedPages.has(pageNum)) return;
+      renderingPages.add(pageNum);
+
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const container = document.getElementById(`page-${pageNum}`);
+        if (!container) return;
+
+        const dpr = Math.min(window.devicePixelRatio || 1.5, 2.0);
+        const viewport = page.getViewport({ scale: currentScale });
+
+        // Update container exact dimensions for this specific page
+        container.style.width = `${Math.round(viewport.width)}px`;
+        container.style.height = `${Math.round(viewport.height)}px`;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = `${Math.round(viewport.width)}px`;
+        canvas.style.height = `${Math.round(viewport.height)}px`;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+
+        container.innerHTML = '';
+        container.appendChild(canvas);
+        renderedPages.add(pageNum);
+      } catch (err) {
+        console.error(`Error rendering page ${pageNum}:`, err);
+      } finally {
+        renderingPages.delete(pageNum);
+      }
+    }
+
+    function checkVisiblePages() {
+      if (!pdfDoc) return;
+      const containerRect = viewerContainer.getBoundingClientRect();
+      const viewTop = containerRect.top;
+      const viewBottom = containerRect.bottom;
+      const centerY = viewTop + (containerRect.height / 3);
+
+      let closestPage = currentPage;
+      let minDiff = Infinity;
+
+      const pageContainers = document.querySelectorAll('.page-container');
+      pageContainers.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const pageNum = parseInt(el.dataset.pageNumber, 10);
+
+        // Pre-render pages that are within 300px above or below viewport
+        if (rect.bottom >= (viewTop - 350) && rect.top <= (viewBottom + 350)) {
+          if (!renderedPages.has(pageNum)) {
+            renderPage(pageNum);
+          }
+        }
+
+        // Find current visible page
+        const diff = Math.abs(rect.top - centerY);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestPage = pageNum;
+        }
+      });
+
+      if (closestPage !== currentPage) {
+        currentPage = closestPage;
+        updateToolbar();
+      }
+    }
+
+    viewerContainer.addEventListener('scroll', checkVisiblePages, { passive: true });
+
+    function updateToolbar() {
+      pageInput.value = currentPage;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+    }
+
+    function scrollToPage(num) {
+      if (num < 1) num = 1;
+      if (num > totalPages) num = totalPages;
+      const el = document.getElementById(`page-${num}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        currentPage = num;
+        updateToolbar();
+        renderPage(num);
+      }
+    }
+
+    function changePage(delta) {
+      scrollToPage(currentPage + delta);
+    }
+
+    pageInput.addEventListener('change', () => {
+      const val = parseInt(pageInput.value, 10);
+      if (!isNaN(val)) scrollToPage(val);
+    });
+
+    pageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        pageInput.blur();
+        const val = parseInt(pageInput.value, 10);
+        if (!isNaN(val)) scrollToPage(val);
+      }
+    });
+
+    async function rerenderAll() {
+      renderedPages.clear();
+      renderingPages.clear();
+      createPlaceholders();
+      // Render current page and nearby pages immediately
+      const start = Math.max(1, currentPage - 1);
+      const end = Math.min(totalPages, currentPage + 2);
+      for (let i = start; i <= end; i++) {
+        renderPage(i);
+      }
+      scrollToPage(currentPage);
+    }
+
+    function zoom(delta) {
+      isFitToWidth = false;
+      currentScale = Math.max(0.4, Math.min(3.2, currentScale + delta));
+      rerenderAll();
+    }
+
+    function fitToWidth() {
+      isFitToWidth = true;
+      calculateScale(nativePageWidth);
+      rerenderAll();
+    }
+
+    // Responsive Resize Observer
+    if (window.ResizeObserver) {
+      let lastWidth = 0;
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const w = Math.round(entry.contentRect.width);
+          if (w > 100 && Math.abs(w - lastWidth) > 20) {
+            lastWidth = w;
+            if (isFitToWidth && pdfDoc) {
+              fitToWidth();
+            }
+          }
+        }
+      });
+      ro.observe(viewerContainer);
+    }
+
+    window.addEventListener('resize', () => {
+      if (isFitToWidth && pdfDoc) {
+        fitToWidth();
+      }
+    });
+
+    function showError(msg) {
+      loadingState.style.display = 'none';
+      toolbar.style.display = 'none';
+      errorMsg.textContent = msg;
+      errorState.style.display = 'flex';
+    }
+
+    // Auto-start
+    loadPdf();
+  </script>
+</body>
+</html>

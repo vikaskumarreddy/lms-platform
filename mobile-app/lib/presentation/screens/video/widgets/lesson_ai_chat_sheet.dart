@@ -1,6 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../../data/models/lesson.dart';
 
@@ -22,6 +25,7 @@ class LessonAiChatSheet extends ConsumerStatefulWidget {
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (_) => LessonAiChatSheet(
@@ -49,6 +53,9 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
 
   bool _loading = true;
   bool _sending = false;
+  bool _isExpanded = false;
+  bool _showScrollToBottom = false;
+  bool _showScrollToTop = false;
   String? _error;
 
   int _questionLimit = 100;
@@ -68,15 +75,31 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadHistory();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    final curr = _scrollController.offset;
+    final showBottom = (max - curr) > 160;
+    final showTop = curr > 160;
+    if (showBottom != _showScrollToBottom || showTop != _showScrollToTop) {
+      setState(() {
+        _showScrollToBottom = showBottom;
+        _showScrollToTop = showTop;
+      });
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -222,15 +245,28 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
     });
   }
 
+  void _scrollToTop({bool animated = true}) {
+    if (!_scrollController.hasClients) return;
+    if (animated) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final bottomInset = mq.viewInsets.bottom;
-    final maxHeight = mq.size.height * 0.88;
+    final sheetHeight = _isExpanded ? (mq.size.height * 0.96) : (mq.size.height * 0.88);
 
     return Container(
       width: double.infinity,
-      constraints: BoxConstraints(maxHeight: maxHeight),
+      height: sheetHeight,
       decoration: const BoxDecoration(
         color: _bgNavy,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -245,7 +281,7 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
       ),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           _buildDragHandle(),
           _buildHeader(),
@@ -263,13 +299,16 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
   }
 
   Widget _buildDragHandle() {
-    return Container(
-      width: 42,
-      height: 4.5,
-      margin: const EdgeInsets.only(top: 10, bottom: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(3),
+    return GestureDetector(
+      onTap: () => setState(() => _isExpanded = !_isExpanded),
+      child: Container(
+        width: 42,
+        height: 4.5,
+        margin: const EdgeInsets.only(top: 10, bottom: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.25),
+          borderRadius: BorderRadius.circular(3),
+        ),
       ),
     );
   }
@@ -285,7 +324,7 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
       ),
@@ -293,8 +332,8 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
         children: [
           // AI Sparkle Avatar
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [_cyan, _indigo],
@@ -310,9 +349,9 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
                 ),
               ],
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 17),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,7 +366,7 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
                       'AI Tutor',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -349,23 +388,23 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   widget.lesson.heading.isNotEmpty ? widget.lesson.heading : widget.lesson.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.65),
-                    fontSize: 11.5,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           // Questions limit badge
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
             decoration: BoxDecoration(
               color: badgeColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
@@ -374,26 +413,50 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.bolt, size: 12, color: badgeColor),
+                Icon(Icons.bolt, size: 11, color: badgeColor),
                 const SizedBox(width: 2),
                 Text(
                   '$_questionsRemaining/$_questionLimit left',
                   style: TextStyle(
                     color: badgeColor,
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
+          // Clear history button
+          if (_messages.isNotEmpty)
+            IconButton(
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(5),
+              icon: Icon(Icons.delete_sweep_outlined, color: Colors.white.withOpacity(0.6), size: 18),
+              onPressed: _clearChat,
+              splashRadius: 16,
+              tooltip: 'Clear chat',
+            ),
+          // Expand / collapse button
           IconButton(
             constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(5),
+            icon: Icon(
+              _isExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+              color: Colors.white.withOpacity(0.7),
+              size: 20,
+            ),
+            onPressed: () => setState(() => _isExpanded = !_isExpanded),
+            splashRadius: 16,
+            tooltip: _isExpanded ? 'Restore size' : 'Expand full screen',
+          ),
+          // Close button
+          IconButton(
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(5),
             icon: Icon(Icons.close_rounded, color: Colors.white.withOpacity(0.8), size: 20),
             onPressed: () => Navigator.pop(context),
-            splashRadius: 18,
+            splashRadius: 16,
             tooltip: 'Close',
           ),
         ],
@@ -432,7 +495,7 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'You have reached your limit of $_questionLimit questions for this lesson. Customizable in Admin Portal.',
+              'You have reached your limit of $_questionLimit questions for this lesson.',
               style: const TextStyle(color: Color(0xFFF59E0B), fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
@@ -446,101 +509,223 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
       return _buildEmptyGreeting();
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _messages.length + (_sending ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == _messages.length && _sending) {
-          return _buildThinkingBubble();
-        }
-        final msg = _messages[index];
-        final isUser = msg['role'] == 'user';
-        return _buildMessageItem(msg['content'] ?? '', isUser);
-      },
+    return ScrollConfiguration(
+      behavior: const _AiChatScrollBehavior(),
+      child: Stack(
+        children: [
+          Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            interactive: true,
+            radius: const Radius.circular(8),
+            thickness: 6,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragUpdate: (details) {
+                if (_scrollController.hasClients) {
+                  final delta = details.primaryDelta ?? 0.0;
+                  final newOffset = (_scrollController.offset - delta).clamp(
+                    0.0,
+                    _scrollController.position.maxScrollExtent,
+                  );
+                  _scrollController.jumpTo(newOffset);
+                }
+              },
+              onVerticalDragEnd: (details) {
+                if (!_scrollController.hasClients) return;
+                final velocity = details.primaryVelocity ?? 0.0;
+                if (velocity.abs() > 80) {
+                  final flingDistance = -velocity * 0.28;
+                  final target = (_scrollController.offset + flingDistance).clamp(
+                    0.0,
+                    _scrollController.position.maxScrollExtent,
+                  );
+                  _scrollController.animateTo(
+                    target,
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.decelerate,
+                  );
+                }
+              },
+              child: ListView.builder(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 30),
+                itemCount: _messages.length + (_sending ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _messages.length && _sending) {
+                    return _buildThinkingBubble();
+                  }
+                  final msg = _messages[index];
+                  final isUser = msg['role'] == 'user';
+                  return _buildMessageItem(msg['content'] ?? '', isUser);
+                },
+              ),
+            ),
+          ),
+          // Quick Jump to Bottom floating button
+          if (_showScrollToBottom)
+            Positioned(
+              right: 16,
+              bottom: 12,
+              child: Material(
+                color: _indigo,
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _scrollToBottom(animated: true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Latest',
+                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // Quick Jump to Top floating button
+          if (_showScrollToTop && !_showScrollToBottom)
+            Positioned(
+              right: 16,
+              top: 10,
+              child: Material(
+                color: _cardNavy.withOpacity(0.9),
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: _borderNavy.withOpacity(0.6)),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _scrollToTop(animated: true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_upward_rounded, color: _cyan, size: 13),
+                        SizedBox(width: 3),
+                        Text(
+                          'Top',
+                          style: TextStyle(color: Colors.white70, fontSize: 10.5, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _buildEmptyGreeting() {
     final title = widget.lesson.heading.isNotEmpty ? widget.lesson.heading : widget.lesson.title;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cardNavy.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _borderNavy.withOpacity(0.4)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.waving_hand_rounded, color: Color(0xFFF59E0B), size: 18),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Welcome to AI Tutor!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+    return ScrollConfiguration(
+      behavior: const _AiChatScrollBehavior(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onVerticalDragUpdate: (details) {
+          if (_scrollController.hasClients) {
+            final delta = details.primaryDelta ?? 0.0;
+            final newOffset = (_scrollController.offset - delta).clamp(
+              0.0,
+              _scrollController.position.maxScrollExtent,
+            );
+            _scrollController.jumpTo(newOffset);
+          }
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _cardNavy.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _borderNavy.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.waving_hand_rounded, color: Color(0xFFF59E0B), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Welcome to AI Tutor!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'I am your AI study mentor for "$title". Ask me anything from the lesson notes or concepts. I can create comparison tables, explain formulas, write code examples, and solve doubts step by step.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 13.5,
+                      height: 1.45,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'I am your AI study mentor for "$title". I use the lesson notes and PDF materials as my foundation, and can explain concepts, write code examples, and answer your doubts step by step.',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 13.5,
-                    height: 1.45,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'SUGGESTED QUESTIONS',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.55),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+            const SizedBox(height: 20),
+            Text(
+              'SUGGESTED QUESTIONS',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.55),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _starterSuggestions.map((prompt) {
-              return ActionChip(
-                backgroundColor: _cardNavy,
-                side: BorderSide(color: _cyan.withOpacity(0.3)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                label: Text(
-                  prompt,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _starterSuggestions.map((prompt) {
+                return ActionChip(
+                  backgroundColor: _cardNavy,
+                  side: BorderSide(color: _cyan.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  label: Text(
+                    prompt,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                onPressed: _isLimitReached ? null : () => _sendMessage(prompt),
-              );
-            }).toList(),
-          ),
-        ],
+                  onPressed: _isLimitReached ? null : () => _sendMessage(prompt),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildMessageItem(String content, bool isUser) {
     return Align(
@@ -548,11 +733,14 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: isUser ? (MediaQuery.of(context).size.width * 0.82) : double.infinity,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: isUser ? 14 : 12,
+          vertical: 12,
+        ),
         decoration: BoxDecoration(
-          color: isUser ? _indigo.withOpacity(0.85) : _cardNavy,
+          color: isUser ? _indigo.withOpacity(0.88) : _cardNavy,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -560,12 +748,12 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
             bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
           ),
           border: Border.all(
-            color: isUser ? _indigo.withOpacity(0.5) : _borderNavy.withOpacity(0.6),
+            color: isUser ? _indigo.withOpacity(0.6) : _borderNavy.withOpacity(0.8),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
-              blurRadius: 4,
+              color: Colors.black.withOpacity(0.16),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -578,12 +766,12 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.auto_awesome, color: _cyan, size: 14),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 5),
                   const Text(
                     'AI Tutor',
                     style: TextStyle(
                       color: _cyan,
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -600,13 +788,13 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
                     },
                     borderRadius: BorderRadius.circular(4),
                     child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(Icons.copy_rounded, color: Colors.white.withOpacity(0.5), size: 14),
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.copy_rounded, color: Colors.white.withOpacity(0.6), size: 14),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
             ],
             _buildFormattedText(content, isUser),
           ],
@@ -624,7 +812,7 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
         decoration: BoxDecoration(
           color: _cardNavy,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _borderNavy.withOpacity(0.4)),
+          border: Border.all(color: _borderNavy.withOpacity(0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -649,217 +837,173 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
     );
   }
 
+  /// Formats markdown content with support for GFM Tables, Headers, Code Blocks, and Lists.
   Widget _buildFormattedText(String text, bool isUser) {
-    if (text.contains('```')) {
-      final parts = text.split('```');
-      final widgets = <Widget>[];
-
-      for (int i = 0; i < parts.length; i++) {
-        final part = parts[i];
-        if (i % 2 == 1) {
-          // Code block
-          String code = part;
-          String? lang;
-          final firstLineBreak = part.indexOf('\n');
-          if (firstLineBreak != -1) {
-            lang = part.substring(0, firstLineBreak).trim();
-            code = part.substring(firstLineBreak + 1);
-          }
-          widgets.add(_buildCodeBlock(code, lang));
-        } else if (part.trim().isNotEmpty) {
-          widgets.add(_buildMarkdownParagraph(part, isUser));
-        }
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: widgets,
+    if (isUser) {
+      return Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          height: 1.45,
+        ),
       );
     }
 
-    return _buildMarkdownParagraph(text, isUser);
+    final normalized = _normalizeMarkdown(text);
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardColor: const Color(0xFF0C2B64),
+      ),
+      child: MarkdownBody(
+        data: normalized,
+        selectable: false,
+        onTapLink: (text, href, title) {
+          if (href != null && href.isNotEmpty) {
+            launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
+          }
+        },
+        styleSheet: MarkdownStyleSheet(
+          p: const TextStyle(
+            color: Colors.white,
+            fontSize: 13.5,
+            height: 1.55,
+          ),
+          h1: const TextStyle(
+            color: _cyan,
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h2: const TextStyle(
+            color: _cyan,
+            fontSize: 15.5,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h3: const TextStyle(
+            color: _cyan,
+            fontSize: 14.5,
+            fontWeight: FontWeight.bold,
+            height: 1.35,
+          ),
+          h4: const TextStyle(
+            color: Colors.white,
+            fontSize: 13.5,
+            fontWeight: FontWeight.bold,
+          ),
+          strong: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          em: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontStyle: FontStyle.italic,
+          ),
+          listBullet: const TextStyle(
+            color: _cyan,
+            fontWeight: FontWeight.bold,
+          ),
+          blockquote: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+          ),
+          blockquoteDecoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            border: const Border(left: BorderSide(color: _cyan, width: 3)),
+            borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+          ),
+          code: const TextStyle(
+            color: _cyan,
+            fontSize: 12,
+            fontFamily: 'monospace',
+            backgroundColor: Color(0xFF030712),
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: const Color(0xFF030712),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white12),
+          ),
+          codeblockPadding: const EdgeInsets.all(12),
+          horizontalRuleDecoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.18), width: 1),
+            ),
+          ),
+          // Tables styling
+          tableHead: const TextStyle(
+            color: _cyan,
+            fontSize: 12.5,
+            fontWeight: FontWeight.bold,
+          ),
+          tableBody: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            height: 1.4,
+          ),
+          tableBorder: TableBorder.all(
+            color: _borderNavy.withOpacity(0.8),
+            width: 1,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          tableHeadAlign: TextAlign.left,
+          tableVerticalAlignment: TableCellVerticalAlignment.middle,
+        ),
+      ),
+    );
   }
 
-  Widget _buildMarkdownParagraph(String text, bool isUser) {
-    final lines = text.split('\n');
-    final widgets = <Widget>[];
+  /// Normalizes incoming AI markdown so tables and dividers format cleanly:
+  /// 1. If an AI generates a table missing a delimiter row (| --- | --- |), synthesizes one.
+  /// 2. Ensures horizontal rules (---) have double newlines so they don't convert prior text into H2 headers.
+  String _normalizeMarkdown(String raw) {
+    if (raw.isEmpty) return raw;
+
+    final lines = raw.split('\n');
+    final processed = <String>[];
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final trimmed = line.trim();
 
-      if (trimmed.isEmpty) {
-        widgets.add(const SizedBox(height: 5));
+      // Ensure horizontal rule --- has blank lines around it so markdown doesn't parse it as Setext header
+      if (trimmed == '---' || trimmed == '***') {
+        if (processed.isNotEmpty && processed.last.trim().isNotEmpty) {
+          processed.add('');
+        }
+        processed.add('---');
+        processed.add('');
         continue;
       }
 
-      // Headers like ### Header or ## Header or # Header
-      if (trimmed.startsWith(RegExp(r'^#{1,6}\s+'))) {
-        final title = trimmed.replaceFirst(RegExp(r'^#{1,6}\s+'), '');
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: _cyan,
-                fontSize: 14.5,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-        );
+      // Check for table lines starting and ending with pipe |
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        processed.add(trimmed);
+
+        // Check if next line is already a delimiter (| --- | or |:--|)
+        final nextLine = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+        final isNextDelimiter = nextLine.startsWith('|') &&
+            (nextLine.contains('---') || nextLine.contains(':--') || nextLine.contains('--:'));
+
+        // If this is the first row of a table and next line is NOT a delimiter, synthesize one
+        final isPreviousTableRow = (i > 0) && lines[i - 1].trim().startsWith('|');
+        if (!isPreviousTableRow && !isNextDelimiter && nextLine.startsWith('|')) {
+          final columnCount = trimmed.split('|').length - 2;
+          if (columnCount > 0) {
+            final delimiterRow = '| ${List.filled(columnCount, ':---').join(' | ')} |';
+            processed.add(delimiterRow);
+          }
+        }
         continue;
       }
 
-      // Regular line with inline markdown formatting: **bold**, *italic*, `code`
-      final spans = _parseInlineMarkdown(line);
-      widgets.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1.5),
-          child: Text.rich(
-            TextSpan(children: spans),
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.95),
-              fontSize: 13.5,
-              height: 1.45,
-            ),
-          ),
-        ),
-      );
+      processed.add(line);
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
-    );
-  }
-
-  List<InlineSpan> _parseInlineMarkdown(String line) {
-    final spans = <InlineSpan>[];
-    final pattern = RegExp(r'(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`)');
-    int lastIndex = 0;
-
-    for (final match in pattern.allMatches(line)) {
-      if (match.start > lastIndex) {
-        spans.add(TextSpan(text: line.substring(lastIndex, match.start)));
-      }
-
-      final matchedText = match.group(0)!;
-      if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
-        spans.add(
-          TextSpan(
-            text: matchedText.substring(2, matchedText.length - 2),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        );
-      } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
-        spans.add(
-          TextSpan(
-            text: matchedText.substring(1, matchedText.length - 1),
-            style: const TextStyle(
-              fontStyle: FontStyle.italic,
-              color: Colors.white70,
-            ),
-          ),
-        );
-      } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF030712),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Text(
-                matchedText.substring(1, matchedText.length - 1),
-                style: const TextStyle(
-                  color: _cyan,
-                  fontSize: 11.5,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-
-      lastIndex = match.end;
-    }
-
-    if (lastIndex < line.length) {
-      spans.add(TextSpan(text: line.substring(lastIndex)));
-    }
-
-    return spans;
-  }
-
-  Widget _buildCodeBlock(String code, String? lang) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF030712),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (lang != null && lang.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.04),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    lang.toUpperCase(),
-                    style: TextStyle(
-                      color: _cyan.withOpacity(0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const Spacer(),
-                  InkWell(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: code.trim()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Code copied!'), duration: Duration(seconds: 1)),
-                      );
-                    },
-                    child: const Icon(Icons.copy_rounded, color: Colors.white60, size: 12),
-                  ),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: SelectableText(
-              code.trim(),
-              style: const TextStyle(
-                color: Color(0xFFE2E8F0),
-                fontSize: 12,
-                fontFamily: 'monospace',
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return processed.join('\n');
   }
 
   Widget _buildInputBar() {
@@ -874,85 +1018,98 @@ class _LessonAiChatSheetState extends ConsumerState<LessonAiChatSheet> {
           color: _bgNavy,
           border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
         ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: _cardNavy,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: _focusNode.hasFocus ? _cyan : _borderNavy.withOpacity(0.4),
+                    width: 1.2,
+                  ),
+                ),
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  enabled: !disabled,
+                  textCapitalization: TextCapitalization.sentences,
+                  cursorColor: _cyan,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: _cardNavy,
+                    isDense: true,
+                    hintText: _isLimitReached
+                        ? 'Question limit reached for this lesson'
+                        : 'Ask anything about this lesson...',
+                    hintStyle: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 13.5,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  onSubmitted: disabled ? null : (_) => _sendMessage(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
               decoration: BoxDecoration(
-                color: _cardNavy,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: _focusNode.hasFocus ? _cyan : _borderNavy.withOpacity(0.4),
-                  width: 1.2,
-                ),
+                gradient: disabled
+                    ? LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800])
+                    : const LinearGradient(colors: [_cyan, _indigo]),
+                shape: BoxShape.circle,
+                boxShadow: disabled
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: _cyan.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
               ),
-              child: TextField(
-                controller: _textController,
-                focusNode: _focusNode,
-                enabled: !disabled,
-                textCapitalization: TextCapitalization.sentences,
-                cursorColor: _cyan,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                minLines: 1,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: _cardNavy,
-                  isDense: true,
-                  hintText: _isLimitReached
-                      ? 'Question limit reached for this lesson'
-                      : 'Ask anything about this lesson...',
-                  hintStyle: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13.5,
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onSubmitted: disabled ? null : (_) => _sendMessage(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            decoration: BoxDecoration(
-              gradient: disabled
-                  ? LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800])
-                  : const LinearGradient(colors: [_cyan, _indigo]),
-              shape: BoxShape.circle,
-              boxShadow: disabled
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: _cyan.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: disabled ? null : () => _sendMessage(),
-                child: const Padding(
-                  padding: EdgeInsets.all(11),
-                  child: Icon(
-                    Icons.arrow_upward_rounded,
-                    color: Colors.white,
-                    size: 19,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: disabled ? null : () => _sendMessage(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(11),
+                    child: Icon(
+                      Icons.arrow_upward_rounded,
+                      color: Colors.white,
+                      size: 19,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
+
+/// Custom scroll behavior enabling smooth touch, mouse, trackpad, and stylus dragging across all browsers & OS.
+class _AiChatScrollBehavior extends MaterialScrollBehavior {
+  const _AiChatScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }

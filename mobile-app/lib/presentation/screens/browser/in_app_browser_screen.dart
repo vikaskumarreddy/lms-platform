@@ -295,12 +295,16 @@ class _InAppBrowserScreenState extends State<InAppBrowserScreen> {
             ),
             onWebViewCreated: (controller) {
               _webViewController = controller;
-              controller.addJavaScriptHandler(
-                handlerName: 'returnToPaper',
-                callback: (args) {
-                  if (mounted) Navigator.of(context).pop(args.isNotEmpty ? args.first : true);
-                },
-              );
+              if (!kIsWeb) {
+                try {
+                  controller.addJavaScriptHandler(
+                    handlerName: 'returnToPaper',
+                    callback: (args) {
+                      if (mounted) Navigator.of(context).pop(args.isNotEmpty ? args.first : true);
+                    },
+                  );
+                } catch (_) {}
+              }
             },
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final uri = navigationAction.request.url?.uriValue;

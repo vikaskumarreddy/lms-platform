@@ -3,6 +3,7 @@ import '../../../core/utils/lesson_media.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
@@ -441,70 +442,90 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       backgroundColor: const Color(0xFF071D43),
       actions: [
         _buildAiHeaderButton(lesson),
+        IconButton(
+          tooltip: isNavBarHidden ? 'Show bottom navigation' : 'Hide bottom navigation',
+          icon: Icon(
+            isNavBarHidden ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+            color: isNavBarHidden ? const Color(0xFF27D9D3) : Colors.white70,
+            size: 22,
+          ),
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            ref.read(shellNavBarHiddenProvider.notifier).state = !isNavBarHidden;
+          },
+        ),
       ],
-      body: Stack(
-        children: [
-          // ── Base layer: heading, duration, PDF notes, and action buttons ──
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        lesson.heading,
-                        style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF27D9D3).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: const Color(0xFF27D9D3).withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.schedule,
-                              size: 14, color: Color(0xFF27D9D3)),
-                          const SizedBox(width: 4),
-                          Text(
-                            lesson.duration,
+              // ── Base layer: heading, duration, PDF notes, and action buttons ──
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lesson.heading,
                             style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27D9D3).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: const Color(0xFF27D9D3).withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.schedule,
+                                  size: 14, color: Color(0xFF27D9D3)),
+                              const SizedBox(width: 4),
+                              Text(
+                                lesson.duration,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _buildPdfNotesSection(primaryColor,
+                          fill: true, isNavBarHidden: isNavBarHidden),
+                    ),
+                  ),
+                  _buildActionButtons(lesson, primaryColor, secondaryColor,
+                      isNavBarHidden: isNavBarHidden),
+                ],
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: _buildPdfNotesSection(primaryColor, fill: true, isNavBarHidden: isNavBarHidden),
-                ),
-              ),
-              _buildActionButtons(lesson, primaryColor, secondaryColor, isNavBarHidden: isNavBarHidden),
+              // ── Floating draggable video (YouTube-style picture-in-picture) ──
+              if (hasVideo && !_videoHidden)
+                _buildFloatingVideo(lesson, isNavBarHidden, constraints: constraints),
+              if (hasVideo && _videoHidden)
+                _buildRestoreVideoChip(isNavBarHidden),
             ],
-          ),
-          // ── Floating draggable video (YouTube-style picture-in-picture) ──
-          if (hasVideo && !_videoHidden) _buildFloatingVideo(lesson, isNavBarHidden),
-          if (hasVideo && _videoHidden) _buildRestoreVideoChip(isNavBarHidden),
-        ],
+          );
+        },
       ),
     );
   }
@@ -768,32 +789,114 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
       );
     } else {
       if (kIsWeb) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isNarrow = screenWidth < 500;
+        final hasVideo = (_lesson?.videoUrl.trim().isNotEmpty ?? false);
         content = Column(
           children: [
             Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF0C2B64).withOpacity(0.7),
+                color: const Color(0xFF0C2B64).withOpacity(0.85),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.description, size: 16, color: Color(0xFF27D9D3)),
-                  const SizedBox(width: 8),
-                  const Text('Lesson Notes (PDF)',
-                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                  const Spacer(),
+                  const Icon(Icons.description_rounded, size: 16, color: Color(0xFF27D9D3)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      isNarrow ? 'Notes (PDF)' : 'Lesson Notes (PDF)',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (hasVideo) ...[
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(() {
+                          _videoHidden = !_videoHidden;
+                          if (!_videoHidden) _videoOffset = null;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _videoHidden
+                              ? const Color(0xFF27D9D3).withOpacity(0.25)
+                              : Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _videoHidden
+                                ? const Color(0xFF27D9D3)
+                                : Colors.white24,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _videoHidden
+                                  ? Icons.ondemand_video_rounded
+                                  : Icons.videocam_off_rounded,
+                              color: _videoHidden
+                                  ? const Color(0xFF27D9D3)
+                                  : Colors.white70,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _videoHidden ? 'Video' : 'Hide',
+                              style: TextStyle(
+                                color: _videoHidden
+                                    ? const Color(0xFF27D9D3)
+                                    : Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                  ],
                   TextButton.icon(
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                       backgroundColor: Colors.white.withOpacity(0.12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: _openFullscreenPdf,
-                    icon: const Icon(Icons.fullscreen, color: Colors.white, size: 16),
-                    label: const Text('Expand',
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                    icon: const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 13),
+                    label: Text(
+                      isNarrow ? 'Tab' : 'New Tab',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      backgroundColor: const Color(0xFF27D9D3).withOpacity(0.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: _downloadPdf,
+                    icon: const Icon(Icons.download_rounded, color: Color(0xFF27D9D3), size: 13),
+                    label: Text(
+                      isNarrow ? 'Save' : 'Download',
+                      style: const TextStyle(
+                          color: Color(0xFF27D9D3), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
@@ -1294,161 +1397,185 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   }
 
   /// YouTube-style draggable video popup. Floats above the full-page PDF at
-  /// the bottom-right by default, can be dragged anywhere, resized between
-  /// compact and full-width (double-tap or the expand button), and closed —
-  /// after which a restore chip brings it back. The [KeyedSubtree] with
-  /// [_videoKey] keeps the WebView Element alive across drags/resizes so
-  /// playback is never interrupted.
-  Widget _buildFloatingVideo(Lesson lesson, bool isNavBarHidden) {
-    final size = MediaQuery.of(context).size;
-    final double w = _videoExpanded ? size.width - 24 : 224.0;
-    final double h = _videoExpanded
-        ? (w * 9 / 16) + (kIsWeb ? 30.0 : 0.0)
-        : (kIsWeb ? 156.0 : 132.0);
-    // Default position: lower half of the screen (above the action buttons).
-    _videoOffset ??= Offset(size.width - w - 16, size.height * 0.45);
-    final double dx = _videoOffset!.dx
-        .clamp(0.0, (size.width - w).clamp(0.0, double.infinity));
-    final double bottomInset = isNavBarHidden ? 30.0 : 110.0;
-    final double dy = _videoOffset!.dy
-        .clamp(0.0, (size.height - h - bottomInset).clamp(0.0, double.infinity));
-    return Positioned(
-      left: dx,
-      top: dy,
-      width: w,
-      height: h,
-      child: GestureDetector(
-        // Dragging the popup repositions it; taps still pass through to the
-        // WebView so the video's own play/pause controls keep working.
-        onPanUpdate: (details) {
-          setState(() {
-            _videoOffset = Offset(dx + details.delta.dx, dy + details.delta.dy);
-          });
-        },
-        onDoubleTap: () => setState(() => _videoExpanded = !_videoExpanded),
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.black,
-          clipBehavior: Clip.antiAlias,
-          child: kIsWeb
-              ? Column(
-                  children: [
-                    Container(
-                      height: 30,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      color: const Color(0xFF0F172A),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.ondemand_video, size: 14, color: Color(0xFF27D9D3)),
-                          const SizedBox(width: 6),
-                          const Expanded(
-                            child: Text(
-                              'Video',
-                              style: TextStyle(
-                                  color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          _pipButton(
-                            _videoExpanded ? Icons.compress : Icons.open_in_full,
-                            tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
-                            onTap: () => setState(() => _videoExpanded = !_videoExpanded),
-                          ),
-                          const SizedBox(width: 4),
-                          _pipButton(
-                            Icons.close,
-                            tooltip: 'Hide video',
-                            onTap: () => setState(() => _videoHidden = true),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: KeyedSubtree(
-                        key: _videoKey,
-                        child: _buildVideoPlayer(lesson),
-                      ),
-                    ),
-                  ],
-                )
-              : Stack(
-                  children: [
-                    Positioned.fill(
-                      child: KeyedSubtree(
-                        key: _videoKey,
-                        child: _buildVideoPlayer(lesson),
-                      ),
-                    ),
-                    if (_isOfflineDownloaded)
-                      Positioned(
-                        top: 6,
-                        left: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.offline_pin, size: 10, color: Colors.white),
-                              SizedBox(width: 3),
-                              Text('OFFLINE',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    // Popup controls (expand + close)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _pipButton(
-                            _videoExpanded ? Icons.compress : Icons.open_in_full,
-                            tooltip: _videoExpanded ? 'Shrink' : 'Enlarge',
-                            onTap: () =>
-                                setState(() => _videoExpanded = !_videoExpanded),
-                          ),
-                          const SizedBox(width: 4),
-                          _pipButton(
-                            Icons.close,
-                            tooltip: 'Hide video',
-                            onTap: () => setState(() => _videoHidden = true),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+  /// the bottom-right by default, can be dragged anywhere via its top header bar,
+  /// resized between compact and expanded modes, and closed —
+  /// after which a restore chip brings it back.
+  void _toggleVideoExpanded() {
+    if (!kIsWeb) {
+      try {
+        HapticFeedback.lightImpact();
+      } catch (_) {}
+    }
+    setState(() {
+      _videoExpanded = !_videoExpanded;
+      _videoOffset = null; // Clear manual drag offset so the resized box centers/positions perfectly
+    });
+  }
+
+  void _closeVideo() {
+    if (!kIsWeb) {
+      try {
+        HapticFeedback.lightImpact();
+      } catch (_) {}
+    }
+    setState(() {
+      _videoHidden = true;
+    });
+  }
+
+  Widget _pipButton(
+    IconData icon, {
+    required VoidCallback onTap,
+    String? semanticLabel,
+    Color? backgroundColor,
+    Color? iconColor,
+  }) {
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (!kIsWeb) {
+              try {
+                HapticFeedback.lightImpact();
+              } catch (_) {}
+            }
+            onTap();
+          },
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            color: Colors.transparent, // Entire 40x40 area captures taps
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: backgroundColor ?? Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (iconColor ?? Colors.white).withOpacity(0.45),
+                  width: 1.2,
                 ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 16, color: iconColor ?? Colors.white),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  /// Small round translucent button used on the floating video popup.
-  Widget _pipButton(IconData icon,
-      {required String tooltip, required VoidCallback onTap}) {
-    return Material(
-      color: Colors.black.withOpacity(0.55),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(icon, size: 16, color: Colors.white),
-          ),
+  /// YouTube-style draggable video popup. Floats above the full-page PDF at
+  /// the bottom-right by default, can be dragged anywhere via its top header bar,
+  /// resized between compact and expanded modes, and closed —
+  /// after which a restore chip brings it back.
+  Widget _buildFloatingVideo(Lesson lesson, bool isNavBarHidden,
+      {BoxConstraints? constraints}) {
+    final size = MediaQuery.of(context).size;
+    final double availableWidth = constraints?.maxWidth ?? size.width;
+    final double availableHeight = constraints?.maxHeight ?? size.height;
+    final bool isSmallScreen = availableWidth < 600;
+
+    final double maxW = (availableWidth - 20).clamp(260.0, 780.0);
+    // On mobile devices, compact mode scales to 68% of screen width so it doesn't block the PDF
+    final double compactW = isSmallScreen
+        ? (availableWidth * 0.68).clamp(210.0, 275.0)
+        : 330.0;
+    final double w = _videoExpanded ? maxW : compactW;
+    final double h = (w * 9 / 16) + 40.0; // 16:9 aspect ratio + 40px top bar
+
+    final double maxLeft = (availableWidth - w).clamp(0.0, double.infinity);
+    final double maxTop = (availableHeight - h - (isNavBarHidden ? 8.0 : 16.0)).clamp(0.0, double.infinity);
+
+    final double defaultLeft = _videoExpanded
+        ? ((availableWidth - w) / 2).clamp(0.0, maxLeft)
+        : (availableWidth - w - 10.0).clamp(0.0, maxLeft);
+    final double defaultTop = _videoExpanded
+        ? ((availableHeight - h) / 2).clamp(6.0, maxTop)
+        : (maxTop * 0.65).clamp(6.0, maxTop);
+
+    // Default position: centered when expanded, right-docked when compact.
+    _videoOffset ??= Offset(defaultLeft, defaultTop);
+    final double dx = _videoOffset!.dx.clamp(0.0, maxLeft);
+    final double dy = _videoOffset!.dy.clamp(0.0, maxTop);
+
+    return Positioned(
+      left: dx,
+      top: dy,
+      width: w,
+      height: h,
+      child: Material(
+        elevation: 14,
+        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF0F172A),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            // Top header bar: acts as drag handle and houses explicit expand/shrink and close buttons
+            Container(
+              height: 40,
+              padding: const EdgeInsets.only(left: 10, right: 6),
+              color: const Color(0xFF0C2B64),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) {
+                        setState(() {
+                          _videoOffset = Offset(dx + details.delta.dx, dy + details.delta.dy);
+                        });
+                      },
+                      onDoubleTap: _toggleVideoExpanded,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.drag_indicator, size: 16, color: Colors.white54),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.ondemand_video_rounded, size: 16, color: Color(0xFF27D9D3)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _videoExpanded ? (lesson.title.isNotEmpty ? lesson.title : 'Lesson Video') : 'Video (Drag to move)',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  _pipButton(
+                    _videoExpanded ? Icons.close_fullscreen_rounded : Icons.open_in_full_rounded,
+                    semanticLabel: _videoExpanded ? 'Shrink video' : 'Enlarge video',
+                    onTap: _toggleVideoExpanded,
+                    backgroundColor: Colors.white.withOpacity(0.18),
+                    iconColor: const Color(0xFF27D9D3),
+                  ),
+                  const SizedBox(width: 4),
+                  _pipButton(
+                    Icons.close_rounded,
+                    semanticLabel: 'Close video',
+                    onTap: _closeVideo,
+                    backgroundColor: Colors.redAccent.withOpacity(0.32),
+                    iconColor: Colors.white,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: KeyedSubtree(
+                key: _videoKey,
+                child: _buildVideoPlayer(lesson),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1457,18 +1584,44 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// Shown after the popup is closed — restores the floating video.
   Widget _buildRestoreVideoChip(bool isNavBarHidden) {
     return Positioned(
-      right: 16,
-      bottom: isNavBarHidden ? 76 : 110,
-      child: FloatingActionButton(
-        heroTag: 'restoreLessonVideo',
-        tooltip: 'Show video',
-        backgroundColor: const Color(0xFF27D9D3),
-        foregroundColor: const Color(0xFF071D43),
-        onPressed: () => setState(() {
-          _videoHidden = false;
-          _videoOffset = null; // snap back to the default position
-        }),
-        child: const Icon(Icons.play_circle_fill, size: 28),
+      right: 14,
+      bottom: 12,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFF27D9D3),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            if (!kIsWeb) {
+              try {
+                HapticFeedback.lightImpact();
+              } catch (_) {}
+            }
+            setState(() {
+              _videoHidden = false;
+              _videoOffset = null; // snap back to default position
+            });
+          },
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.ondemand_video_rounded, size: 18, color: Color(0xFF071D43)),
+                SizedBox(width: 6),
+                Text(
+                  'Show Video',
+                  style: TextStyle(
+                    color: Color(0xFF071D43),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1544,11 +1697,15 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         userAgent: (youtube || !isNgrok) ? null : 'LMSStudentMedia/1.0',
       ),
       onWebViewCreated: (controller) {
-        controller.addJavaScriptHandler(
-            handlerName: 'videoError',
-            callback: (args) {
-              if (mounted) setState(() => _videoLoadFailed = true);
-            });
+        if (!kIsWeb) {
+          try {
+            controller.addJavaScriptHandler(
+                handlerName: 'videoError',
+                callback: (args) {
+                  if (mounted) setState(() => _videoLoadFailed = true);
+                });
+          } catch (_) {}
+        }
       },
       onReceivedError: (controller, request, error) {
         if (mounted && request.isForMainFrame == true) {
@@ -1568,12 +1725,13 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   /// work as expected.
   Widget _buildPdfView(String path) {
     if (kIsWeb) {
-      final googleDocsUrl = 'https://docs.google.com/viewer?embedded=true&url=${Uri.encodeComponent(path)}';
+      final viewerUrl = Uri.base.resolve('/pdf_viewer.html?file=${Uri.encodeComponent(path)}').toString();
       return InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(googleDocsUrl)),
+        initialUrlRequest: URLRequest(url: WebUri(viewerUrl)),
         initialSettings: InAppWebViewSettings(
           supportMultipleWindows: false,
           javaScriptEnabled: true,
+          allowsInlineMediaPlayback: true,
         ),
       );
     }
@@ -1672,12 +1830,19 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
 
   /// Expands the PDF to a dedicated full-screen page, hiding the rest of the
   /// lesson (video, buttons, etc.) so reading is distraction-free.
+  /// On Web, opens the PDF directly in a new browser tab for native zoom, print, and search.
   void _openFullscreenPdf() {
-    if (_pdfLocalPath == null) return;
+    final path = _pdfLocalPath;
+    if (path == null) return;
+    if (kIsWeb) {
+      final viewerUrl = Uri.base.resolve('/pdf_viewer.html?file=${Uri.encodeComponent(path)}').toString();
+      launchUrl(Uri.parse(viewerUrl), webOnlyWindowName: '_blank');
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _FullscreenPdfScreen(
-          path: _pdfLocalPath!,
+          path: path,
           title: _lesson?.title ?? 'Lesson Notes',
           initialPage: _pdfCurrentPage,
         ),
@@ -1748,10 +1913,11 @@ class _FullscreenPdfScreenState extends State<_FullscreenPdfScreen> {
           ? SafeArea(
               child: InAppWebView(
                 initialUrlRequest: URLRequest(
-                    url: WebUri('https://docs.google.com/viewer?embedded=true&url=${Uri.encodeComponent(widget.path)}')),
+                    url: WebUri(Uri.base.resolve('/pdf_viewer.html?file=${Uri.encodeComponent(widget.path)}').toString())),
                 initialSettings: InAppWebViewSettings(
                   supportMultipleWindows: false,
                   javaScriptEnabled: true,
+                  allowsInlineMediaPlayback: true,
                 ),
               ),
             )
