@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -91,6 +91,60 @@ export class CourseDetailComponent implements OnInit {
   editingModule: CourseModule | null = null;
   moduleForm: any = { title: '', description: '', orderIndex: 0, icon: '', color: '', isLocked: false };
   savingModule = false;
+
+  // Module pagination state (8-10 items per page)
+  modulePage = 1;
+  modulePageSize = 8;
+
+  get paginatedModules(): CourseModule[] {
+    if (!this.course?.modules) return [];
+    const start = (this.modulePage - 1) * this.modulePageSize;
+    return this.course.modules.slice(start, start + this.modulePageSize);
+  }
+
+  get totalModulePages(): number {
+    if (!this.course?.modules?.length) return 1;
+    return Math.ceil(this.course.modules.length / this.modulePageSize);
+  }
+
+  get moduleStartIndex(): number {
+    if (!this.course?.modules?.length) return 0;
+    return (this.modulePage - 1) * this.modulePageSize + 1;
+  }
+
+  get moduleEndIndex(): number {
+    if (!this.course?.modules?.length) return 0;
+    return Math.min(this.modulePage * this.modulePageSize, this.course.modules.length);
+  }
+
+  setModulePage(page: number) {
+    if (page >= 1 && page <= this.totalModulePages) {
+      this.modulePage = page;
+    }
+  }
+
+  setModulePageSize(size: any) {
+    this.modulePageSize = Number(size) || 8;
+    this.modulePage = 1;
+  }
+
+  get modulePageNumbers(): number[] {
+    const total = this.totalModulePages;
+    const current = this.modulePage;
+    const pages: number[] = [];
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+      if (current <= 4) {
+        pages.push(1, 2, 3, 4, 5, -1, total);
+      } else if (current >= total - 3) {
+        pages.push(1, -1, total - 4, total - 3, total - 2, total - 1, total);
+      } else {
+        pages.push(1, -1, current - 1, current, current + 1, -1, total);
+      }
+    }
+    return pages;
+  }
 
   // Lesson modal state
   showLessonModal = false;

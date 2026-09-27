@@ -37,6 +37,8 @@ import java.util.zip.GZIPOutputStream;
 @RequestMapping("/api/pdf-documents")
 public class PdfDocumentController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PdfDocumentController.class);
+
     private static final String STORAGE_DIR = "uploads/pdf-documents";
 
     private final PdfDocumentRepository repository;
@@ -164,17 +166,24 @@ public class PdfDocumentController {
                 ? userContext.currentUser().getOrganizationId()
                 : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
 
+        boolean uploadedToS3 = false;
         if (s3StorageService.isConfigured()) {
-            String fileName = "doc-" + System.currentTimeMillis() + "-"
-                    + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
-            String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
-            s3StorageService.upload(s3Key, pdf, "application/pdf");
-            if (doc.getFileName() != null && doc.getFileName().startsWith("academy/")) {
-                s3StorageService.delete(doc.getFileName());
+            try {
+                String fileName = "doc-" + System.currentTimeMillis() + "-"
+                        + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
+                String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
+                s3StorageService.upload(s3Key, pdf, "application/pdf");
+                if (doc.getFileName() != null && doc.getFileName().startsWith("academy/")) {
+                    s3StorageService.delete(doc.getFileName());
+                }
+                doc.setFileName(s3Key);
+                doc.setStoredSize((long) pdf.length);
+                uploadedToS3 = true;
+            } catch (Exception e) {
+                log.warn("S3 upload failed for PDF document ({}), falling back to local storage.", e.getMessage());
             }
-            doc.setFileName(s3Key);
-            doc.setStoredSize((long) pdf.length);
-        } else {
+        }
+        if (!uploadedToS3) {
             byte[] gzipped = gzip(pdf);
             String fileName = "doc-" + System.currentTimeMillis() + "-"
                     + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";

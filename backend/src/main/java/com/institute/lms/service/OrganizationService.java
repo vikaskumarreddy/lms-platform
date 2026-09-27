@@ -31,6 +31,8 @@ import java.util.UUID;
 @Service
 public class OrganizationService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OrganizationService.class);
+
     private final OrganizationRepository organizationRepository;
     private final OrganizationContext organizationContext;
     private final UserRepository userRepository;
@@ -357,12 +359,17 @@ public class OrganizationService {
                 : ".png";
         String fileName = "logo-" + orgId + "-" + UUID.randomUUID().toString().substring(0, 8) + extension;
 
-        String url;
+        String url = null;
         if (s3StorageService.isConfigured()) {
-            String s3Key = s3StorageService.buildKey(orgId, "images", fileName);
-            s3StorageService.upload(s3Key, file.getBytes(), contentType);
-            url = "/api/media/serve-key?key=" + s3Key;
-        } else {
+            try {
+                String s3Key = s3StorageService.buildKey(orgId, "images", fileName);
+                s3StorageService.upload(s3Key, file.getBytes(), contentType);
+                url = "/api/media/serve-key?key=" + s3Key;
+            } catch (Exception e) {
+                log.warn("S3 upload failed for logo ({}), falling back to local storage.", e.getMessage());
+            }
+        }
+        if (url == null) {
             String uploadDir = "uploads/organization-logos";
             Path uploadPath = Paths.get(uploadDir);
             if (!Files.exists(uploadPath)) {

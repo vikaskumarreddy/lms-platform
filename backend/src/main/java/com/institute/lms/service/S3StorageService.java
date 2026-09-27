@@ -52,6 +52,7 @@ public class S3StorageService {
 
     private S3Client s3Client;
     private S3Presigner presigner;
+    private boolean configured = false;
 
     @PostConstruct
     public void init() {
@@ -61,14 +62,38 @@ public class S3StorageService {
         }
 
         try {
+            String effectiveAccessKey = (accessKey != null && !accessKey.trim().isEmpty())
+                    ? accessKey.trim()
+                    : System.getenv("AWS_ACCESS_KEY_ID");
+            if (effectiveAccessKey == null || effectiveAccessKey.isBlank()) {
+                effectiveAccessKey = System.getProperty("aws.accessKeyId");
+            }
+
+            String effectiveSecretKey = (secretKey != null && !secretKey.trim().isEmpty())
+                    ? secretKey.trim()
+                    : System.getenv("AWS_SECRET_ACCESS_KEY");
+            if (effectiveSecretKey == null || effectiveSecretKey.isBlank()) {
+                effectiveSecretKey = System.getProperty("aws.secretAccessKey");
+            }
+
             AwsCredentialsProvider credentialsProvider;
-            if (accessKey != null && !accessKey.trim().isEmpty() &&
-                secretKey != null && !secretKey.trim().isEmpty()) {
+            if (effectiveAccessKey != null && !effectiveAccessKey.isBlank() &&
+                effectiveSecretKey != null && !effectiveSecretKey.isBlank()) {
                 credentialsProvider = StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey.trim(), secretKey.trim())
+                        AwsBasicCredentials.create(effectiveAccessKey.trim(), effectiveSecretKey.trim())
                 );
+                this.configured = true;
             } else {
-                credentialsProvider = DefaultCredentialsProvider.create();
+                try {
+                    AwsCredentialsProvider defaultProvider = DefaultCredentialsProvider.create();
+                    defaultProvider.resolveCredentials();
+                    credentialsProvider = defaultProvider;
+                    this.configured = true;
+                } catch (Exception credEx) {
+                    log.warn("AWS S3 credentials not provided via static keys or environment/IAM. S3 storage will remain disabled (falling back to local storage): {}", credEx.getMessage());
+                    this.configured = false;
+                    return;
+                }
             }
 
             S3ClientBuilder builder = S3Client.builder()
@@ -80,17 +105,61 @@ public class S3StorageService {
                             .region(Region.of(region))
                             .credentialsProvider(credentialsProvider);
 
-            if (endpoint != null && !endpoint.trim().isEmpty()) {
+            if (endpoint != null && !endpoint.trim().isEmpty() && !endpoint.contains("amazonaws.com")) {
                 URI endpointUri = URI.create(endpoint.trim());
-                builder.endpointOverride(endpointUri).forcePathStyle(true);
+                builder.endpointOverride(endpointUri);
                 presignerBuilder.endpointOverride(endpointUri);
+                builder.forcePathStyle(true);
             }
 
             this.s3Client = builder.build();
             this.presigner = presignerBuilder.build();
-            log.info("AWS S3 Storage initialized for bucket '{}' in region '{}'.", bucket, region);
+
+            // Verify bucket accessibility or attempt auto-creation
+            try {
+                s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+                this.configured = true;
+                log.info("AWS S3 Storage initialized and bucket '{}' verified successfully in region '{}'.", bucket, region);
+            } catch (Exception ex) {
+                boolean notFound = (ex instanceof NoSuchBucketException)
+                        || (ex instanceof S3Exception && ((S3Exception) ex).statusCode() == 404);
+                if (notFound) {
+                    log.info("AWS S3 bucket '{}' does not exist. Attempting to create it in region '{}'...", bucket, region);
+                    try {
+                        CreateBucketRequest.Builder cbr = CreateBucketRequest.builder().bucket(bucket);
+                        if (!"us-east-1".equalsIgnoreCase(region)) {
+                            cbr.createBucketConfiguration(CreateBucketConfiguration.builder()
+                                    .locationConstraint(BucketLocationConstraint.fromValue(region))
+                                    .build());
+                        }
+                        s3Client.createBucket(cbr.build());
+                        this.configured = true;
+                        log.info("Successfully created and initialized AWS S3 bucket '{}'.", bucket);
+                    } catch (Exception createEx) {
+                        this.configured = false;
+                        log.warn("Could not create AWS S3 bucket '{}': {}. S3 storage disabled (falling back to local storage).", bucket, createEx.getMessage());
+                        logAvailableBuckets();
+                    }
+                } else {
+                    this.configured = false;
+                    log.warn("S3 bucket '{}' check failed ({}: {}). S3 storage disabled (falling back to local storage).", bucket, ex.getClass().getSimpleName(), ex.getMessage());
+                    logAvailableBuckets();
+                }
+            }
         } catch (Exception e) {
+            this.configured = false;
             log.error("Failed to initialize AWS S3 client: {}", e.getMessage(), e);
+        }
+    }
+
+    private void logAvailableBuckets() {
+        if (s3Client == null) return;
+        try {
+            java.util.List<String> bucketNames = s3Client.listBuckets().buckets().stream()
+                    .map(Bucket::name).toList();
+            log.info("Available S3 buckets on this AWS account: {}", bucketNames);
+        } catch (Exception e) {
+            log.warn("Unable to list S3 buckets on this AWS account: {}", e.getMessage());
         }
     }
 
@@ -105,7 +174,7 @@ public class S3StorageService {
     }
 
     public boolean isConfigured() {
-        return enabled && s3Client != null;
+        return enabled && configured && s3Client != null;
     }
 
     public String getBucket() {

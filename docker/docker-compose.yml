@@ -34,8 +34,14 @@ services:
       SPRING_DATASOURCE_PASSWORD: lms123
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-}
-      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://axisoraforge.in}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://axisoraforge.in,https://*.axisoraforge.in,http://axisoraforge.in}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-https://axisoraforge.in}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-axisora-lms-media}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIA4YEATDV5BT4U5QFV}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-}
+      AWS_S3_ENABLED: ${AWS_S3_ENABLED:-true}
     volumes:
       # Media/PDF/Doc controllers write to ./uploads/* (relative to the
       # container's /app working dir). Without a persistent volume that
@@ -56,7 +62,11 @@ services:
     container_name: lms_admin
     ports:
       - "80:80"
+      - "443:443"
       - "4200:80"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - backend
     restart: unless-stopped

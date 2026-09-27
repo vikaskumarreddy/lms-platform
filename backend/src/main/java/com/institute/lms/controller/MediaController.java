@@ -42,6 +42,8 @@ import java.util.zip.GZIPOutputStream;
 @RequestMapping("/api/media")
 public class MediaController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MediaController.class);
+
     private static final String STORAGE_DIR = "uploads/media";
 
     /** Videos are capped smaller than generic files since they're the bulk of disk usage. */
@@ -254,12 +256,19 @@ public class MediaController {
                 + UUID.randomUUID().toString().substring(0, 8) + extension;
         String category = s3StorageService.normalizeCategory(item.getMediaType(), originalName);
 
+        boolean uploadedToS3 = false;
         if (s3StorageService.isConfigured()) {
-            String s3Key = s3StorageService.buildKey(academyId, category, fileName);
-            s3StorageService.upload(s3Key, raw, item.getMimeType());
-            item.setFileName(s3Key);
-            item.setStoredSize((long) raw.length);
-        } else {
+            try {
+                String s3Key = s3StorageService.buildKey(academyId, category, fileName);
+                s3StorageService.upload(s3Key, raw, item.getMimeType());
+                item.setFileName(s3Key);
+                item.setStoredSize((long) raw.length);
+                uploadedToS3 = true;
+            } catch (Exception e) {
+                log.warn("S3 upload failed for media ({}), falling back to local storage.", e.getMessage());
+            }
+        }
+        if (!uploadedToS3) {
             byte[] gzipped = gzip(raw);
             String localFileName = fileName + ".bin.gz";
             Path dir = Paths.get(STORAGE_DIR);

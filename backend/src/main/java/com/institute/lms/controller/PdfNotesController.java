@@ -42,6 +42,8 @@ import java.util.zip.GZIPOutputStream;
 @RequestMapping("/api/pdf-notes")
 public class PdfNotesController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PdfNotesController.class);
+
     private static final String STORAGE_DIR = "uploads/pdf-notes";
     private static final Color NAVY = new Color(0x0F172A);
     private static final Color GOLD = new Color(0xEAB308);
@@ -119,14 +121,21 @@ public class PdfNotesController {
                     ? me.getOrganizationId()
                     : com.institute.lms.util.OrganizationContext.getCurrentOrgIdStatic();
 
+            boolean uploadedToS3 = false;
             if (s3StorageService.isConfigured()) {
-                String fileName = "pdf-" + System.currentTimeMillis() + "-"
-                        + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
-                String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
-                s3StorageService.upload(s3Key, pdfBytes, "application/pdf");
-                note.setFileName(s3Key);
-                note.setStoredSize((long) pdfBytes.length);
-            } else {
+                try {
+                    String fileName = "pdf-" + System.currentTimeMillis() + "-"
+                            + UUID.randomUUID().toString().substring(0, 8) + ".pdf";
+                    String s3Key = s3StorageService.buildKey(academyId, "pdf", fileName);
+                    s3StorageService.upload(s3Key, pdfBytes, "application/pdf");
+                    note.setFileName(s3Key);
+                    note.setStoredSize((long) pdfBytes.length);
+                    uploadedToS3 = true;
+                } catch (Exception e) {
+                    log.warn("S3 upload failed for PDF note ({}), falling back to local storage.", e.getMessage());
+                }
+            }
+            if (!uploadedToS3) {
                 byte[] gzipped = gzip(pdfBytes);
                 String fileName = "pdf-" + System.currentTimeMillis() + "-"
                         + UUID.randomUUID().toString().substring(0, 8) + ".pdf.gz";
