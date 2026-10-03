@@ -12,6 +12,32 @@ interface LeaderboardMyRank {
   attendancePercent: number;
 }
 
+interface FeedbackStats {
+  totalFeedbacks: number;
+  averageProblemSolving: number;
+  averageTechnicalCompetency: number;
+  averageCodeQuality: number;
+  averageCommunication: number;
+  latestHiringDecision?: string;
+  recommendedHires: number;
+}
+
+interface FeedbackRecord {
+  sessionId: number;
+  roomCode: string;
+  title: string;
+  interviewerName: string;
+  interviewDate: string;
+  hiringDecision: string;
+  problemSolvingScore: number;
+  technicalCompetencyScore: number;
+  codeQualityScore: number;
+  communicationScore: number;
+  interviewerNotes?: string;
+  problemTitle?: string;
+  problemDifficulty?: string;
+}
+
 interface StudentStats {
   student: {
     id: number;
@@ -65,6 +91,8 @@ interface StudentStats {
   examRecords: ExamRecord[];
   courseRecords: CourseRecord[];
   placementRecords: PlacementRecord[];
+  feedbacks?: FeedbackStats;
+  feedbackRecords?: FeedbackRecord[];
 }
 
 interface AttendanceRecord {
@@ -242,6 +270,25 @@ interface PlacementRecord {
           </div>
           <div class="stat-badge" *ngIf="stats.placements.totalApplications > 0">
             {{stats.placements.selected}} selected / {{stats.placements.rejected}} rejected
+          </div>
+        </div>
+
+        <!-- Total Feedbacks Tile -->
+        <div class="stat-card">
+          <div class="stat-content">
+            <h3>Total Feedbacks</h3>
+            <div class="stat-value">{{stats.feedbacks?.totalFeedbacks || 0}}</div>
+            <p class="stat-detail">1-on-1 Evaluations</p>
+            <p class="stat-detail" *ngIf="stats.feedbacks?.latestHiringDecision">
+              Latest: 
+              <span class="badge" [ngClass]="getDecisionBadgeClass(stats.feedbacks?.latestHiringDecision)">
+                {{formatDecision(stats.feedbacks?.latestHiringDecision)}}
+              </span>
+            </p>
+            <p class="stat-detail text-muted" *ngIf="!stats.feedbacks?.latestHiringDecision">No evaluations yet</p>
+          </div>
+          <div class="stat-badge" style="background:#e0f2fe;color:#0369a1;" *ngIf="stats.feedbacks && stats.feedbacks.totalFeedbacks > 0">
+            ⭐ {{stats.feedbacks.recommendedHires}} Hired
           </div>
         </div>
 
@@ -455,6 +502,59 @@ interface PlacementRecord {
                 </tr>
                 <tr *ngIf="stats.placementRecords.length === 0">
                   <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No placement records found</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 1-on-1 Interview Feedbacks & Rubric Evaluations -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <h3 class="section-title">🎤 1-on-1 Interview Evaluations & Rubrics</h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Interview / Room</th>
+                  <th>Date</th>
+                  <th>Interviewer</th>
+                  <th>Topic & Challenge</th>
+                  <th>Decision</th>
+                  <th>Rubric Scores (out of 5)</th>
+                  <th>Interviewer Feedback</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let fb of stats.feedbackRecords">
+                  <td>
+                    <strong>{{fb.title || 'Technical Interview'}}</strong>
+                    <div style="font-size:12px;color:#64748B;"><code>{{fb.roomCode}}</code></div>
+                  </td>
+                  <td>{{formatDate(fb.interviewDate)}}</td>
+                  <td>{{fb.interviewerName || 'Faculty / Interviewer'}}</td>
+                  <td>
+                    <div>{{fb.problemTitle || '-'}}</div>
+                    <span *ngIf="fb.problemDifficulty" class="badge" style="background:#EEF2FF;color:#4338CA;font-size:11px;">{{fb.problemDifficulty}}</span>
+                  </td>
+                  <td>
+                    <span class="badge" [ngClass]="getDecisionBadgeClass(fb.hiringDecision)">
+                      {{formatDecision(fb.hiringDecision)}}
+                    </span>
+                  </td>
+                  <td>
+                    <div style="display:flex;flex-direction:column;gap:3px;font-size:12px;">
+                      <div>Problem Solving: <strong>{{fb.problemSolvingScore || 0}}/5</strong></div>
+                      <div>Technical: <strong>{{fb.technicalCompetencyScore || 0}}/5</strong></div>
+                      <div>Code Quality: <strong>{{fb.codeQualityScore || 0}}/5</strong></div>
+                      <div>Communication: <strong>{{fb.communicationScore || 0}}/5</strong></div>
+                    </div>
+                  </td>
+                  <td style="max-width:260px;font-size:13px;line-height:1.4;">
+                    {{fb.interviewerNotes || 'No notes provided'}}
+                  </td>
+                </tr>
+                <tr *ngIf="!stats.feedbackRecords || stats.feedbackRecords.length === 0">
+                  <td colspan="7" style="text-align:center;color:#64748B;padding:24px;">No interview evaluations recorded yet</td>
                 </tr>
               </tbody>
             </table>
@@ -751,6 +851,27 @@ interface PlacementRecord {
       color: #fff;
     }
 
+    .badge-strong-hire {
+      background: #dcfce7 !important;
+      color: #166534 !important;
+    }
+    .badge-hire {
+      background: #ecfdf5 !important;
+      color: #059669 !important;
+    }
+    .badge-lean-hire {
+      background: #fef3c7 !important;
+      color: #b45309 !important;
+    }
+    .badge-lean-reject {
+      background: #ffedd5 !important;
+      color: #c2410c !important;
+    }
+    .badge-reject {
+      background: #fee2e2 !important;
+      color: #dc2626 !important;
+    }
+
     .date-range {
       display: flex;
       align-items: center;
@@ -973,5 +1094,39 @@ export class StudentDetailComponent implements OnInit {
     const [year, month] = this.viewMonth.split('-').map(Number);
     const d = new Date(year, month, 1);
     this.viewMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  formatDate(iso?: string): string {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return iso;
+    }
+  }
+
+  formatDecision(decision?: string): string {
+    if (!decision) return 'Pending';
+    switch (decision.toUpperCase()) {
+      case 'STRONG_HIRE': return 'Strong Hire';
+      case 'HIRE': return 'Hire';
+      case 'LEAN_HIRE': return 'Lean Hire';
+      case 'LEAN_REJECT': return 'Lean Reject';
+      case 'REJECT': return 'Reject';
+      default: return decision;
+    }
+  }
+
+  getDecisionBadgeClass(decision?: string): string {
+    if (!decision) return '';
+    switch (decision.toUpperCase()) {
+      case 'STRONG_HIRE': return 'badge-strong-hire';
+      case 'HIRE': return 'badge-hire';
+      case 'LEAN_HIRE': return 'badge-lean-hire';
+      case 'LEAN_REJECT': return 'badge-lean-reject';
+      case 'REJECT': return 'badge-reject';
+      default: return '';
+    }
   }
 }

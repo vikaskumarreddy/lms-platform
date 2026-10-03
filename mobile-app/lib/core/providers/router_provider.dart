@@ -30,6 +30,7 @@ import '../../presentation/screens/payment/payment_history_screen.dart';
 import '../../presentation/screens/attendance/attendance_screen.dart';
 import '../../presentation/screens/feedback/feedback_screen.dart';
 import '../../presentation/screens/interviews/interview_history_screen.dart';
+import '../../presentation/screens/interviews/interview_room_screen.dart';
 import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/notes/notes_screen.dart';
 import '../../presentation/screens/onboarding/onboarding_screen.dart';
@@ -135,7 +136,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         AppRoutes.forgotPassword,
         AppRoutes.onboarding,
       ];
-      final isPublicRoute = publicRoutes.contains(location);
+      final isInterviewRoute = location.startsWith('/interview');
+      final isPublicRoute = publicRoutes.contains(location) || isInterviewRoute;
+
+      // Interview room is open to candidates, external evaluators, and mentors directly via room code
+      if (isInterviewRoute) return null;
 
       // While loading, don't redirect anywhere — wait for the check to finish.
       if (authState.isLoading) return null;
@@ -226,25 +231,71 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       _animatedRoute(path: AppRoutes.payment, builder: (context, state) => PaymentScreen(planId: int.tryParse(state.pathParameters['planId'] ?? '') ?? 0)),
-    ],
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Page not found', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            Text(state.error?.toString() ?? 'Unknown error'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => context.go(AppRoutes.splash),
-              child: const Text('Go Home'),
-            ),
-          ],
+      GoRoute(
+        path: '/interview',
+        redirect: (context, state) {
+          final queryCode = state.uri.queryParameters['roomCode'] ?? state.uri.queryParameters['code'];
+          if (queryCode != null && queryCode.trim().isNotEmpty) {
+            return AppRoutes.interviewRoomFor(queryCode.trim());
+          }
+          return AppRoutes.interviewHistory;
+        },
+      ),
+      // Outside the shell: full-screen 1-on-1 interview room (video call + live collaborative code editor)
+      _animatedRoute(
+        path: AppRoutes.interviewRoom,
+        builder: (context, state) => InterviewRoomScreen(
+          roomCode: state.pathParameters['roomCode'] ?? 'AXIS-DEMO',
         ),
       ),
-    ),
+      _animatedRoute(
+        path: '/interview/:roomCode/',
+        builder: (context, state) => InterviewRoomScreen(
+          roomCode: state.pathParameters['roomCode'] ?? 'AXIS-DEMO',
+        ),
+      ),
+    ],
+    errorBuilder: (context, state) {
+      // Auto-recovery: If user arrived at any /interview/<code...> URL or fragment (e.g. from web hash routing)
+      final candidates = [
+        state.uri.toString(),
+        state.uri.path,
+        state.matchedLocation,
+        Uri.base.toString(),
+        Uri.base.fragment,
+        Uri.base.path,
+      ];
+      for (final raw in candidates) {
+        if (raw.contains('interview/')) {
+          final parts = raw.split('interview/');
+          if (parts.length > 1) {
+            final code = parts[1].split('?').first.split('#').first.split('&').first.split('/').first.trim();
+            if (code.isNotEmpty) {
+              return InterviewRoomScreen(roomCode: code);
+            }
+          }
+        }
+      }
+
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Page not found', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(state.error?.toString() ?? 'Unknown error'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go(AppRoutes.splash),
+                child: const Text('Go Home'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 });

@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Axisora Live WebRTC Video Room</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&family=Fira+Code:wght@500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #070F1D;
+      color: #E2E8F0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      padding: 8px;
+      gap: 8px;
+    }
+
+    /* Top Status Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0F1A2E;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 6px 12px;
+      font-size: 11px;
+    }
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #EF4444;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      font-size: 10px;
+    }
+    .dot-live {
+      width: 6px;
+      height: 6px;
+      background: #EF4444;
+      border-radius: 50%;
+      animation: pulse-dot 1.5s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+    .room-info {
+      color: #94A3B8;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(39, 217, 211, 0.12);
+      border: 1px solid rgba(39, 217, 211, 0.3);
+      color: #27D9D3;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .status-pill.waiting {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #F59E0B;
+    }
+
+    /* Video Grid */
+    .video-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+    @media (max-width: 520px) and (orientation: portrait) {
+      .video-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+    }
+    @media (max-height: 280px) {
+      .top-bar {
+        display: none !important;
+      }
+      #app-container {
+        padding: 4px;
+        gap: 4px;
+      }
+      .control-bar {
+        padding: 4px 8px !important;
+        gap: 6px !important;
+      }
+      .btn-control {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 13px !important;
+      }
+      .btn-label {
+        display: none !important;
+      }
+    }
+
+    .video-card {
+      position: relative;
+      background: #0F1A2E;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      transition: border-color 0.2s;
+    }
+    .video-card.speaking {
+      border-color: #27D9D3;
+      box-shadow: 0 0 16px rgba(39, 217, 211, 0.3);
+    }
+    .video-card video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror local webcam */
+    }
+    .video-card video.remote {
+      transform: none; /* Do not mirror remote peer */
+    }
+
+    /* Avatar Fallback Placeholder */
+    .avatar-fallback {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #16243A 0%, #0B1728 100%);
+      z-index: 1;
+      transition: opacity 0.3s;
+    }
+    .avatar-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    .radar-pulse {
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      border: 2px dashed rgba(39, 217, 211, 0.3);
+      border-radius: 50%;
+      animation: rotate-radar 12s linear infinite;
+    }
+    @keyframes rotate-radar {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Video Overlay Meta */
+    .participant-tag {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(11, 23, 40, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 2;
+    }
+    .role-badge {
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .role-interviewer { background: rgba(99, 102, 241, 0.25); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.4); }
+    .role-candidate { background: rgba(39, 217, 211, 0.25); color: #27D9D3; border: 1px solid rgba(39, 217, 211, 0.4); }
+
+    .audio-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+    }
+    .audio-indicator.muted {
+      background: #EF4444;
+    }
+
+    /* Control Bar */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #0F1A2E;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 8px 14px;
+    }
+    .btn-control {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #E2E8F0;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s ease;
+    }
+    .btn-control:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: translateY(-1px);
+    }
+    .btn-control.off {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #EF4444;
+    }
+    .btn-control.danger {
+      background: #EF4444;
+      border-color: #EF4444;
+      color: #FFFFFF;
+    }
+    .btn-control.danger:hover {
+      background: #DC2626;
+    }
+    .btn-label {
+      font-size: 8px;
+      font-weight: 500;
+      color: #94A3B8;
+    }
+
+    /* Notification Toast */
+    #toast {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #27D9D3;
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="badge-live"><span class="dot-live"></span> WebRTC HD</span>
+        <span class="room-info" id="roomCodeLabel">Room: ...</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="status-pill waiting" id="callStatusPill">Connecting...</span>
+      </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="video-grid">
+      <!-- Local Video (Self) -->
+      <div class="video-card" id="localCard">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="avatar-fallback" id="localFallback" style="display:none;">
+          <div class="avatar-circle" id="localAvatar" style="background:rgba(99,102,241,0.25); color:#818CF8;">👤</div>
+          <span style="font-size:12px; font-weight:600;" id="localFallbackName">Camera Off</span>
+        </div>
+        <div class="participant-tag">
+          <span class="audio-indicator" id="localAudioIndicator"></span>
+          <span id="localTag">You</span>
+          <span class="role-badge" id="localRoleBadge">Interviewer</span>
+        </div>
+      </div>
+
+      <!-- Remote Video (Peer) -->
+      <div class="video-card" id="remoteCard">
+        <video id="remoteVideo" autoplay playsinline class="remote"></video>
+        <div class="avatar-fallback" id="remoteFallback">
+          <div class="radar-pulse"></div>
+          <div class="avatar-circle" id="remoteAvatar" style="background:rgba(39,217,211,0.25); color:#27D9D3;">👤</div>
+          <span style="font-size:12px; font-weight:600; margin-bottom:2px;" id="remoteName">Candidate</span>
+          <span style="font-size:10px; color:#94A3B8;" id="remoteStateSub">Waiting to join call...</span>
+        </div>
+        <div class="participant-tag">
+          <span class="audio-indicator" id="remoteAudioIndicator"></span>
+          <span id="remoteTag">Peer</span>
+          <span class="role-badge" id="remoteRoleBadge">Candidate</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="control-bar">
+      <button class="btn-control" id="btnMic" title="Mute/Unmute Mic" onclick="toggleMic()">
+        <span id="iconMic">🎤</span>
+        <span class="btn-label" id="labelMic">Mute</span>
+      </button>
+
+      <button class="btn-control" id="btnCam" title="Turn Camera On/Off" onclick="toggleCam()">
+        <span id="iconCam">📹</span>
+        <span class="btn-label" id="labelCam">Video</span>
+      </button>
+
+      <button class="btn-control" id="btnShare" title="Share Screen" onclick="toggleScreenShare()">
+        <span id="iconShare">🖥️</span>
+        <span class="btn-label">Share</span>
+      </button>
+
+      <button class="btn-control danger" id="btnLeave" title="Leave Call" onclick="leaveCall()">
+        <span>📞</span>
+        <span class="btn-label" style="color:#FFF;">Leave</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // URL Params
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomCode = urlParams.get('roomCode') || 'AXIS-DEMO';
+    const role = (urlParams.get('role') || 'interviewer').toLowerCase();
+    const myName = decodeURIComponent(urlParams.get('name') || (role === 'interviewer' ? 'Lead Interviewer' : 'Candidate'));
+    const isInterviewer = (role === 'interviewer');
+
+    document.getElementById('roomCodeLabel').innerText = 'Room: ' + roomCode;
+    document.getElementById('localTag').innerText = myName + ' (You)';
+    document.getElementById('localRoleBadge').innerText = isInterviewer ? 'Interviewer' : 'Candidate';
+    document.getElementById('localRoleBadge').className = 'role-badge ' + (isInterviewer ? 'role-interviewer' : 'role-candidate');
+
+    const remoteExpectedRole = isInterviewer ? 'candidate' : 'interviewer';
+    document.getElementById('remoteTag').innerText = isInterviewer ? 'Candidate' : 'Interviewer';
+    document.getElementById('remoteRoleBadge').innerText = isInterviewer ? 'Candidate' : 'Interviewer';
+    document.getElementById('remoteRoleBadge').className = 'role-badge ' + (isInterviewer ? 'role-candidate' : 'role-interviewer');
+
+    let localStream = null;
+    let peerConnection = null;
+    let isMicMuted = false;
+    let isCamOff = false;
+    let isScreenSharing = false;
+    let lastSignalTimestamp = 0;
+    let presenceInterval = null;
+    let signalingInterval = null;
+    let offerCreated = false;
+    const pendingCandidates = [];
+
+    const rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    };
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+    // Initialize Local Media
+    async function startMedia() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+          audio: true
+        });
+        const localVideo = document.getElementById('localVideo');
+        localVideo.srcObject = localStream;
+        document.getElementById('localFallback').style.display = 'none';
+        showToast('Camera and microphone connected');
+      } catch (err) {
+        console.warn('getUserMedia error, trying audio-only or fallback:', err);
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+          isCamOff = true;
+          updateCamUI();
+          showToast('Connected audio-only (no webcam detected)');
+        } catch (audioErr) {
+          console.warn('No mic found, starting simulated preview:', audioErr);
+          isCamOff = true;
+          isMicMuted = true;
+          updateCamUI();
+          updateMicUI();
+          showToast('Webcam/Mic permission needed. Please allow access.');
+        }
+      }
+
+      initPeerConnection();
+      startPresence();
+      startSignaling();
+    }
+
+    function initPeerConnection() {
+      peerConnection = new RTCPeerConnection(rtcConfig);
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+      }
+
+      peerConnection.ontrack = (event) => {
+        console.log('Received remote track:', event.track.kind);
+        const remoteVideo = document.getElementById('remoteVideo');
+        if (event.streams && event.streams[0]) {
+          remoteVideo.srcObject = event.streams[0];
+          document.getElementById('remoteFallback').style.display = 'none';
+          document.getElementById('callStatusPill').className = 'status-pill';
+          document.getElementById('callStatusPill').innerText = '🟢 Connected Live';
+          showToast('Peer video stream connected!');
+        }
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal({
+            type: 'candidate',
+            candidate: event.candidate,
+            from: role,
+            to: remoteExpectedRole
+          });
+        }
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        console.log('WebRTC connectionState:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+          document.getElementById('callStatusPill').className = 'status-pill';
+          document.getElementById('callStatusPill').innerText = '🟢 Connected Live';
+          document.getElementById('remoteFallback').style.display = 'none';
+        } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+          document.getElementById('callStatusPill').className = 'status-pill waiting';
+          document.getElementById('callStatusPill').innerText = 'Reconnecting...';
+          offerCreated = false;
+        }
+      };
+    }
+
+    // Presence Heartbeat
+    async function startPresence() {
+      async function tick() {
+        try {
+          const res = await fetch('/api/interviews/rooms/' + encodeURIComponent(roomCode) + '/presence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: role, name: myName })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const peerOnline = isInterviewer ? data.candidateOnline : data.interviewerOnline;
+            const peerName = isInterviewer ? data.candidateName : data.interviewerName;
+
+            if (peerName) {
+              document.getElementById('remoteName').innerText = peerName;
+              document.getElementById('remoteTag').innerText = peerName;
+            }
+
+            if (peerOnline) {
+              if (document.getElementById('callStatusPill').innerText.includes('Waiting')) {
+                document.getElementById('remoteStateSub').innerText = 'In call (negotiating video...)';
+                document.getElementById('callStatusPill').className = 'status-pill';
+                document.getElementById('callStatusPill').innerText = '🟢 Peer Joined';
+              }
+              // If interviewer and haven't created offer yet, create offer
+              if (isInterviewer && !offerCreated && peerConnection && peerConnection.signalingState === 'stable') {
+                offerCreated = true;
+                await createOffer();
+              }
+            } else {
+              offerCreated = false;
+              document.getElementById('remoteStateSub').innerText = 'Waiting to join call...';
+              document.getElementById('callStatusPill').className = 'status-pill waiting';
+              document.getElementById('callStatusPill').innerText = '🟡 Waiting for Peer (1/2)';
+            }
+          }
+        } catch (e) {
+          console.warn('Presence error:', e);
+        }
+      }
+      tick();
+      presenceInterval = setInterval(tick, 3000);
+    }
+
+    // Signaling Polling
+    function startSignaling() {
+      signalingInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/interviews/rooms/' + encodeURIComponent(roomCode) + '/signal?role=' + role + '&since=' + lastSignalTimestamp);
+          if (res.ok) {
+            const signals = await res.json();
+            for (const sig of signals) {
+              if (sig.timestamp > lastSignalTimestamp) {
+                lastSignalTimestamp = sig.timestamp;
+              }
+              await handleSignal(sig);
+            }
+          }
+        } catch (e) {
+          console.warn('Signal polling error:', e);
+        }
+      }, 1500);
+    }
+
+    async function sendSignal(signalPayload) {
+      try {
+        await fetch('/api/interviews/rooms/' + encodeURIComponent(roomCode) + '/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(signalPayload)
+        });
+      } catch (e) {
+        console.warn('Failed to send signal:', e);
+      }
+    }
+
+    async function createOffer() {
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        sendSignal({
+          type: 'offer',
+          sdp: offer,
+          from: role,
+          to: remoteExpectedRole
+        });
+        console.log('Sent WebRTC offer to', remoteExpectedRole);
+      } catch (e) {
+        console.warn('Failed to create offer:', e);
+        offerCreated = false;
+      }
+    }
+
+    async function handleSignal(sig) {
+      if (!sig || !peerConnection) return;
+      try {
+        if (sig.type === 'offer' && !isInterviewer) {
+          console.log('Received offer, creating answer...');
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(sig.sdp));
+          while (pendingCandidates.length > 0) {
+            const cand = pendingCandidates.shift();
+            try { await peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (err) {}
+          }
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          sendSignal({
+            type: 'answer',
+            sdp: answer,
+            from: role,
+            to: remoteExpectedRole
+          });
+        } else if (sig.type === 'answer' && isInterviewer) {
+          console.log('Received answer, setting remote description...');
+          if (peerConnection.signalingState !== 'stable') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(sig.sdp));
+            while (pendingCandidates.length > 0) {
+              const cand = pendingCandidates.shift();
+              try { await peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (err) {}
+            }
+          }
+        } else if (sig.type === 'candidate' && sig.candidate) {
+          if (!peerConnection.remoteDescription || !peerConnection.remoteDescription.type) {
+            pendingCandidates.push(sig.candidate);
+          } else {
+            try {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(sig.candidate));
+            } catch (iceErr) {
+              console.warn('Error adding ICE candidate:', iceErr);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Signal handling error:', e);
+      }
+    }
+
+    // Media Controls
+    function toggleMic() {
+      if (!localStream) return;
+      isMicMuted = !isMicMuted;
+      localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+      updateMicUI();
+    }
+    function updateMicUI() {
+      const btn = document.getElementById('btnMic');
+      const icon = document.getElementById('iconMic');
+      const label = document.getElementById('labelMic');
+      const indicator = document.getElementById('localAudioIndicator');
+      if (isMicMuted) {
+        btn.classList.add('off');
+        icon.innerText = '🔇';
+        label.innerText = 'Unmute';
+        indicator.classList.add('muted');
+      } else {
+        btn.classList.remove('off');
+        icon.innerText = '🎤';
+        label.innerText = 'Mute';
+        indicator.classList.remove('muted');
+      }
+    }
+
+    function toggleCam() {
+      if (!localStream) return;
+      isCamOff = !isCamOff;
+      localStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
+      updateCamUI();
+    }
+    function updateCamUI() {
+      const btn = document.getElementById('btnCam');
+      const icon = document.getElementById('iconCam');
+      const fallback = document.getElementById('localFallback');
+      const video = document.getElementById('localVideo');
+      if (isCamOff) {
+        btn.classList.add('off');
+        icon.innerText = '🚫';
+        fallback.style.display = 'flex';
+        video.style.opacity = '0';
+      } else {
+        btn.classList.remove('off');
+        icon.innerText = '📹';
+        fallback.style.display = 'none';
+        video.style.opacity = '1';
+      }
+    }
+
+    async function toggleScreenShare() {
+      if (isScreenSharing) {
+        // Switch back to webcam
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          const videoTrack = stream.getVideoTracks()[0];
+          replaceVideoTrack(videoTrack);
+          document.getElementById('localVideo').srcObject = stream;
+          isScreenSharing = false;
+          document.getElementById('btnShare').classList.remove('off');
+          showToast('Screen sharing stopped, restored webcam');
+        } catch (e) {
+          console.warn(e);
+        }
+      } else {
+        // Start screen capture
+        try {
+          const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const screenTrack = screenStream.getVideoTracks()[0];
+          replaceVideoTrack(screenTrack);
+          document.getElementById('localVideo').srcObject = screenStream;
+          isScreenSharing = true;
+          document.getElementById('btnShare').classList.add('off');
+          showToast('Sharing screen to interview room');
+          screenTrack.onended = () => { toggleScreenShare(); };
+        } catch (e) {
+          console.warn('Screen share canceled or denied:', e);
+        }
+      }
+    }
+
+    function replaceVideoTrack(newTrack) {
+      if (peerConnection) {
+        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) {
+          sender.replaceTrack(newTrack);
+        }
+      }
+    }
+
+    function leaveCall() {
+      if (confirm('Leave this 1-on-1 interview call?')) {
+        if (localStream) {
+          localStream.getTracks().forEach(t => t.stop());
+        }
+        if (peerConnection) {
+          peerConnection.close();
+        }
+        clearInterval(presenceInterval);
+        clearInterval(signalingInterval);
+        window.parent.postMessage({ type: 'LEAVE_CALL' }, '*');
+        window.location.href = 'about:blank';
+      }
+    }
+
+    // Auto-start media on load
+    window.addEventListener('load', () => {
+      startMedia();
+    });
+  </script>
+</body>
+</html>

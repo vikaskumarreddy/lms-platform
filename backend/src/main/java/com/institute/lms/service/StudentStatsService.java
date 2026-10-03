@@ -32,6 +32,7 @@ public class StudentStatsService {
     private final FeedbackRepository feedbackRepository;
     private final StudentPlacementRepository studentPlacementRepository;
     private final EventRepository eventRepository;
+    private final com.institute.lms.repository.InterviewSessionRepository interviewSessionRepository;
 
     public StudentStatsService(UserRepository userRepository,
                                BatchRepository batchRepository,
@@ -45,7 +46,8 @@ public class StudentStatsService {
                                CourseRepository courseRepository,
                                FeedbackRepository feedbackRepository,
                                StudentPlacementRepository studentPlacementRepository,
-                               EventRepository eventRepository) {
+                               EventRepository eventRepository,
+                               com.institute.lms.repository.InterviewSessionRepository interviewSessionRepository) {
         this.userRepository = userRepository;
         this.batchRepository = batchRepository;
         this.subscriptionPlanRepository = subscriptionPlanRepository;
@@ -59,6 +61,7 @@ public class StudentStatsService {
         this.feedbackRepository = feedbackRepository;
         this.studentPlacementRepository = studentPlacementRepository;
         this.eventRepository = eventRepository;
+        this.interviewSessionRepository = interviewSessionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -75,12 +78,14 @@ public class StudentStatsService {
         StudentStatsDTO.ExamStats examStats = buildExamStats(student);
         StudentStatsDTO.PlacementStats placementStats = buildPlacementStats(student);
         StudentStatsDTO.CourseStats courseStats = buildCourseStats(student);
+        StudentStatsDTO.FeedbackStats feedbackStats = buildFeedbackStats(student);
 
         List<StudentStatsDTO.AttendanceRecord> attendanceRecords = buildAttendanceRecords(student);
         List<StudentStatsDTO.AssignmentRecord> assignmentRecords = buildAssignmentRecords(student);
         List<StudentStatsDTO.ExamRecord> examRecords = buildExamRecords(student);
         List<StudentStatsDTO.CourseRecord> courseRecords = buildCourseRecords(student);
         List<StudentStatsDTO.PlacementRecord> placementRecords = buildPlacementRecords(student);
+        List<StudentStatsDTO.FeedbackRecord> feedbackRecords = buildFeedbackRecords(student);
 
         return new StudentStatsDTO(
                 studentInfo,
@@ -89,11 +94,13 @@ public class StudentStatsService {
                 examStats,
                 placementStats,
                 courseStats,
+                feedbackStats,
                 attendanceRecords,
                 assignmentRecords,
                 examRecords,
                 courseRecords,
-                placementRecords
+                placementRecords,
+                feedbackRecords
         );
     }
 
@@ -486,4 +493,46 @@ public class StudentStatsService {
             );
         }).collect(Collectors.toList());
     }
-}
+
+    private StudentStatsDTO.FeedbackStats buildFeedbackStats(User user) {
+        List<com.institute.lms.entity.InterviewSession> sessions = interviewSessionRepository.findByCandidateIdOrderByCreatedAtDesc(user.getId());
+        List<com.institute.lms.entity.InterviewSession> evaluated = sessions.stream()
+                .filter(s -> s.getHiringDecision() != null || s.getProblemSolvingScore() != null || "COMPLETED".equals(s.getStatus()))
+                .toList();
+
+        long count = evaluated.size();
+        if (count == 0) {
+            return new StudentStatsDTO.FeedbackStats(0, 0.0, 0.0, 0.0, 0.0, "NONE");
+        }
+
+        double avgPs = evaluated.stream().mapToInt(s -> s.getProblemSolvingScore() != null ? s.getProblemSolvingScore() : 0).average().orElse(0.0);
+        double avgTech = evaluated.stream().mapToInt(s -> s.getTechnicalCompetencyScore() != null ? s.getTechnicalCompetencyScore() : 0).average().orElse(0.0);
+        double avgCode = evaluated.stream().mapToInt(s -> s.getCodeQualityScore() != null ? s.getCodeQualityScore() : 0).average().orElse(0.0);
+        double avgComm = evaluated.stream().mapToInt(s -> s.getCommunicationScore() != null ? s.getCommunicationScore() : 0).average().orElse(0.0);
+        String latestDecision = evaluated.get(0).getHiringDecision() != null ? evaluated.get(0).getHiringDecision() : "PENDING";
+
+        return new StudentStatsDTO.FeedbackStats(count, avgPs, avgTech, avgCode, avgComm, latestDecision);
+    }
+
+    private List<StudentStatsDTO.FeedbackRecord> buildFeedbackRecords(User user) {
+        List<com.institute.lms.entity.InterviewSession> sessions = interviewSessionRepository.findByCandidateIdOrderByCreatedAtDesc(user.getId());
+        return sessions.stream()
+                .filter(s -> s.getHiringDecision() != null || s.getProblemSolvingScore() != null || "COMPLETED".equals(s.getStatus()))
+                .map(s -> new StudentStatsDTO.FeedbackRecord(
+                        s.getId(),
+                        s.getRoomCode(),
+                        s.getTitle(),
+                        s.getInterviewerName() != null ? s.getInterviewerName() : "Faculty Interviewer",
+                        s.getScheduledAt() != null ? s.getScheduledAt().toString() : (s.getCreatedAt() != null ? s.getCreatedAt().toString() : ""),
+                        s.getProblemSolvingScore(),
+                        s.getTechnicalCompetencyScore(),
+                        s.getCodeQualityScore(),
+                        s.getCommunicationScore(),
+                        s.getHiringDecision() != null ? s.getHiringDecision() : "PENDING",
+                        s.getInterviewerNotes(),
+                        s.getSubmittedCode(),
+                        s.getCodeLanguage()
+                ))
+                .collect(Collectors.toList());
+    }
+}

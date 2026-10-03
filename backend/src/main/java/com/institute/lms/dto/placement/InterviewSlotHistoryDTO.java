@@ -15,4 +15,8 @@ public class InterviewSlotHistoryDTO {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime slotTime;
     private String status;
+    private Long facultyId;
+    private String facultyName;
+    private String facultyEmail;
+    private String roomCode;
 }

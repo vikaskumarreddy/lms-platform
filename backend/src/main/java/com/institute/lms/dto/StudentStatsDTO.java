@@ -17,11 +17,13 @@ public class StudentStatsDTO {
     private ExamStats exams;
     private PlacementStats placements;
     private CourseStats courses;
+    private FeedbackStats feedbacks;
     private List<AttendanceRecord> attendanceRecords;
     private List<AssignmentRecord> assignmentRecords;
     private List<ExamRecord> examRecords;
     private List<CourseRecord> courseRecords;
     private List<PlacementRecord> placementRecords;
+    private List<FeedbackRecord> feedbackRecords;
 
     @Data
     @NoArgsConstructor
@@ -162,4 +164,35 @@ public class StudentStatsDTO {
         private String status;
         private String description;
     }
-}
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeedbackStats {
+        private long totalFeedbacks;
+        private double averageProblemSolvingScore;
+        private double averageTechnicalScore;
+        private double averageCodeQualityScore;
+        private double averageCommunicationScore;
+        private String latestHiringDecision;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeedbackRecord {
+        private Long id;
+        private String roomCode;
+        private String title;
+        private String interviewerName;
+        private String date;
+        private Integer problemSolvingScore;
+        private Integer technicalCompetencyScore;
+        private Integer codeQualityScore;
+        private Integer communicationScore;
+        private String hiringDecision;
+        private String interviewerNotes;
+        private String submittedCode;
+        private String codeLanguage;
+    }
+}

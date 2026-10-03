@@ -2292,6 +2292,7 @@ class _ReferenceQuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
+      ('1-1 Interview', Icons.videocam_rounded, AppRoutes.interviewHistory),
       ('AI Challenge', Icons.psychology_rounded, AppRoutes.dailyChallenge),
       ('Open Roles', Icons.work_outline, AppRoutes.placementDrives),
       ('Assignments', Icons.description_outlined, AppRoutes.assignments),
@@ -2301,7 +2302,7 @@ class _ReferenceQuickActions extends StatelessWidget {
       ('Batch Chat', Icons.chat_bubble_outline, AppRoutes.chat),
       ('Q&A Doubts', Icons.forum_outlined, AppRoutes.qa),
     ];
-    const iconColors = [Color(0xFF23D5D2), Color(0xFFFF8A54), Color(0xFFA66AFF), Color(0xFF25D29D), Color(0xFF38BDF8), Color(0xFFEC4899), Color(0xFF10B981), Color(0xFFF59E0B)];
+    const iconColors = [Color(0xFF23D5D2), Color(0xFFFF8A54), Color(0xFFA66AFF), Color(0xFF25D29D), Color(0xFF38BDF8), Color(0xFFEC4899), Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFF6366F1)];
     return _ReferenceCard(
       theme: theme,
       child: Column(

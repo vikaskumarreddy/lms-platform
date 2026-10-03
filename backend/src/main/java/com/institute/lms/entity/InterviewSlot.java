@@ -39,6 +39,18 @@ public class InterviewSlot extends BaseEntity {
     @Column(name = "booked_at")
     private LocalDateTime bookedAt;
 
+    @Column(name = "faculty_id")
+    private Long facultyId;
+
+    @Column(name = "faculty_name")
+    private String facultyName;
+
+    @Column(name = "faculty_email")
+    private String facultyEmail;
+
+    @Column(name = "room_code")
+    private String roomCode;
+
     /** AVAILABLE, BOOKED, COMPLETED, CANCELLED */
     @Column(nullable = false)
     private String status = "AVAILABLE";

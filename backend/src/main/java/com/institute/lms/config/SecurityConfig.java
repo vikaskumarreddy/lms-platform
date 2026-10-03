@@ -41,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/organizations/public-info").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/subscription-plans", "/api/subscription-plans/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/batches", "/api/batches/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()
                         .requestMatchers("/api/certificates/verify/**").permitAll()
                         .requestMatchers("/api/student-placements/recruiter/**").permitAll()
@@ -54,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/media/*/serve", "/api/media/*/serve/**").permitAll()
                         // Coding IDE & Playground endpoints (for embedded mobile webviews and student exams)
                         .requestMatchers("/api/coding/**").permitAll()
+                        .requestMatchers("/api/interviews/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/student-stats/**").permitAll()
                         .requestMatchers("/api/system-config/public/**").permitAll()
                         // Gateway browser redirects and webhooks land here with no JWT —
                         // the gateway's own signature/hmac in the payload authenticates them.

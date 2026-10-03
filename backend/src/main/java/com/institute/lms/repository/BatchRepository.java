@@ -17,4 +17,13 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
 
     @Query(value = "SELECT * FROM batches WHERE id = :id LIMIT 1", nativeQuery = true)
     Optional<Batch> findAnyById(@Param("id") Long id);
+
+    @Query(value = "SELECT * FROM batches ORDER BY id ASC", nativeQuery = true)
+    List<Batch> findAllNative();
+
+    @Query(value = "SELECT * FROM batches WHERE is_active = true ORDER BY id ASC", nativeQuery = true)
+    List<Batch> findAllActiveNative();
+
+    @Query(value = "SELECT * FROM batches WHERE (:orgId IS NULL OR organization_id = :orgId) ORDER BY id ASC", nativeQuery = true)
+    List<Batch> findByOrgIdNative(@Param("orgId") Long orgId);
 }

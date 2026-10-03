@@ -39,19 +39,34 @@ public class BatchController {
     }
 
     @GetMapping
-    public List<Batch> getAllBatches() {
+    public List<Batch> getAllBatches(@RequestParam(value = "orgId", required = false) Long orgId) {
         // Faculty only see batches they mentor or are assigned to.
         if (userContext.isFaculty()) {
             List<Long> batchIds = userContext.facultyBatchIds();
             if (batchIds.isEmpty()) return List.of();
             return batchRepository.findAllById(batchIds);
         }
-        return batchRepository.findAll();
+        if (orgId != null) {
+            return batchRepository.findByOrgIdNative(orgId);
+        }
+        try {
+            List<Batch> list = batchRepository.findAll();
+            if (list != null && !list.isEmpty()) {
+                return list;
+            }
+        } catch (Exception ignored) {}
+        return batchRepository.findAllNative();
     }
 
     @GetMapping("/active")
     public List<Batch> getActiveBatches() {
-        return batchRepository.findByIsActiveTrue();
+        try {
+            List<Batch> list = batchRepository.findByIsActiveTrue();
+            if (list != null && !list.isEmpty()) {
+                return list;
+            }
+        } catch (Exception ignored) {}
+        return batchRepository.findAllActiveNative();
     }
 
     @GetMapping("/{id}")

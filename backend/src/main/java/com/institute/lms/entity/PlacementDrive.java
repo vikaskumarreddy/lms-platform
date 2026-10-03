@@ -73,4 +73,13 @@ public class PlacementDrive extends BaseEntity {
 
     @Column(name = "recruiter_token")
     private String recruiterToken;
+
+    @Column(name = "assigned_faculty_id")
+    private Long assignedFacultyId;
+
+    @Column(name = "faculty_name")
+    private String facultyName;
+
+    @Column(name = "faculty_email")
+    private String facultyEmail;
 }

@@ -169,17 +169,17 @@ interface AvailableField {
               </select>
             </div>
 
-            <!-- Target Batch (Mandatory and must belong to plan) -->
+            <!-- Target Batch -->
             <div>
               <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">
-                Assigned Batch <span style="color:#DC2626;">* (Belongs to Plan)</span>
+                Assigned Batch <span style="color:#DC2626;">*</span>
               </label>
-              <select class="input-field" [(ngModel)]="ruleForm.batchId" name="batchId" [disabled]="!ruleForm.planId" required>
-                <option [ngValue]="null" disabled>{{ ruleForm.planId ? 'Select Batch...' : 'Select Plan first' }}</option>
+              <select class="input-field" [(ngModel)]="ruleForm.batchId" name="batchId" required>
+                <option [ngValue]="null" disabled>Select Batch...</option>
                 <option *ngFor="let b of availableBatchesForPlan" [ngValue]="b.id">👥 {{ b.name }}</option>
               </select>
-              <small *ngIf="ruleForm.planId && availableBatchesForPlan.length === 0" style="color:#DC2626;font-size:11px;display:block;margin-top:4px;">
-                No batches found for this subscription plan. Please create a batch under this plan in Batches first.
+              <small *ngIf="availableBatchesForPlan.length === 0" style="color:#DC2626;font-size:11px;display:block;margin-top:4px;">
+                No batches found. Please create a batch in Batches first.
               </small>
             </div>
           </div>
@@ -384,14 +384,33 @@ export class BatchRulesComponent implements OnInit {
       error: () => {}
     });
 
-    this.api.get<SubscriptionPlan[]>('/api/subscription-plans/active').subscribe({
+    this.api.get<SubscriptionPlan[]>('/api/subscription-plans/admin/all').subscribe({
       next: (plans) => this.plans = plans,
-      error: () => {}
+      error: () => {
+        this.api.get<SubscriptionPlan[]>('/api/subscription-plans').subscribe({
+          next: (plans) => this.plans = plans,
+          error: () => {}
+        });
+      }
     });
 
     this.api.get<Batch[]>('/api/batches').subscribe({
-      next: (batches) => this.batches = batches,
-      error: () => {}
+      next: (batches) => {
+        if (batches && batches.length > 0) {
+          this.batches = batches;
+        } else {
+          this.api.get<Batch[]>('/api/batches/active').subscribe({
+            next: (active) => this.batches = active || [],
+            error: () => {}
+          });
+        }
+      },
+      error: () => {
+        this.api.get<Batch[]>('/api/batches/active').subscribe({
+          next: (active) => this.batches = active || [],
+          error: () => {}
+        });
+      }
     });
   }
 
@@ -439,21 +458,15 @@ export class BatchRulesComponent implements OnInit {
   }
 
   get availableBatchesForPlan(): Batch[] {
-    if (!this.ruleForm.planId) return [];
-    return this.batches.filter(b => b.planId === Number(this.ruleForm.planId));
+    return this.batches || [];
   }
 
   onPlanSelected() {
-    // If the currently selected batch does not belong to the newly selected plan, clear it
-    if (this.ruleForm.batchId) {
-      const b = this.batches.find(x => x.id === this.ruleForm.batchId);
-      if (!b || b.planId !== Number(this.ruleForm.planId)) {
-        this.ruleForm.batchId = null;
-      }
-    }
+    // Keep batch selection open to all batches
   }
 
   openAddModal() {
+    this.loadData();
     this.editingRule = null;
     this.ruleForm = {
       name: '',

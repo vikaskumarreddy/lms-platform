@@ -22,7 +22,7 @@ public class SubscriptionPlanController {
         return subscriptionPlanRepository.findAll();
     }
 
-    @GetMapping
+    @GetMapping({"", "/active"})
     public List<SubscriptionPlan> getActivePlans(@RequestParam(value = "orgId", required = false) Long orgId) {
         if (orgId != null) {
             return subscriptionPlanRepository.findActiveByOrgIdNative(orgId);

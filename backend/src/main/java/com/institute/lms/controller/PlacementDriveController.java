@@ -9,6 +9,9 @@ import java.util.List;
 import com.institute.lms.service.NotificationService;
 import com.institute.lms.util.UserContext;
 
+import com.institute.lms.repository.UserRepository;
+import com.institute.lms.entity.User;
+
 @RestController
 @RequestMapping("/api/placement-drives")
 public class PlacementDriveController {
@@ -16,13 +19,16 @@ public class PlacementDriveController {
     private final PlacementDriveRepository placementDriveRepository;
     private final NotificationService notificationService;
     private final UserContext userContext;
+    private final UserRepository userRepository;
 
     public PlacementDriveController(PlacementDriveRepository placementDriveRepository,
                                     NotificationService notificationService,
-                                    UserContext userContext) {
+                                    UserContext userContext,
+                                    UserRepository userRepository) {
         this.placementDriveRepository = placementDriveRepository;
         this.notificationService = notificationService;
         this.userContext = userContext;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
@@ -43,6 +49,15 @@ public class PlacementDriveController {
         if (drive.getRecruiterToken() == null || drive.getRecruiterToken().isBlank()) {
             drive.setRecruiterToken(java.util.UUID.randomUUID().toString());
         }
+
+        // Resolve faculty details if assigned
+        if (drive.getAssignedFacultyId() != null) {
+            userRepository.findById(drive.getAssignedFacultyId()).ifPresent(f -> {
+                drive.setFacultyName(f.getName());
+                drive.setFacultyEmail(f.getEmail());
+            });
+        }
+
         PlacementDrive saved = placementDriveRepository.save(drive);
 
         // Drives are gated by subscription plan; a null planId means open to all.
@@ -80,6 +95,23 @@ public class PlacementDriveController {
                     existing.setMinAttendancePercent(drive.getMinAttendancePercent());
                     existing.setMinCourseCompletionPercent(drive.getMinCourseCompletionPercent());
                     existing.setMinAssignmentAvgPercent(drive.getMinAssignmentAvgPercent());
+                    existing.setMinExamAvgPercent(drive.getMinExamAvgPercent());
+
+                    // Preserve and update assigned faculty details
+                    existing.setAssignedFacultyId(drive.getAssignedFacultyId());
+                    if (drive.getAssignedFacultyId() != null) {
+                        userRepository.findById(drive.getAssignedFacultyId()).ifPresentOrElse(f -> {
+                            existing.setFacultyName(f.getName());
+                            existing.setFacultyEmail(f.getEmail());
+                        }, () -> {
+                            existing.setFacultyName(drive.getFacultyName());
+                            existing.setFacultyEmail(drive.getFacultyEmail());
+                        });
+                    } else {
+                        existing.setFacultyName(drive.getFacultyName());
+                        existing.setFacultyEmail(drive.getFacultyEmail());
+                    }
+
                     if (drive.getRecruiterToken() != null && !drive.getRecruiterToken().isBlank()) {
                         existing.setRecruiterToken(drive.getRecruiterToken());
                     } else if (existing.getRecruiterToken() == null || existing.getRecruiterToken().isBlank()) {

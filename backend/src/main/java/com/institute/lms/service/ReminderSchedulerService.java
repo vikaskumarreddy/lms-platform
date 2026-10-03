@@ -27,12 +27,14 @@ public class ReminderSchedulerService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final InterviewSlotRepository interviewSlotRepository;
+    private final com.institute.lms.repository.NotificationRepository notificationRepository;
 
     public ReminderSchedulerService(FcmService fcmService, SystemConfigRepository systemConfigRepository,
                                      PushNotificationLogRepository pushLogRepository,
                                      AssignmentRepository assignmentRepository, ExamRepository examRepository,
                                      EventRepository eventRepository, UserRepository userRepository,
-                                     InterviewSlotRepository interviewSlotRepository) {
+                                     InterviewSlotRepository interviewSlotRepository,
+                                     com.institute.lms.repository.NotificationRepository notificationRepository) {
         this.fcmService = fcmService;
         this.systemConfigRepository = systemConfigRepository;
         this.pushLogRepository = pushLogRepository;
@@ -41,6 +43,7 @@ public class ReminderSchedulerService {
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.interviewSlotRepository = interviewSlotRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     private long configLong(String key, long defaultValue) {
@@ -136,21 +139,72 @@ public class ReminderSchedulerService {
         }
     }
 
-    /** Runs every 15 minutes: interview slot reminders for internal placement drives. */
+    /** Runs every 15 minutes: internal interview slot reminders (6 hrs, 1 hr, and 15 mins before). */
     @Scheduled(fixedDelay = 15 * 60 * 1000)
     public void remindUpcomingInterviews() {
-        if (!fcmService.isPushEnabled()) return;
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime windowStart = now.plusHours(1).minusMinutes(15);
-        LocalDateTime windowEnd = now.plusHours(1);
+
+        // 6 hours before window
+        LocalDateTime win6hStart = now.plusHours(6).minusMinutes(15);
+        LocalDateTime win6hEnd = now.plusHours(6);
+
+        // 1 hour before window
+        LocalDateTime win1hStart = now.plusHours(1).minusMinutes(15);
+        LocalDateTime win1hEnd = now.plusHours(1);
+
+        // 15 minutes before window
+        LocalDateTime win15mStart = now;
+        LocalDateTime win15mEnd = now.plusMinutes(15);
 
         for (InterviewSlot slot : interviewSlotRepository.findByBookedByUserIdIsNotNull()) {
             if (slot.getSlotTime() == null || slot.getBookedByUserId() == null) continue;
-            if (slot.getSlotTime().isBefore(windowStart) || slot.getSlotTime().isAfter(windowEnd)) continue;
-            userRepository.findById(slot.getBookedByUserId()).ifPresent(student ->
-                    notifyOnce(student, "interview-slot-" + slot.getId(),
-                            "Interview reminder",
-                            "Your interview slot is at " + slot.getSlotTime() + ". Good luck!"));
+            LocalDateTime st = slot.getSlotTime();
+
+            // 6 Hours Before Check
+            if (!st.isBefore(win6hStart) && !st.isAfter(win6hEnd)) {
+                sendInterviewAlert(slot, "6h", "Interview in 6 Hours",
+                        "Your interview is scheduled in 6 hours (" + st + "). Check your camera, mic, and IDE setup.");
+            }
+            // 1 Hour Before Check
+            else if (!st.isBefore(win1hStart) && !st.isAfter(win1hEnd)) {
+                sendInterviewAlert(slot, "1h", "Interview in 1 Hour",
+                        "Your interview starts in 1 hour (" + st + "). Please be prepared.");
+            }
+            // 15 Minutes Before Check
+            else if (!st.isBefore(win15mStart) && !st.isAfter(win15mEnd)) {
+                sendInterviewAlert(slot, "15m", "Interview Starting Soon (15 min)",
+                        "Your 1-on-1 interview begins in 15 minutes! Tap to enter the studio now.");
+            }
         }
     }
+
+    private void sendInterviewAlert(InterviewSlot slot, String tag, String title, String message) {
+        userRepository.findById(slot.getBookedByUserId()).ifPresent(student -> {
+            String reminderKey = "interview-slot-" + slot.getId() + "-" + tag;
+            if (pushLogRepository.existsByUserIdAndReminderKey(student.getId(), reminderKey)) return;
+
+            // 1. Send push if enabled
+            if (student.getFcmToken() != null && !student.getFcmToken().isBlank()) {
+                fcmService.sendToToken(student.getFcmToken(), title, message, Map.of(
+                        "roomCode", slot.getRoomCode() != null ? slot.getRoomCode() : "AXIS-INT-" + slot.getId()
+                ));
+            }
+
+            // 2. Save in-app notification for student portal
+            com.institute.lms.entity.Notification n = new com.institute.lms.entity.Notification();
+            n.setUserId(student.getId());
+            n.setTitle(title);
+            n.setMessage(message);
+            n.setType("INTERVIEW_REMINDER");
+            n.setActionUrl(slot.getRoomCode() != null ? "/interview/" + slot.getRoomCode() : "/interview/AXIS-INT-" + slot.getId());
+            notificationRepository.save(n);
+
+            // 3. Mark in push log to prevent re-triggering
+            PushNotificationLog log = new PushNotificationLog();
+            log.setUserId(student.getId());
+            log.setReminderKey(reminderKey);
+            pushLogRepository.save(log);
+        });
+    }
 }
+

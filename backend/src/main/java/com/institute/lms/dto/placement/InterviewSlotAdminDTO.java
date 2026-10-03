@@ -20,4 +20,8 @@ public class InterviewSlotAdminDTO {
     private String bookedByEmail;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime bookedAt;
+    private Long facultyId;
+    private String facultyName;
+    private String facultyEmail;
+    private String roomCode;
 }

@@ -24,6 +24,9 @@ interface Drive {
   minCourseCompletionPercent?: number | null;
   minAssignmentAvgPercent?: number | null;
   minExamAvgPercent?: number | null;
+  assignedFacultyId?: number | null;
+  facultyName?: string;
+  facultyEmail?: string;
 }
 
 interface InterviewSlot {
@@ -32,11 +35,16 @@ interface InterviewSlot {
   slotTime: string;
   location?: string;
   notes?: string;
+  facultyId?: number | null;
+  facultyName?: string;
+  facultyEmail?: string;
+  roomCode?: string;
   bookedByUserId?: number;
   bookedByName?: string;
   bookedByEmail?: string;
   status: 'AVAILABLE' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 }
+
 
 interface StudentApplication {
   id: number;
@@ -324,6 +332,13 @@ interface SupportRequest {
                   <option value="INTERNAL">🏢 Internal (institute-run)</option>
                 </select>
               </div>
+              <div *ngIf="driveForm.driveType === 'INTERNAL'">
+                <label>Assigned Faculty / Interviewer</label>
+                <select [(ngModel)]="driveForm.assignedFacultyId" (change)="onFacultySelected()" name="assignedFacultyId">
+                  <option [ngValue]="null">Select Faculty Interviewer</option>
+                  <option *ngFor="let f of facultyList" [ngValue]="f.id">👨‍🏫 {{f.name}} ({{f.email}})</option>
+                </select>
+              </div>
               <div>
                 <label>Subscription Plan</label>
                 <select [(ngModel)]="driveForm.planId" name="planId">
@@ -395,8 +410,14 @@ interface SupportRequest {
           <legend>Interview Slots — {{ slotsForDrive?.companyName }}</legend>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
             <input type="datetime-local" [(ngModel)]="newSlot.slotTime" name="slotTime" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Room 204 / Google Meet)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
-            <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)" style="grid-column:1/-1;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+            <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Studio Room / Google Meet)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+            <div>
+              <select [(ngModel)]="newSlot.facultyId" name="slotFaculty" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
+                <option [ngValue]="null">Interviewer: {{ slotsForDrive?.facultyName || 'Default Drive Faculty' }}</option>
+                <option *ngFor="let f of facultyList" [ngValue]="f.id">👨‍🏫 {{f.name}}</option>
+              </select>
+            </div>
+            <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
           </div>
           <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -404,10 +425,11 @@ interface SupportRequest {
           </button>
 
           <table>
-            <thead><tr><th>Date & Time</th><th>Location</th><th>Status</th><th>Booked By</th><th></th></tr></thead>
+            <thead><tr><th>Date & Time</th><th>Interviewer Faculty</th><th>Location</th><th>Status</th><th>Booked By</th><th></th></tr></thead>
             <tbody>
               <tr *ngFor="let s of slots">
                 <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
+                <td style="font-size:13px;font-weight:600;color:#0F172A;">{{ s.facultyName || slotsForDrive?.facultyName || 'Lead Faculty' }}</td>
                 <td>{{ s.location || '-' }}</td>
                 <td>
                   <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
@@ -418,7 +440,7 @@ interface SupportRequest {
                   </button></td>
               </tr>
               <tr *ngIf="slots.length === 0">
-                <td colspan="5" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
+                <td colspan="6" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
               </tr>
             </tbody>
           </table>
@@ -548,13 +570,17 @@ export class PlacementsComponent implements OnInit {
     applyLink: '',
     deadline: '',
     isActive: true,
-    planId: null
+    planId: null,
+    assignedFacultyId: null,
+    facultyName: '',
+    facultyEmail: ''
   };
 
   showSlotsModal = false;
   slotsForDrive: Drive | null = null;
   slots: InterviewSlot[] = [];
-  newSlot: { slotTime: string; location: string; notes: string } = { slotTime: '', location: '', notes: '' };
+  newSlot: { slotTime: string; location: string; notes: string; facultyId: number | null } = { slotTime: '', location: '', notes: '', facultyId: null };
+  facultyList: any[] = [];
 
   showCriteriaModal = false;
   criteriaDrive: Drive | null = null;
@@ -584,6 +610,30 @@ export class PlacementsComponent implements OnInit {
     this.loadPlans();
     this.loadApplications();
     this.loadSupportRequests();
+    this.loadFaculty();
+  }
+
+  loadFaculty() {
+    this.apiService.get<any[]>('/api/faculty').subscribe({
+      next: (data) => { this.facultyList = data || []; },
+      error: () => {
+        this.apiService.get<any[]>('/api/users?role=INSTRUCTOR').subscribe({
+          next: (d) => { this.facultyList = d || []; },
+          error: () => { this.facultyList = []; }
+        });
+      }
+    });
+  }
+
+  onFacultySelected() {
+    const selected = this.facultyList.find(f => f.id === this.driveForm.assignedFacultyId);
+    if (selected) {
+      this.driveForm.facultyName = selected.name;
+      this.driveForm.facultyEmail = selected.email;
+    } else {
+      this.driveForm.facultyName = '';
+      this.driveForm.facultyEmail = '';
+    }
   }
 
   loadSupportRequests() {
@@ -764,7 +814,10 @@ export class PlacementsComponent implements OnInit {
       applyLink: '',
       deadline: '',
       isActive: true,
-      planId: null
+      planId: null,
+      assignedFacultyId: null,
+      facultyName: '',
+      facultyEmail: ''
     };
     this.showModal = true;
   }
@@ -785,7 +838,10 @@ export class PlacementsComponent implements OnInit {
       applyLink: drive.applyLink || '',
       deadline: drive.deadline ? drive.deadline.slice(0, 16) : '',
       isActive: drive.isActive,
-      planId: drive.planId || null
+      planId: drive.planId || null,
+      assignedFacultyId: drive.assignedFacultyId || null,
+      facultyName: drive.facultyName || '',
+      facultyEmail: drive.facultyEmail || ''
     };
     this.showModal = true;
   }
@@ -835,7 +891,7 @@ export class PlacementsComponent implements OnInit {
 
   openSlotsModal(drive: Drive) {
     this.slotsForDrive = drive;
-    this.newSlot = { slotTime: '', location: drive.location || '', notes: '' };
+    this.newSlot = { slotTime: '', location: drive.location || '', notes: '', facultyId: drive.assignedFacultyId || null };
     this.showSlotsModal = true;
     this.loadSlots(drive.id);
   }
@@ -859,16 +915,18 @@ export class PlacementsComponent implements OnInit {
       driveId: this.slotsForDrive.id,
       slotTime: this.newSlot.slotTime.length === 16 ? `${this.newSlot.slotTime}:00` : this.newSlot.slotTime,
       location: this.newSlot.location,
-      notes: this.newSlot.notes
+      notes: this.newSlot.notes,
+      facultyId: this.newSlot.facultyId || this.slotsForDrive.assignedFacultyId || null
     };
     this.apiService.post('/api/interview-slots', payload).subscribe({
       next: () => {
         this.loadSlots(this.slotsForDrive!.id);
-        this.newSlot = { slotTime: '', location: this.slotsForDrive!.location || '', notes: '' };
+        this.newSlot = { slotTime: '', location: this.slotsForDrive!.location || '', notes: '', facultyId: this.slotsForDrive!.assignedFacultyId || null };
       },
       error: err => this.errors.show(err, 'Could not add interview slot')
     });
   }
+
 
   async deleteSlot(slot: InterviewSlot) {
     if (!(await this.confirm.confirm('Delete this interview slot?'))) return;

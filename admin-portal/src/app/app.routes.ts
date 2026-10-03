@@ -42,6 +42,8 @@ import { adminGuard, adminOnlyGuard, orgAdminGuard } from './guards/admin.guard'
 import { SocialHandlesComponent } from './pages/social-handles/social-handles.component';
 import { CodeEditorComponent } from './pages/code-editor/code-editor.component';
 import { CodingChallengesComponent } from './pages/coding-challenges/coding-challenges.component';
+import { InterviewsAdminComponent } from './pages/interviews-admin/interviews-admin.component';
+import { InterviewRoomComponent } from './pages/interview-room/interview-room.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -50,6 +52,9 @@ export const routes: Routes = [
   // Standalone Realtime Coding IDE (full-screen 2-vertical layout for students & playground)
   { path: 'code-editor/:questionId', component: CodeEditorComponent },
   { path: 'code-editor', component: CodeEditorComponent },
+  // Standalone 1-on-1 Interview Room (full-screen Google Meet style video + live workbench)
+  { path: 'interview/:roomCode', component: InterviewRoomComponent },
+  { path: 'interview', component: InterviewRoomComponent },
   {
     path: '',
     component: AdminLayoutComponent,
@@ -70,6 +75,7 @@ export const routes: Routes = [
       { path: 'courses/:id', component: CourseDetailComponent },
       { path: 'faculty', component: FacultyComponent },
       { path: 'placements', component: PlacementsComponent },
+      { path: 'interviews-admin', component: InterviewsAdminComponent },
       { path: 'calendar-events', component: CalendarEventsComponent },
       { path: 'assignments-admin', component: AssignmentsAdminComponent },
       { path: 'exams-admin', component: ExamsAdminComponent },

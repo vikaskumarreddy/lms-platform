@@ -61,6 +61,8 @@ class _MainShellScreenState extends ConsumerState<MainShellScreen>
     Icons.candlestick_chart_rounded,
     'Attendance'
     ),
+    (AppRoutes.interviewHistory, Icons.videocam_outlined, Icons.videocam_rounded, '1-1 Interview'),
+    (AppRoutes.feedback, Icons.rate_review_outlined, Icons.rate_review_rounded, 'Feedback'),
     (AppRoutes.companyQuestions, Icons.local_post_office_outlined, Icons.local_activity_rounded, 'Company Q&A'),
     (AppRoutes.qa, Icons.question_answer_outlined, Icons.question_answer_rounded, 'Q & A'),
     ('/notes/0', Icons.note_add_outlined, Icons.note_add_rounded, 'Notes'),

@@ -1420,6 +1420,273 @@ class ApiService {
     }
   }
 
+  // MARK: - 1-on-1 Interview Room APIs (100ms)
+
+  Future<Map<String, dynamic>?> createOrJoinInterviewRoom({
+    String? roomCode,
+    int? slotId,
+    int? candidateId,
+    String? candidateName,
+    String? interviewerName,
+    String? title,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final prefs = await SharedPreferences.getInstance();
+      final currentUserId = prefs.getInt('userId');
+      final currentUserName = prefs.getString('userName');
+
+      final body = <String, dynamic>{};
+      if (roomCode != null && roomCode.isNotEmpty) body['roomCode'] = roomCode;
+      if (slotId != null) body['slotId'] = slotId;
+      if (candidateId != null) {
+        body['candidateId'] = candidateId;
+      } else if (currentUserId != null) {
+        body['candidateId'] = currentUserId;
+      }
+      if (candidateName != null) {
+        body['candidateName'] = candidateName;
+      } else if (currentUserName != null) {
+        body['candidateName'] = currentUserName;
+      }
+      if (interviewerName != null) body['interviewerName'] = interviewerName;
+      if (title != null) body['title'] = title;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms'),
+        headers: headers,
+        body: json.encode(body),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error creating/joining interview room: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getInterviewRoom(String roomCode) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching interview room: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> submitInterviewEvaluation(
+    String roomCode,
+    Map<String, dynamic> evaluation,
+  ) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/evaluation'),
+        headers: headers,
+        body: json.encode(evaluation),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error submitting interview evaluation: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> executeInterviewCode(
+    String roomCode, {
+    required String language,
+    required String code,
+    String? input,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/execute'),
+        headers: headers,
+        body: json.encode({
+          'language': language,
+          'code': code,
+          'input': input ?? '',
+        }),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error executing interview code: $e');
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInterviewQuestions() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/questions'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching interview questions: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInterviewFeedbacks() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/feedback'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching interview feedbacks: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getStudentStats(int studentId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/student-stats/$studentId'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching student stats: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> updateInterviewPresence(
+    String roomCode, {
+    required String role,
+    required String name,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/presence'),
+        headers: headers,
+        body: json.encode({'role': role, 'name': name}),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getInterviewPresence(String roomCode) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/presence'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<bool> syncInterviewCode(
+    String roomCode, {
+    required String code,
+    required String language,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/code'),
+        headers: headers,
+        body: json.encode({'code': code, 'language': language}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getSyncedInterviewCode(String roomCode) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/code'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<bool> sendInterviewChat(String roomCode, Map<String, dynamic> message) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/chat'),
+        headers: headers,
+        body: json.encode(message),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInterviewChat(String roomCode, {int since = 0}) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/interviews/rooms/$roomCode/chat?since=$since'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   // MARK: - Payment History APIs
 
   Future<List<Map<String, dynamic>>> getPaymentHistory() async {

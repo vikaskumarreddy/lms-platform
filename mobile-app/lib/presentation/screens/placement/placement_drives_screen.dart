@@ -586,7 +586,45 @@ class _BookedSlotSummary extends StatelessWidget {
                       style: const TextStyle(color: Colors.white60, fontSize: 11.5))),
             ]),
           ],
-          const SizedBox(height: 12),
+          if ((slot['facultyName'] ?? '').toString().isNotEmpty || (slot['facultyEmail'] ?? '').toString().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              const Icon(Icons.person_outline_rounded, size: 16, color: Colors.white70),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  (slot['facultyName'] ?? '').toString().isNotEmpty && (slot['facultyEmail'] ?? '').toString().isNotEmpty
+                      ? 'Interviewer: ${slot['facultyName']} (${slot['facultyEmail']})'
+                      : 'Interviewer: ${(slot['facultyName'] ?? '').toString().isNotEmpty ? slot['facultyName'] : slot['facultyEmail']}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ]),
+          ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                final slotId = slot['id'];
+                final roomCode = 'AXIS-INT-$slotId';
+                context.push(AppRoutes.interviewRoomFor(roomCode));
+              },
+              icon: const Icon(Icons.video_call_rounded, color: Colors.white, size: 20),
+              label: const Text(
+                'Join 1-1 Interview Room',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           const Text('Contact your institute if you need to reschedule.',
               style: TextStyle(fontSize: 12, color: Colors.white54)),
         ],

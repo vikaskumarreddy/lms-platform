@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/constants/routes.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/common_header.dart';
 
@@ -182,6 +184,29 @@ class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
                                         ],
                                       ),
                                     ],
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          context.push(AppRoutes.interviewRoomFor('AXIS-INT-${interview.id}'));
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF071D43),
+                                          foregroundColor: const Color(0xFF27D9D3),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                            side: const BorderSide(color: Color(0xFF27D9D3), width: 1.2),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                                        ),
+                                        icon: const Icon(Icons.videocam, size: 18),
+                                        label: const Text(
+                                          'Join 1-on-1 Interview Room (100ms)',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -191,6 +216,19 @@ class _InterviewHistoryScreenState extends State<InterviewHistoryScreen> {
                       ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          final instantCode = 'AXIS-MOCK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+          context.push(AppRoutes.interviewRoomFor(instantCode));
+        },
+        backgroundColor: const Color(0xFF27D9D3),
+        foregroundColor: const Color(0xFF071D43),
+        icon: const Icon(Icons.video_call, size: 22),
+        label: const Text(
+          'Instant 1-on-1 Mock Room',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
       ),
     );
   }

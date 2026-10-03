@@ -134,6 +134,18 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
                     route: AppRoutes.attendance,
                   ),
                   _drawerItem(
+                    icon: Icons.videocam_rounded,
+                    iconColor: const Color(0xFF27D9D3),
+                    title: '1-on-1 Mock Interviews',
+                    route: AppRoutes.interviewHistory,
+                  ),
+                  _drawerItem(
+                    icon: Icons.rate_review_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: 'Feedback',
+                    route: AppRoutes.feedback,
+                  ),
+                  _drawerItem(
                     icon: Icons.forum_rounded,
                     iconColor: const Color(0xFF06B6D4),
                     title: 'Q&A',

@@ -42,4 +42,8 @@ class AppRoutes {
   /// The payment route with its plan-id parameter filled in — use this to
   /// navigate ([payment] is a route *pattern*, not a navigable path).
   static String paymentFor(int planId) => '/payment/$planId';
+
+  /// 1-on-1 Realtime Interview Room (100ms video call + live collaborative code editor)
+  static const String interviewRoom = '/interview/:roomCode';
+  static String interviewRoomFor(String roomCode) => '/interview/$roomCode';
 }
