@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/organizations/public-info").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/subscription-plans", "/api/subscription-plans/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/batches", "/api/batches/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/courses/**").permitAll()

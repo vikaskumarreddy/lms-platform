@@ -174,7 +174,8 @@ export interface DetailedInterviewSessionItem {
           <button class="btn btn-primary" (click)="createInstantMockRoom()">Launch Instant Room</button>
         </div>
 
-        <div *ngIf="!loading && filteredSessions.length > 0" class="table-responsive">
+        <!-- Desktop View (>= 992px) -->
+        <div *ngIf="!loading && filteredSessions.length > 0" class="table-responsive desktop-only">
           <table class="interviews-table">
             <thead>
               <tr>
@@ -216,7 +217,7 @@ export interface DetailedInterviewSessionItem {
                 <td>
                   <div class="interviewer-cell">
                     <span class="interviewer-name">{{ session.interviewerName || 'Lead Mentor' }}</span>
-                    <span class="interviewer-email">{{ session.interviewerEmail || 'faculty@axisora.internal' }}</span>
+                    <span class="interviewer-email" *ngIf="session.interviewerEmail">{{ session.interviewerEmail }}</span>
                   </div>
                 </td>
                 <td>
@@ -283,6 +284,88 @@ export interface DetailedInterviewSessionItem {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile Card List (< 992px) -->
+        <div *ngIf="!loading && filteredSessions.length > 0" class="mobile-only" style="margin-bottom:20px;">
+          <div class="mobile-card-list">
+            <div class="mobile-data-card" *ngFor="let session of filteredSessions">
+              <!-- Top Row: Room Code Pill & Status Badge -->
+              <div class="mobile-card-header">
+                <div class="room-pill" (click)="copyLink(session.roomCode)">
+                  <code>{{ session.roomCode }}</code>
+                  <span class="copy-hint" title="Copy Room Link">📋</span>
+                </div>
+                <span class="status-badge" [ngClass]="session.status.toLowerCase()">
+                  <span *ngIf="session.status === 'LIVE'" class="pulse-dot"></span>
+                  {{ session.status }}
+                </span>
+              </div>
+
+              <!-- Candidate Info -->
+              <div style="background:#F8FAFC;padding:10px 12px;border-radius:8px;border:1px solid #E2E8F0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:700;font-size:14px;color:#0F172A;">{{ session.candidateName || 'Candidate' }}</span>
+                  <button
+                    *ngIf="session.candidateId"
+                    class="btn-profile-badge"
+                    (click)="viewCandidateProfile(session.candidateId, session.candidateName)"
+                  >
+                    👤 Profile
+                  </button>
+                </div>
+                <div style="font-size:12px;color:#64748B;margin-top:2px;">{{ session.candidateEmail || 'student@axisora.internal' }}</div>
+                <div *ngIf="session.batchName" style="font-size:11px;color:#0D9488;font-weight:600;margin-top:3px;">👥 {{ session.batchName }}</div>
+              </div>
+
+              <!-- Interviewer / Faculty Details -->
+              <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;flex-wrap:wrap;">
+                <span style="font-weight:600;color:#64748B;">Interviewer:</span>
+                <span style="font-weight:700;">👨‍🏫 {{ session.interviewerName || 'Lead Mentor' }}</span>
+                <span style="color:#64748B;font-size:11.5px;" *ngIf="session.interviewerEmail">({{ session.interviewerEmail }})</span>
+              </div>
+
+              <!-- Topic / Challenge Info -->
+              <div style="font-size:13px;">
+                <div *ngIf="session.companyName" class="company-tag" style="margin-bottom:4px;display:inline-block;">
+                  🏢 {{ session.companyName }} <span *ngIf="session.driveRole">({{ session.driveRole }})</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-weight:600;color:#0F172A;">{{ session.problemTitle || session.title || 'Technical Round' }}</span>
+                  <span *ngIf="session.problemDifficulty" class="difficulty-tag" [ngClass]="session.problemDifficulty.toLowerCase()">
+                    {{ session.problemDifficulty }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Evaluation & Date Meta -->
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:#64748B;">
+                <div>
+                  <span *ngIf="session.hiringDecision" class="decision-badge" [ngClass]="session.hiringDecision.toLowerCase()" style="margin-right:6px;">
+                    {{ formatDecision(session.hiringDecision) }}
+                  </span>
+                  <span *ngIf="session.problemSolvingScore" class="score-stars">
+                    ⭐ {{ session.problemSolvingScore }}/5
+                  </span>
+                  <span *ngIf="!session.hiringDecision" class="pending-text">Pending evaluation</span>
+                </div>
+                <span style="font-size:11.5px;">📅 {{ formatDate(session.scheduledAt || session.startedAt) }}</span>
+              </div>
+
+              <!-- Actions Strip -->
+              <div class="mobile-card-actions">
+                <button class="btn-join" (click)="joinRoom(session.roomCode)" style="flex:2;padding:9px 14px;border-radius:8px;font-weight:700;">
+                  <span>🎥</span> Join Room
+                </button>
+                <button *ngIf="session.candidateId" class="btn btn-secondary btn-sm" (click)="viewCandidateProfile(session.candidateId, session.candidateName)">
+                  👤 Profile
+                </button>
+                <button class="btn btn-secondary btn-sm" (click)="copyLink(session.roomCode)">
+                  🔗 Link
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1190,6 +1273,22 @@ export interface DetailedInterviewSessionItem {
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+      .search-box { min-width: 0 !important; width: 100%; }
+      .filter-tabs { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .filter-tabs button { flex-shrink: 0; padding: 6px 10px; font-size: 11px; }
+      .time-filters { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .time-pill { flex-shrink: 0; }
+      .main-tabs-wrapper { flex-direction: column; align-items: stretch; gap: 10px; }
+      .scope-tabs { width: 100%; }
+      .scope-tab { flex: 1; justify-content: center; padding: 8px 10px; font-size: 12px; }
+      .metrics-grid { grid-template-columns: 1fr; gap: 10px; }
+      .modal-card { width: 95% !important; max-width: 95% !important; margin: 10px; }
+      .profile-modal-card { width: 95% !important; max-width: 95% !important; }
+      .profile-strip { grid-template-columns: 1fr 1fr; }
     }
   `]
 })

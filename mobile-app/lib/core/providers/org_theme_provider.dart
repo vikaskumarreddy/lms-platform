@@ -67,9 +67,17 @@ final orgNameProvider = FutureProvider<String>((ref) async {
   return (name == null || name.isEmpty) ? 'Axisora' : name;
 });
 
+/// The current organization's logo URL (network image). Empty string if none.
+/// Kept alive so the logo doesn't flash between screens.
+final orgLogoProvider = FutureProvider<String>((ref) async {
+  final logo = await ApiService().getCurrentOrganizationLogo();
+  return logo ?? '';
+});
+
 /// The current organization's tenant slug (e.g. "manyasree" or "axisora"),
 /// used to resolve tenant URLs across web views and integrations.
 final tenantSlugProvider = FutureProvider<String>((ref) async {
   final slug = await ApiService().getCurrentOrganizationSlug();
   return (slug == null || slug.isEmpty) ? 'axisora' : slug;
 });
+

@@ -41,30 +41,30 @@ interface AttendanceRow {
     </div>
 
     <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" *ngIf="mode === 'event'">
-      <label style="font-weight:600;font-size:14px;">Select Event / Class:</label>
-      <select [(ngModel)]="selectedEventId" (ngModelChange)="onEventChange()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;min-width:320px;">
+      <label style="font-weight:600;font-size:14px;white-space:nowrap;">Select Event / Class:</label>
+      <select [(ngModel)]="selectedEventId" (ngModelChange)="onEventChange()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;flex:1;min-width:min(100%, 260px);">
         <option [ngValue]="null">-- Select an event --</option>
         <option *ngFor="let e of events" [ngValue]="e.id">{{ e.title }} ({{ formatDate(e.startTime) }}) {{ getBatchName(e.batchId) ? '- ' + getBatchName(e.batchId) : '' }}</option>
       </select>
       <button class="btn btn-primary" [disabled]="!selectedEventId || saving" (click)="saveAttendance()">{{ saving ? 'Saving...' : 'Save Attendance' }}</button>
     </div>
 
-    <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" *ngIf="mode === 'daily'">
+    <div class="card" style="margin-bottom:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;" *ngIf="mode === 'daily'">
       <label style="font-weight:600;font-size:14px;">Batch:</label>
-      <select [(ngModel)]="selectedBatchId" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;min-width:220px;">
+      <select [(ngModel)]="selectedBatchId" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;flex:1;min-width:min(100%, 180px);">
         <option [ngValue]="null">-- Select a batch --</option>
         <option *ngFor="let b of batches" [ngValue]="b.id">{{ b.name }}</option>
       </select>
       <label style="font-weight:600;font-size:14px;">Date:</label>
       <input type="date" [(ngModel)]="selectedDate" (ngModelChange)="loadDailyAttendance()" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;">
-      <label style="font-weight:600;font-size:14px;">Subject (optional):</label>
-      <input type="text" [(ngModel)]="subject" (ngModelChange)="loadDailyAttendance()" placeholder="e.g. Maths" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;width:160px;">
+      <label style="font-weight:600;font-size:14px;">Subject:</label>
+      <input type="text" [(ngModel)]="subject" (ngModelChange)="loadDailyAttendance()" placeholder="e.g. Maths" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;width:140px;">
       <button class="btn btn-primary" [disabled]="!selectedEventId || saving" (click)="saveAttendance()">{{ saving ? 'Saving...' : 'Save Attendance' }}</button>
     </div>
 
     <div class="card" *ngIf="selectedEventId && rows.length > 0">
       <!-- Attendance Statistics Badges -->
-      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:12px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0;">
         <div style="font-size:13px;color:#475569;">
           Total: <strong style="color:#0F172A;font-size:15px;">{{ rows.length }}</strong>
         </div>
@@ -85,30 +85,57 @@ interface AttendanceRow {
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
         <div style="font-weight:600;font-size:15px;">{{ eventTitle }}</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="text" [(ngModel)]="studentSearchQuery" placeholder="🔍 Filter student name..." style="padding:4px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;min-width:180px;">
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="markAll(true)">Mark All Present</button>
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="markAll(false)">Mark All Absent</button>
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;background:#F1F5F9;" (click)="invertSelection()">🔄 Invert Selection</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;max-width:600px;">
+          <input type="text" [(ngModel)]="studentSearchQuery" placeholder="🔍 Filter student name..." style="padding:6px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;flex:1;min-width:min(100%, 160px);">
+          <button class="btn btn-secondary btn-sm" (click)="markAll(true)">All Present</button>
+          <button class="btn btn-secondary btn-sm" (click)="markAll(false)">All Absent</button>
+          <button class="btn btn-secondary btn-sm" style="background:#F1F5F9;" (click)="invertSelection()">🔄 Invert</button>
         </div>
       </div>
-      <table>
-        <thead><tr><th>Student</th><th style="width:120px;">Present</th><th>Remarks</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let r of visibleRows">
-            <td style="font-weight:600;">{{ r.userName }}</td>
-            <td>
-              <input type="checkbox" [(ngModel)]="r.present" style="width:18px;height:18px;cursor:pointer;">
-            </td>
-            <td>
-              <input type="text" [(ngModel)]="r.remarks" placeholder="Optional remarks" style="width:100%;padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
-            </td>
-          </tr>
-          <tr *ngIf="visibleRows.length === 0">
-            <td colspan="3" style="text-align:center;color:#64748B;padding:16px;">No students match "{{ studentSearchQuery }}"</td>
-          </tr>
-        </tbody>
-      </table>
+
+      <!-- Mobile Attendance Card Stack (< 768px) -->
+      <div class="mobile-only">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let r of visibleRows" style="padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+              <span style="font-weight:700;font-size:14px;color:var(--text);">{{ r.userName }}</span>
+              <button type="button"
+                      [style.background]="r.present ? '#DCFCE7' : '#FEE2E2'"
+                      [style.color]="r.present ? '#166534' : '#991B1B'"
+                      [style.border]="r.present ? '1px solid #86EFAC' : '1px solid #FCA5A5'"
+                      style="padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;min-height:38px;min-width:90px;"
+                      (click)="r.present = !r.present">
+                {{ r.present ? '✓ Present' : '✕ Absent' }}
+              </button>
+            </div>
+            <input type="text" [(ngModel)]="r.remarks" placeholder="Optional remarks" style="width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:4px;">
+          </div>
+          <div *ngIf="visibleRows.length === 0" style="text-align:center;color:#64748B;padding:16px;">
+            No students match "{{ studentSearchQuery }}"
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Attendance Table (>= 768px) -->
+      <div class="desktop-only">
+        <table>
+          <thead><tr><th>Student</th><th style="width:120px;">Present</th><th>Remarks</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let r of visibleRows">
+              <td style="font-weight:600;">{{ r.userName }}</td>
+              <td>
+                <input type="checkbox" [(ngModel)]="r.present" style="width:18px;height:18px;cursor:pointer;">
+              </td>
+              <td>
+                <input type="text" [(ngModel)]="r.remarks" placeholder="Optional remarks" style="width:100%;padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
+              </td>
+            </tr>
+            <tr *ngIf="visibleRows.length === 0">
+              <td colspan="3" style="text-align:center;color:#64748B;padding:16px;">No students match "{{ studentSearchQuery }}"</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="card" *ngIf="selectedEventId && rows.length === 0 && !loadingRows">

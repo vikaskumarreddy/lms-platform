@@ -96,3 +96,366 @@
 }
 .phone-screen table { width: 100%; border-collapse: collapse; }
 .phone-screen table, .phone-screen th, .phone-screen td { border: 1px solid #E2E8F0; padding: 6px; }
+
+/* Course Detail Responsive Header & Card System */
+.course-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.course-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.course-title-meta h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text, #0F172A);
+}
+
+.course-meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748B;
+  font-size: 13px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.modules-subheader-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.modules-subheader-left h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.modules-subheader-left p {
+  font-size: 12px;
+  color: #64748B;
+  margin: 3px 0 0;
+}
+
+.modules-subheader-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.per-page-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.per-page-selector select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+}
+
+/* Module Card */
+.module-card-item {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.module-card-item:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.module-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  background: #FFFFFF;
+}
+
+.module-header-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.module-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.module-info-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.module-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0;
+  color: #0F172A;
+  word-break: break-word;
+}
+
+.module-subtitle {
+  color: #64748B;
+  font-size: 12px;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.module-chevron-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.module-chevron-btn:hover {
+  background: #F1F5F9;
+  color: #475569;
+}
+
+/* Module Action Toolbar */
+.module-toolbar {
+  padding: 8px 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  border-bottom: 1px solid #F1F5F9;
+  background: #FFFFFF;
+}
+
+.module-toolbar-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.module-toolbar-btns .btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.module-expanded-body {
+  border-top: 1px solid #E2E8F0;
+  padding: 18px 20px;
+  background: #F8FAFC;
+}
+
+.module-desc {
+  color: #475569;
+  font-size: 13px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.lessons-header-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lessons-header-strip h4 {
+  font-weight: 700;
+  font-size: 13px;
+  color: #334155;
+  margin: 0;
+}
+
+.lessons-hint {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* Lesson Card */
+.lesson-card-item {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.lesson-main-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.lesson-thumb-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.lesson-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lesson-text-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.lesson-title-text {
+  font-weight: 600;
+  font-size: 13px;
+  color: #0F172A;
+  word-break: break-word;
+}
+
+.lesson-sub-meta {
+  color: #64748B;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.lesson-badge-strip {
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lesson-actions-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lesson-actions-strip .btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.no-lessons-box {
+  color: #94A3B8;
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1px dashed #CBD5E1;
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .course-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .course-header-left {
+    align-items: flex-start;
+  }
+  .edit-course-btn {
+    width: 100%;
+  }
+  .modules-subheader-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modules-subheader-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modules-subheader-actions button {
+    width: 100%;
+  }
+  .module-header-row {
+    padding: 14px 16px;
+  }
+  .module-toolbar {
+    padding: 6px 16px 12px;
+    justify-content: stretch;
+  }
+  .module-toolbar-btns {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .module-toolbar-btns button {
+    width: 100%;
+    text-align: center;
+  }
+  .lesson-card-item {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+  .lesson-actions-strip {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid #F1F5F9;
+  }
+}
+

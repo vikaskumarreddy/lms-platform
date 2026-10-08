@@ -28,8 +28,8 @@ interface Certificate {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">🎓 Certificates</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">🎓 Certificates</h1>
       <button class="btn btn-primary" (click)="openIssueModal()">+ Issue Certificate</button>
     </div>
 
@@ -129,7 +129,48 @@ interface Certificate {
       </div>
     </div>
 
-    <div class="card">
+    <!-- Mobile View (< 992px) -->
+    <div class="mobile-only" style="margin-bottom:20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let c of certificates">
+          <div class="mobile-card-header">
+            <div style="min-width:0;">
+              <div class="mobile-card-title">{{ c.studentName || c.studentEmail || 'Unknown' }}</div>
+              <div class="mobile-card-sub">{{ c.courseName }} · {{ c.instituteName }}</div>
+            </div>
+            <span class="badge badge-success">Verified</span>
+          </div>
+
+          <div class="mobile-card-chips">
+            <span class="badge" style="font-family:monospace;background:#EFF6FF;color:#2563EB;font-weight:700;">
+              ID: {{ c.credentialId }}
+            </span>
+            <span class="badge" style="background:#F1F5F9;color:#334155;" *ngIf="c.duration">
+              ⏱️ {{ c.duration }}
+            </span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item">🗓️ Issued: {{ c.issueDate }}</span>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button class="btn btn-primary btn-sm" (click)="previewCertificate(c)">Preview</button>
+            <button class="btn btn-secondary btn-sm" (click)="copyVerifyLink(c)">🔗 Link</button>
+            <button class="btn btn-danger btn-sm" style="flex:0 0 auto;" (click)="deleteCertificate(c)">Revoke</button>
+          </div>
+        </div>
+
+        <div *ngIf="certificates.length === 0" class="empty-state">
+          <span class="empty-icon">🎓</span>
+          <h3>No certificates issued yet</h3>
+          <p>Click "+ Issue Certificate" to create one.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View (>= 992px) -->
+    <div class="card desktop-only">
       <table>
         <thead>
           <tr><th>Student</th><th>Institute</th><th>Course</th><th>Duration</th><th>Credential ID</th><th>Issue Date</th><th>Actions</th></tr>

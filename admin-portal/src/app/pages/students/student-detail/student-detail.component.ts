@@ -645,8 +645,8 @@ interface PlacementRecord {
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+      gap: 16px;
       margin-bottom: 24px;
     }
 
@@ -753,15 +753,36 @@ interface PlacementRecord {
       overflow: hidden;
     }
 
-    /* Detailed tables are tall; keep them scrollable inside a fixed height so
-       the two-column grid stays balanced instead of sprawling down the page. */
+    /* Detailed tables are scrollable on desktop; on mobile expand to eliminate nested scroll traps */
     .details-grid .table-responsive {
-      max-height: 360px;
+      max-height: 380px;
       overflow-y: auto;
     }
 
     @media (max-width: 1200px) {
       .details-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .details-grid .table-responsive {
+        max-height: none !important;
+        overflow-y: visible !important;
+      }
+      .student-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .stat-card {
+        padding: 16px;
+      }
+      .stat-value {
+        font-size: 22px;
+      }
+      .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
     }
 
     .section-title {

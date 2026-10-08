@@ -116,6 +116,17 @@ try {
     }
     Write-Host "      Upload complete." -ForegroundColor Gray
 
+    # Optional: Upload Flutter Web bundle if present
+    $flutterWebDir = "$projectRoot\mobile-app\build\web"
+    if (Test-Path $flutterWebDir) {
+        Write-Host "`n[*] Packaging and uploading Flutter Web bundle..." -ForegroundColor Green
+        $flutterArchive = "$projectRoot\flutter_web_temp_$(Get-Random).tar.gz"
+        & tar -czf $flutterArchive -C $flutterWebDir .
+        & scp -i $KeyPath -o StrictHostKeyChecking=no -o ConnectTimeout=10 $flutterArchive "${User}@${HostIP}:/tmp/flutter_web.tar.gz"
+        Remove-Item -Force $flutterArchive -ErrorAction SilentlyContinue
+        Write-Host "      Flutter Web package uploaded." -ForegroundColor Gray
+    }
+
     # 6. Extract on EC2 and rebuild containers
     Write-Host "`n[3/5] Extracting update and rebuilding Docker container(s)..." -ForegroundColor Green
     Write-Host "      (This runs docker compose up -d --build $composeTarget)..." -ForegroundColor Gray
@@ -123,8 +134,15 @@ try {
     $remoteCommands = @"
 set -e
 echo '--> Extracting source files into $RemoteDir...'
-tar -xzf /tmp/deploy_bundle.tar.gz -C $RemoteDir/
+tar --no-same-owner -xzf /tmp/deploy_bundle.tar.gz -C $RemoteDir/
 rm -f /tmp/deploy_bundle.tar.gz
+
+if [ -f /tmp/flutter_web.tar.gz ]; then
+    echo '--> Updating Flutter Web files in $RemoteDir/flutter-web...'
+    mkdir -p $RemoteDir/flutter-web
+    tar --no-same-owner -xzf /tmp/flutter_web.tar.gz -C $RemoteDir/flutter-web/
+    rm -f /tmp/flutter_web.tar.gz
+fi
 
 echo '--> Rebuilding container(s): $composeTarget...'
 cd $RemoteDir/docker

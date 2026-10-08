@@ -87,8 +87,8 @@ interface SupportRequest {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <h1 style="font-size:24px;font-weight:700;">Placements</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">Placements</h1>
       <button class="btn btn-primary" *ngIf="activeTab === 'drives'" (click)="openAddModal()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Drive
@@ -107,102 +107,157 @@ interface SupportRequest {
     </div>
 
     <ng-container *ngIf="activeTab === 'drives'">
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Company</th><th>Role</th><th>Type</th><th>Package</th><th>Location</th><th>Plan</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let d of drives">
-            <td>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <img *ngIf="d.companyLogoUrl" [src]="d.companyLogoUrl" (error)="d.companyLogoUrl = ''" style="width:28px;height:28px;border-radius:6px;object-fit:cover;" alt="">
-                <span>{{d.companyName}}</span>
+      <!-- Mobile View (< 992px) -->
+      <div class="mobile-only" style="margin-bottom:20px;">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let d of drives">
+            <div class="mobile-card-header">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <img *ngIf="d.companyLogoUrl" [src]="d.companyLogoUrl" (error)="d.companyLogoUrl = ''" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="">
+                <div *ngIf="!d.companyLogoUrl" style="width:36px;height:36px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;">
+                  {{ (d.companyName || 'C').charAt(0) }}
+                </div>
+                <div style="min-width:0;">
+                  <div class="mobile-card-title">{{ d.companyName }}</div>
+                  <div class="mobile-card-sub">{{ d.role }}</div>
+                </div>
               </div>
-            </td>
-            <td>{{d.role}}</td>
-            <td>
+              <span class="badge" [class.badge-success]="d.isActive" [class.badge-danger]="!d.isActive">
+                {{ d.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </div>
+
+            <div class="mobile-card-chips">
               <span class="badge" [class.badge-success]="d.driveType === 'INTERNAL'" [class.badge-info]="d.driveType !== 'INTERNAL'">
                 {{ d.driveType === 'INTERNAL' ? '🏢 Internal' : '🌐 External' }}
               </span>
-            </td>
-            <td>{{d.packageAmount ? '₹' + d.packageAmount + ' LPA' : '-'}}</td>
-            <td>{{d.location || '-'}}</td>
-            <td>
-              <span *ngIf="getPlanName(d.planId)" class="badge badge-warning">⭐ {{getPlanName(d.planId)}}</span>
-              <span *ngIf="!getPlanName(d.planId)" style="color:#64748B;font-size:13px;">No plan</span>
-            </td>
-            <td>{{d.deadline ? (d.deadline | slice:0:10) : '-'}}</td>
-            <td><span class="badge" [class.badge-success]="d.isActive" [class.badge-danger]="!d.isActive">{{d.isActive ? 'Active' : 'Inactive'}}</span></td>
-            <td>
-              <button *ngIf="d.driveType === 'INTERNAL'" class="icon-btn icon-btn-slot" title="Manage interview slots" (click)="openSlotsModal(d)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span class="badge" style="background:#F1F5F9;color:#334155;font-weight:600;" *ngIf="d.packageAmount">
+                💰 ₹{{ d.packageAmount }} LPA
+              </span>
+              <span *ngIf="getPlanName(d.planId)" class="badge badge-warning">⭐ {{ getPlanName(d.planId) }}</span>
+            </div>
+
+            <div class="mobile-card-meta">
+              <span class="mobile-card-meta-item" *ngIf="d.location">📍 {{ d.location }}</span>
+              <span class="mobile-card-meta-item" *ngIf="d.deadline">⏳ Due: {{ d.deadline | slice:0:10 }}</span>
+              <span class="mobile-card-meta-item" *ngIf="d.facultyName">👨‍🏫 {{ d.facultyName }}</span>
+            </div>
+
+            <div class="mobile-card-actions">
+              <button *ngIf="d.driveType === 'INTERNAL'" class="btn btn-secondary btn-sm" (click)="openSlotsModal(d)">
+                📅 Slots
               </button>
-              <button class="icon-btn icon-btn-edit" title="Edit drive" (click)="openEditModal(d)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <button class="btn btn-secondary btn-sm" (click)="openEditModal(d)">
+                ✏️ Edit
               </button>
-              <button class="icon-btn icon-btn-criteria" title="Set eligibility criteria" (click)="openCriteriaModal(d)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              <button class="btn btn-secondary btn-sm" (click)="openCriteriaModal(d)">
+                ⚙️ Criteria
               </button>
-              <button class="icon-btn" title="Copy Recruiter Review Link" (click)="copyRecruiterLink(d)" style="color:#4F46E5;">
-                🔗
+              <button class="btn btn-secondary btn-sm" (click)="copyRecruiterLink(d)">
+                🔗 Recruiter
               </button>
-              <button class="icon-btn icon-btn-danger" title="Delete drive" (click)="deleteDrive(d)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <button class="btn btn-danger btn-sm" style="flex:0 0 auto;" title="Delete drive" (click)="deleteDrive(d)">
+                🗑️
               </button>
-            </td>
-          </tr>
-          <tr *ngIf="drives.length === 0">
-            <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No placement drives found. Click "+ Add Drive" to create one.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </div>
+
+          <div *ngIf="drives.length === 0" class="empty-state">
+            <span class="empty-icon">💼</span>
+            <h3>No placement drives found</h3>
+            <p>Click "+ Add Drive" to create one.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop View (>= 992px) -->
+      <div class="card desktop-only">
+        <table>
+          <thead>
+            <tr><th>Company</th><th>Role</th><th>Type</th><th>Package</th><th>Location</th><th>Plan</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let d of drives">
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <img *ngIf="d.companyLogoUrl" [src]="d.companyLogoUrl" (error)="d.companyLogoUrl = ''" style="width:28px;height:28px;border-radius:6px;object-fit:cover;" alt="">
+                  <span>{{d.companyName}}</span>
+                </div>
+              </td>
+              <td>{{d.role}}</td>
+              <td>
+                <span class="badge" [class.badge-success]="d.driveType === 'INTERNAL'" [class.badge-info]="d.driveType !== 'INTERNAL'">
+                  {{ d.driveType === 'INTERNAL' ? '🏢 Internal' : '🌐 External' }}
+                </span>
+              </td>
+              <td>{{d.packageAmount ? '₹' + d.packageAmount + ' LPA' : '-'}}</td>
+              <td>{{d.location || '-'}}</td>
+              <td>
+                <span *ngIf="getPlanName(d.planId)" class="badge badge-warning">⭐ {{getPlanName(d.planId)}}</span>
+                <span *ngIf="!getPlanName(d.planId)" style="color:#64748B;font-size:13px;">No plan</span>
+              </td>
+              <td>{{d.deadline ? (d.deadline | slice:0:10) : '-'}}</td>
+              <td><span class="badge" [class.badge-success]="d.isActive" [class.badge-danger]="!d.isActive">{{d.isActive ? 'Active' : 'Inactive'}}</span></td>
+              <td>
+                <button *ngIf="d.driveType === 'INTERNAL'" class="icon-btn icon-btn-slot" title="Manage interview slots" (click)="openSlotsModal(d)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </button>
+                <button class="icon-btn icon-btn-edit" title="Edit drive" (click)="openEditModal(d)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </button>
+                <button class="icon-btn icon-btn-criteria" title="Set eligibility criteria" (click)="openCriteriaModal(d)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </button>
+                <button class="icon-btn" title="Copy Recruiter Review Link" (click)="copyRecruiterLink(d)" style="color:#4F46E5;">
+                  🔗
+                </button>
+                <button class="icon-btn icon-btn-danger" title="Delete drive" (click)="deleteDrive(d)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="drives.length === 0">
+              <td colspan="9" style="text-align:center;color:#64748B;padding:32px;">No placement drives found. Click "+ Add Drive" to create one.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </ng-container>
 
     <ng-container *ngIf="activeTab === 'applications'">
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>Student</th>
-            <th>Company</th>
-            <th>Role</th>
-            <th>ATS Score</th>
-            <th>Hiring Stage</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let a of applications">
-            <td>
-              <div style="font-weight:600;">{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</div>
-              <a *ngIf="a.resumeUrl" [href]="a.resumeUrl" target="_blank" style="font-size:11px;color:#2563EB;display:inline-block;margin-top:2px;">📄 View Resume</a>
-            </td>
-            <td>{{ a.companyName }}</td>
-            <td>{{ a.role }}</td>
-            <td>
-              <span class="badge" [style.background]="getAtsBg(a.atsScore)" [style.color]="getAtsFg(a.atsScore)" style="font-weight:700;">
-                🎯 {{ a.atsScore ? a.atsScore + '%' : 'Pending' }}
-              </span>
-            </td>
-            <td>
-              <span class="badge" [style.background]="getStageBg(a.hiringStage || a.status)" [style.color]="getStageFg(a.hiringStage || a.status)">
-                {{ a.hiringStage || a.status }}
-              </span>
-            </td>
-            <td>
+      <!-- Mobile View (< 992px) -->
+      <div class="mobile-only" style="margin-bottom:20px;">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let a of applications">
+            <div class="mobile-card-header">
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</div>
+                <div class="mobile-card-sub">{{ a.companyName }} · {{ a.role }}</div>
+              </div>
               <span class="badge"
                     [class.badge-success]="a.status === 'SELECTED' || a.status === 'OFFER_EXTENDED'"
                     [class.badge-warning]="a.status === 'APPLIED' || a.status === 'SHORTLISTED' || a.status === 'TECH_ROUND'"
                     [class.badge-danger]="a.status === 'REJECTED'">
                 {{ a.status }}
               </span>
-            </td>
-            <td>
+            </div>
+
+            <div class="mobile-card-chips">
+              <span class="badge" [style.background]="getAtsBg(a.atsScore)" [style.color]="getAtsFg(a.atsScore)" style="font-weight:700;">
+                🎯 {{ a.atsScore ? a.atsScore + '%' : 'Pending' }}
+              </span>
+              <span class="badge" [style.background]="getStageBg(a.hiringStage || a.status)" [style.color]="getStageFg(a.hiringStage || a.status)">
+                {{ a.hiringStage || a.status }}
+              </span>
+              <a *ngIf="a.resumeUrl" [href]="a.resumeUrl" target="_blank" class="badge" style="background:#EFF6FF;color:#2563EB;text-decoration:none;">
+                📄 Resume
+              </a>
+            </div>
+
+            <div style="margin-top:4px;">
+              <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">Update Stage:</label>
               <select [ngModel]="a.hiringStage || a.status" (ngModelChange)="updateHiringStage(a, $event)"
-                      style="padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
+                      style="width:100%;padding:8px 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;min-height:40px;">
                 <option value="APPLIED">Applied</option>
                 <option value="SHORTLISTED">Shortlisted</option>
                 <option value="TECH_ROUND">Technical Round</option>
@@ -210,64 +265,157 @@ interface SupportRequest {
                 <option value="SELECTED">Selected / Placed</option>
                 <option value="REJECTED">Rejected</option>
               </select>
-            </td>
-          </tr>
-          <tr *ngIf="applications.length === 0">
-            <td colspan="7" style="text-align:center;color:#64748B;padding:32px;">No student applications yet.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </div>
+
+          <div *ngIf="applications.length === 0" class="empty-state">
+            <span class="empty-icon">🎓</span>
+            <h3>No student applications yet</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop View (>= 992px) -->
+      <div class="card desktop-only">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Company</th>
+              <th>Role</th>
+              <th>ATS Score</th>
+              <th>Hiring Stage</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let a of applications">
+              <td>
+                <div style="font-weight:600;">{{ a.user?.fullName || a.user?.name || a.user?.email || 'Unknown' }}</div>
+                <a *ngIf="a.resumeUrl" [href]="a.resumeUrl" target="_blank" style="font-size:11px;color:#2563EB;display:inline-block;margin-top:2px;">📄 View Resume</a>
+              </td>
+              <td>{{ a.companyName }}</td>
+              <td>{{ a.role }}</td>
+              <td>
+                <span class="badge" [style.background]="getAtsBg(a.atsScore)" [style.color]="getAtsFg(a.atsScore)" style="font-weight:700;">
+                  🎯 {{ a.atsScore ? a.atsScore + '%' : 'Pending' }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [style.background]="getStageBg(a.hiringStage || a.status)" [style.color]="getStageFg(a.hiringStage || a.status)">
+                  {{ a.hiringStage || a.status }}
+                </span>
+              </td>
+              <td>
+                <span class="badge"
+                      [class.badge-success]="a.status === 'SELECTED' || a.status === 'OFFER_EXTENDED'"
+                      [class.badge-warning]="a.status === 'APPLIED' || a.status === 'SHORTLISTED' || a.status === 'TECH_ROUND'"
+                      [class.badge-danger]="a.status === 'REJECTED'">
+                  {{ a.status }}
+                </span>
+              </td>
+              <td>
+                <select [ngModel]="a.hiringStage || a.status" (ngModelChange)="updateHiringStage(a, $event)"
+                        style="padding:6px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;">
+                  <option value="APPLIED">Applied</option>
+                  <option value="SHORTLISTED">Shortlisted</option>
+                  <option value="TECH_ROUND">Technical Round</option>
+                  <option value="OFFER_EXTENDED">Offer Extended</option>
+                  <option value="SELECTED">Selected / Placed</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </td>
+            </tr>
+            <tr *ngIf="applications.length === 0">
+              <td colspan="7" style="text-align:center;color:#64748B;padding:32px;">No student applications yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </ng-container>
 
     <ng-container *ngIf="activeTab === 'support'">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <p style="color:#64748B;font-size:13px;margin:0;">
-          Questions students raised about a drive (or an off-list company) from the mobile app.
-        </p>
-        <label style="font-size:13px;color:#64748B;display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" [(ngModel)]="showRespondedRequests" (change)="loadSupportRequests()">
-          Show responded
-        </label>
-      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <p style="color:#64748B;font-size:13px;margin:0;">
+            Questions students raised about a drive (or an off-list company) from the mobile app.
+          </p>
+          <label style="font-size:13px;color:#64748B;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" [(ngModel)]="showRespondedRequests" (change)="loadSupportRequests()">
+            Show responded
+          </label>
+        </div>
 
-      <table *ngIf="visibleSupportRequests.length">
-        <thead>
-          <tr><th>Student</th><th>Company</th><th>Question</th><th>Asked</th><th>Status</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of visibleSupportRequests">
-            <td>
-              <div style="font-weight:600;">{{ r.studentName }}</div>
-              <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
-            </td>
-            <td>{{ r.companyName }}</td>
-            <td style="max-width:280px;font-size:13px;color:#475569;">
-              {{ r.message }}
-              <div *ngIf="r.adminResponse" style="color:#0F766E;font-size:12px;margin-top:4px;">
-                Response: {{ r.adminResponse }}
+        <!-- Mobile View (< 992px) -->
+        <div class="mobile-only" *ngIf="visibleSupportRequests.length">
+          <div class="mobile-card-list">
+            <div class="mobile-data-card" *ngFor="let r of visibleSupportRequests">
+              <div class="mobile-card-header">
+                <div>
+                  <div class="mobile-card-title">{{ r.studentName }}</div>
+                  <div class="mobile-card-sub">{{ r.companyName }}</div>
+                </div>
+                <span class="badge" [class.badge-warning]="r.status === 'PENDING'" [class.badge-success]="r.status === 'RESPONDED'">
+                  {{ r.status }}
+                </span>
               </div>
-            </td>
-            <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
-            <td>
-              <span class="badge" [class.badge-warning]="r.status === 'PENDING'" [class.badge-success]="r.status === 'RESPONDED'">
-                {{ r.status }}
-              </span>
-            </td>
-            <td>
-              <button *ngIf="r.status === 'PENDING'" class="btn btn-primary" style="padding:6px 12px;font-size:12px;"
-                      (click)="openRespondModal(r)">Respond</button>
-              <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <div style="font-size:13px;color:#475569;background:var(--surface-alt);padding:10px;border-radius:8px;">
+                {{ r.message }}
+                <div *ngIf="r.adminResponse" style="color:#0F766E;font-size:12px;margin-top:6px;border-top:1px dashed #CBD5E1;padding-top:6px;">
+                  <strong>Admin Response:</strong> {{ r.adminResponse }}
+                </div>
+              </div>
+              <div class="mobile-card-meta">
+                <span class="mobile-card-meta-item">📅 {{ formatDate(r.createdAt) }}</span>
+                <span class="mobile-card-meta-item" *ngIf="r.studentEmail">✉️ {{ r.studentEmail }}</span>
+              </div>
+              <div class="mobile-card-actions" *ngIf="r.status === 'PENDING'">
+                <button class="btn btn-primary btn-sm" (click)="openRespondModal(r)">Respond</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <div *ngIf="!visibleSupportRequests.length" style="color:#64748B;padding:32px;text-align:center;">
-        {{ showRespondedRequests ? 'No support requests yet.' : 'No pending support requests.' }}
+        <!-- Desktop View (>= 992px) -->
+        <div class="desktop-only" *ngIf="visibleSupportRequests.length">
+          <table>
+            <thead>
+              <tr><th>Student</th><th>Company</th><th>Question</th><th>Asked</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of visibleSupportRequests">
+                <td>
+                  <div style="font-weight:600;">{{ r.studentName }}</div>
+                  <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
+                </td>
+                <td>{{ r.companyName }}</td>
+                <td style="max-width:280px;font-size:13px;color:#475569;">
+                  {{ r.message }}
+                  <div *ngIf="r.adminResponse" style="color:#0F766E;font-size:12px;margin-top:4px;">
+                    Response: {{ r.adminResponse }}
+                  </div>
+                </td>
+                <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
+                <td>
+                  <span class="badge" [class.badge-warning]="r.status === 'PENDING'" [class.badge-success]="r.status === 'RESPONDED'">
+                    {{ r.status }}
+                  </span>
+                </td>
+                <td>
+                  <button *ngIf="r.status === 'PENDING'" class="btn btn-primary" style="padding:6px 12px;font-size:12px;"
+                          (click)="openRespondModal(r)">Respond</button>
+                  <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div *ngIf="!visibleSupportRequests.length" style="color:#64748B;padding:32px;text-align:center;">
+          {{ showRespondedRequests ? 'No support requests yet.' : 'No pending support requests.' }}
+        </div>
       </div>
-    </div>
     </ng-container>
 
     <!-- Respond Modal -->
@@ -408,7 +556,7 @@ interface SupportRequest {
       <div class="modal-content" style="width:90%;max-width:640px;" (click)="$event.stopPropagation()">
         <fieldset>
           <legend>Interview Slots — {{ slotsForDrive?.companyName }}</legend>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="popup-form-grid" style="margin-bottom:16px;">
             <input type="datetime-local" [(ngModel)]="newSlot.slotTime" name="slotTime" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
             <input type="text" [(ngModel)]="newSlot.location" name="slotLocation" placeholder="Location (e.g. Studio Room / Google Meet)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
             <div>
@@ -419,31 +567,57 @@ interface SupportRequest {
             </div>
             <input type="text" [(ngModel)]="newSlot.notes" name="slotNotes" placeholder="Notes (optional)" style="padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
           </div>
-          <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;">
+          <button class="btn btn-primary" (click)="addSlot()" style="margin-bottom:20px;width:100%;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Slot
           </button>
 
-          <table>
-            <thead><tr><th>Date & Time</th><th>Interviewer Faculty</th><th>Location</th><th>Status</th><th>Booked By</th><th></th></tr></thead>
-            <tbody>
-              <tr *ngFor="let s of slots">
-                <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
-                <td style="font-size:13px;font-weight:600;color:#0F172A;">{{ s.facultyName || slotsForDrive?.facultyName || 'Lead Faculty' }}</td>
-                <td>{{ s.location || '-' }}</td>
-                <td>
+          <!-- Mobile slots cards (< 768px) -->
+          <div class="mobile-only" *ngIf="slots.length">
+            <div class="mobile-card-list">
+              <div class="mobile-data-card" *ngFor="let s of slots" style="padding:12px;">
+                <div class="mobile-card-header">
+                  <div>
+                    <div style="font-weight:700;font-size:14px;">📅 {{ s.slotTime | slice:0:16 }}</div>
+                    <div class="mobile-card-sub">👨‍🏫 {{ s.facultyName || slotsForDrive?.facultyName || 'Lead Faculty' }}</div>
+                  </div>
                   <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
-                </td>
-                <td>{{ s.bookedByName || s.bookedByEmail || s.bookedByUserId || '-' }}</td>
-                <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  </button></td>
-              </tr>
-              <tr *ngIf="slots.length === 0">
-                <td colspan="6" style="text-align:center;color:#64748B;padding:24px;">No interview slots yet. Add one above.</td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+                <div class="mobile-card-meta">
+                  <span class="mobile-card-meta-item" *ngIf="s.location">📍 {{ s.location }}</span>
+                  <span class="mobile-card-meta-item" *ngIf="s.bookedByName || s.bookedByEmail">👤 {{ s.bookedByName || s.bookedByEmail }}</span>
+                </div>
+                <div class="mobile-card-actions">
+                  <button class="btn btn-danger btn-sm" (click)="deleteSlot(s)">Delete Slot</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Desktop slots table (>= 768px) -->
+          <div class="desktop-only table-responsive" *ngIf="slots.length">
+            <table>
+              <thead><tr><th>Date & Time</th><th>Interviewer Faculty</th><th>Location</th><th>Status</th><th>Booked By</th><th></th></tr></thead>
+              <tbody>
+                <tr *ngFor="let s of slots">
+                  <td style="font-size:13px;">{{ s.slotTime | slice:0:16 }}</td>
+                  <td style="font-size:13px;font-weight:600;color:#0F172A;">{{ s.facultyName || slotsForDrive?.facultyName || 'Lead Faculty' }}</td>
+                  <td>{{ s.location || '-' }}</td>
+                  <td>
+                    <span class="badge" [class.badge-success]="s.status === 'BOOKED'" [class.badge-warning]="s.status === 'AVAILABLE'">{{ s.status }}</span>
+                  </td>
+                  <td>{{ s.bookedByName || s.bookedByEmail || s.bookedByUserId || '-' }}</td>
+                  <td><button class="icon-btn icon-btn-danger" title="Delete slot" (click)="deleteSlot(s)">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div *ngIf="slots.length === 0" style="text-align:center;color:#64748B;padding:24px;">
+            No interview slots yet. Add one above.
+          </div>
         </fieldset>
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">
           <button class="btn btn-secondary" (click)="closeSlotsModal()">Close</button>

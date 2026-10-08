@@ -351,6 +351,7 @@ type OtherGateway = 'PAYU' | 'CASHFREE';
       .form-grid{grid-template-columns:1fr}
       .page-head{flex-direction:column;align-items:flex-start}
       .actions .btn{width:100%}
+      .webhook-row code{min-width:0;width:100%}
     }
   `]
 })

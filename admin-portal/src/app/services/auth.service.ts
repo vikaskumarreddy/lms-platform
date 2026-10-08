@@ -24,7 +24,7 @@ export interface LoginResponse {
  * organizations; this bare domain is the platform admin entry point that shows
  * the dedicated platform menu (Organizations, Org Subscriptions, ...).
  */
-const ROOT_DOMAIN = 'placements.com';
+const ROOT_DOMAINS = ['axisoraforge.in', 'www.axisoraforge.in', 'placements.com', 'www.placements.com'];
 
 function isIpHost(hostname: string): boolean {
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname === 'localhost' || hostname === '127.0.0.1';
@@ -132,11 +132,11 @@ export class AuthService {
    * menu on the root domain vs the per-organization operational menu on tenants.
    */
   get isPlatformDomain(): boolean {
-    const h = window.location.hostname;
+    const h = window.location.hostname.toLowerCase();
     if (isIpHost(h)) {
       return true;
     }
-    return h === ROOT_DOMAIN;
+    return ROOT_DOMAINS.includes(h);
   }
 
   isLoggedIn(): boolean {

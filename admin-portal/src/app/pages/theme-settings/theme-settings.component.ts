@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { ThemeService, ThemeColors, DEFAULT_THEME, THEME_FIELD_GROUPS } from '../../services/theme.service';
+import { environment } from '../../../environments/environment';
 
 export interface FormFieldConfig {
   key: string;
@@ -59,6 +60,13 @@ export class ThemeSettingsComponent implements OnInit {
 
   orgId: number | null = null;
   orgName = '';
+  orgLogoUrl = '';
+  savedLogoUrl = '';
+  logoUrlInput = '';
+  uploadingLogo = false;
+  logoSuccessMessage = '';
+  logoErrorMessage = '';
+
   /** Live-editable copy the color pickers are bound to; the preview reads straight from this. */
   form: ThemeColors = { ...DEFAULT_THEME };
   /** What is currently saved on the server, used to detect unsaved changes and for Cancel. */
@@ -99,6 +107,9 @@ export class ThemeSettingsComponent implements OnInit {
       next: (org) => {
         this.orgId = org?.id ?? null;
         this.orgName = org?.name || '';
+        this.orgLogoUrl = org?.logoUrl || '';
+        this.savedLogoUrl = org?.logoUrl || '';
+        this.logoUrlInput = org?.logoUrl || '';
         const theme = { ...DEFAULT_THEME, ...(org?.theme || {}) };
         this.form = { ...theme };
         this.saved = { ...theme };
@@ -127,6 +138,100 @@ export class ThemeSettingsComponent implements OnInit {
       error: () => {
         this.loading = false;
         this.errorMessage = 'Could not load the current organization.';
+      }
+    });
+  }
+
+  resolveLogoUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    const origin = environment.production ? window.location.origin : 'http://localhost:8080';
+    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+
+  onLogoFileSelected(event: any): void {
+    const file = event.target.files?.[0];
+    if (!file || !this.orgId) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.logoErrorMessage = 'Please select a valid image file (PNG, JPG, SVG, WebP).';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      this.logoErrorMessage = 'Image file exceeds maximum 5MB size limit.';
+      return;
+    }
+
+    this.uploadingLogo = true;
+    this.logoSuccessMessage = '';
+    this.logoErrorMessage = '';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    this.api.postForm<{ logoUrl: string }>(`/api/organizations/${this.orgId}/logo`, formData).subscribe({
+      next: (res) => {
+        this.uploadingLogo = false;
+        if (res?.logoUrl) {
+          this.orgLogoUrl = res.logoUrl;
+          this.savedLogoUrl = res.logoUrl;
+          this.logoUrlInput = res.logoUrl;
+          this.logoSuccessMessage = 'Logo uploaded and saved successfully!';
+          setTimeout(() => (this.logoSuccessMessage = ''), 6000);
+        }
+      },
+      error: (err) => {
+        this.uploadingLogo = false;
+        this.logoErrorMessage = err?.error?.message || 'Failed to upload logo image. Please try again.';
+      }
+    });
+  }
+
+  saveLogoUrl(): void {
+    if (!this.orgId) return;
+    const url = (this.logoUrlInput || '').trim();
+    this.uploadingLogo = true;
+    this.logoSuccessMessage = '';
+    this.logoErrorMessage = '';
+
+    this.api.put<any>(`/api/organizations/${this.orgId}/logo`, { logoUrl: url }).subscribe({
+      next: (res) => {
+        this.uploadingLogo = false;
+        this.orgLogoUrl = url;
+        this.savedLogoUrl = url;
+        this.logoSuccessMessage = 'Logo URL updated successfully!';
+        setTimeout(() => (this.logoSuccessMessage = ''), 6000);
+      },
+      error: (err) => {
+        this.uploadingLogo = false;
+        this.logoErrorMessage = err?.error?.message || 'Failed to update logo URL.';
+      }
+    });
+  }
+
+  removeLogo(): void {
+    if (!this.orgId) return;
+    if (!confirm('Are you sure you want to remove the logo? The default platform icon will be displayed.')) return;
+
+    this.uploadingLogo = true;
+    this.logoSuccessMessage = '';
+    this.logoErrorMessage = '';
+
+    this.api.put<any>(`/api/organizations/${this.orgId}/logo`, { logoUrl: '' }).subscribe({
+      next: () => {
+        this.uploadingLogo = false;
+        this.orgLogoUrl = '';
+        this.savedLogoUrl = '';
+        this.logoUrlInput = '';
+        this.logoSuccessMessage = 'Logo removed. Default icon restored.';
+        setTimeout(() => (this.logoSuccessMessage = ''), 6000);
+      },
+      error: (err) => {
+        this.uploadingLogo = false;
+        this.logoErrorMessage = err?.error?.message || 'Failed to remove logo.';
       }
     });
   }

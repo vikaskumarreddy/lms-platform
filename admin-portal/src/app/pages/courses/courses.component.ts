@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -43,8 +43,8 @@ interface Faculty {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">Courses</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">Courses</h1>
       <button class="btn btn-primary" (click)="openCourseModal()">+ Add Course</button>
     </div>
 
@@ -64,15 +64,17 @@ interface Faculty {
             <p *ngIf="getPlanName(c.planId)" style="color:#EAB308;font-size:12px;margin-top:2px;">⭐ {{getPlanName(c.planId)}}</p>
           </div>
         </div>
-        <div style="margin-top:16px;display:flex;gap:12px;align-items:center;">
+        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <span class="badge" [class.badge-success]="c.isPublished" [class.badge-warning]="!c.isPublished">
             {{c.isPublished ? 'Published' : 'Draft'}}
           </span>
           <span class="badge badge-info">{{c.modules?.length || 0}} modules</span>
           <span class="badge badge-secondary">{{c.lessonsCount || 0}} lessons</span>
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); editCourse(c)">Edit</button>
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); goToCourse(c)">Manage Content →</button>
-          <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="$event.stopPropagation(); deleteCourse(c)">Delete</button>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid #E2E8F0;">
+          <button class="btn btn-secondary btn-sm" (click)="$event.stopPropagation(); editCourse(c)">Edit</button>
+          <button class="btn btn-secondary btn-sm" (click)="$event.stopPropagation(); goToCourse(c)">Manage Content →</button>
+          <button class="btn btn-danger btn-sm" (click)="$event.stopPropagation(); deleteCourse(c)">Delete</button>
         </div>
       </div>
       <div *ngIf="courses.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;grid-column:1/-1;">

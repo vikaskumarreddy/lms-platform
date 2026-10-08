@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,8 +15,8 @@ interface Batch { id: number; name: string; isActive: boolean; }
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">📝 Assignments</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">📝 Assignments</h1>
       <button class="btn btn-primary" (click)="openAddModal()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:6px;">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -131,7 +131,61 @@ interface Batch { id: number; name: string; isActive: boolean; }
       </div>
     </div>
 
-    <div class="card">
+    <!-- Mobile View (< 992px) -->
+    <div class="mobile-only" style="margin-bottom:20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let a of assignments">
+          <div class="mobile-card-header">
+            <div style="min-width:0;">
+              <div class="mobile-card-title">{{ a.title }}</div>
+              <div class="mobile-card-sub" *ngIf="a.courseId">Course #{{ a.courseId }}</div>
+            </div>
+            <span class="badge" [class.badge-warning]="a.status === 'Pending'" [class.badge-success]="a.status === 'Graded'" [class.badge-danger]="a.status === 'Overdue'">
+              {{ a.status || 'Pending' }}
+            </span>
+          </div>
+
+          <div class="mobile-card-chips">
+            <span class="badge" [style.background]="a.deliveryMode === 'IN_APP' ? '#CCFBF1' : '#EEF2FF'"
+                  [style.color]="a.deliveryMode === 'IN_APP' ? '#134E4A' : '#4338CA'">
+              {{ a.deliveryMode === 'IN_APP' ? '📱 In-App' : '🌐 Web' }}
+            </span>
+            <span class="badge" style="background:#F1F5F9;color:#334155;font-weight:600;">
+              🎯 {{ a.totalMarks || a.marks }} marks
+            </span>
+            <span *ngIf="a.planId" class="badge badge-warning">⭐ {{ getPlanName(a.planId) }}</span>
+            <span *ngIf="a.batchIds?.length" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{ getBatchNames(a.batchIds) }}</span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item">📅 Due: {{ formatDate(a.dueDate) }}</span>
+            <span class="mobile-card-meta-item" *ngIf="a.deliveryMode === 'IN_APP'">
+              📝 {{ questionCounts[a.id] || 0 }} questions
+            </span>
+            <a *ngIf="a.deliveryMode !== 'IN_APP' && a.link" [href]="a.link" target="_blank" class="mobile-card-meta-item" style="color:var(--primary);text-decoration:underline;">
+              🔗 Link
+            </a>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button *ngIf="a.deliveryMode === 'IN_APP'" class="btn btn-primary btn-sm" (click)="openPaper(a)">
+              {{ questionCounts[a.id] ? '📝 Paper' : '➕ Paper' }}
+            </button>
+            <button class="btn btn-secondary btn-sm" (click)="edit(a)">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" style="flex:0 0 auto;" (click)="delete(a)">🗑️</button>
+          </div>
+        </div>
+
+        <div *ngIf="assignments.length === 0" class="empty-state">
+          <span class="empty-icon">📝</span>
+          <h3>No assignments found</h3>
+          <p>Click "+ Add Assignment" to create one.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View (>= 992px) -->
+    <div class="card desktop-only">
       <table><thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Subscription</th><th>Batch</th><th>Status</th><th>Marks</th><th>Mode</th><th>Link / Paper</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let a of assignments">

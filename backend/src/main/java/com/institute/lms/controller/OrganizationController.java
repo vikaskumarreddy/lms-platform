@@ -81,25 +81,72 @@ public class OrganizationController {
     }
 
     @GetMapping("/public-info")
-    public ResponseEntity<Map<String, Object>> getPublicInfo(@RequestParam(value = "slug", required = false) String slug) {
+    public ResponseEntity<Map<String, Object>> getPublicInfo(
+            @RequestParam(value = "slug", required = false) String slug,
+            @RequestParam(value = "tenant", required = false) String tenant,
+            @RequestParam(value = "tenantSlug", required = false) String tenantSlug,
+            jakarta.servlet.http.HttpServletRequest request) {
+
+        String effectiveSlug = slug != null && !slug.isBlank() ? slug : (tenant != null && !tenant.isBlank() ? tenant : tenantSlug);
         Organization org = null;
-        if (slug != null && !slug.isBlank()) {
-            org = organizationRepository.findBySlug(slug).orElse(null);
+
+        if (effectiveSlug != null && !effectiveSlug.isBlank()) {
+            String cleanSlug = effectiveSlug.trim().toLowerCase();
+            if (cleanSlug.startsWith("app-") && cleanSlug.length() > 4) {
+                cleanSlug = cleanSlug.substring(4);
+            }
+            if ("admin".equalsIgnoreCase(cleanSlug) || "axisora".equalsIgnoreCase(cleanSlug) || "www".equalsIgnoreCase(cleanSlug) || "app".equalsIgnoreCase(cleanSlug)) {
+                org = organizationRepository.findBySlug("axisora")
+                        .or(() -> organizationRepository.findBySlug("admin"))
+                        .or(() -> organizationRepository.findById(1L)).orElse(null);
+            } else {
+                org = organizationRepository.findBySlug(cleanSlug).orElse(null);
+            }
         }
+
         if (org == null) {
             org = organizationService.getCurrentOrganization();
         }
+
+        if (org == null && request != null) {
+            String serverName = request.getServerName();
+            if (serverName != null) {
+                String[] parts = serverName.split("\\.");
+                if (parts.length >= 3) {
+                    String sub = parts[0].toLowerCase();
+                    if (sub.startsWith("app-") && sub.length() > 4) {
+                        sub = sub.substring(4);
+                    }
+                    if (!"www".equals(sub) && !"admin".equals(sub) && !"app".equals(sub) && !"axisora".equals(sub)) {
+                        org = organizationRepository.findBySlug(sub).orElse(null);
+                    }
+                }
+                if (org == null) {
+                    org = organizationRepository.findByDomain(serverName).orElse(null);
+                }
+            }
+        }
+
+        if (org == null) {
+            org = organizationRepository.findBySlug("axisora")
+                    .or(() -> organizationRepository.findBySlug("admin"))
+                    .or(() -> organizationRepository.findById(1L)).orElse(null);
+        }
+
         if (org == null) {
             List<Organization> all = organizationRepository.findAll();
             if (!all.isEmpty()) org = all.get(0);
         }
+
         if (org == null) {
             return ResponseEntity.notFound().build();
         }
+
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("id", org.getId());
         res.put("name", org.getName());
         res.put("slug", org.getSlug());
+        res.put("domain", org.getDomain());
         res.put("logoUrl", org.getLogoUrl());
         res.put("theme", resolveTheme(org));
         res.put("settings", org.getSettings());
@@ -290,15 +337,26 @@ public class OrganizationController {
     @PostMapping("/{id}/logo")
     public ResponseEntity<Map<String, String>> uploadLogo(@PathVariable Long id,
                                                            @RequestPart("file") MultipartFile file) {
-        if (!userContext.isAdmin()) {
-            throw new RuntimeException("Access denied: Admin role required");
-        }
+        userContext.requireOrgAdmin();
         try {
             String logoUrl = organizationService.uploadLogo(id, file);
             return ResponseEntity.ok(Map.of("logoUrl", logoUrl));
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    /** Sets or clears the logo URL for an organization. */
+    @PutMapping("/{id}/logo")
+    public ResponseEntity<Map<String, String>> setLogoUrl(@PathVariable Long id,
+                                                           @RequestBody Map<String, String> body) {
+        userContext.requireOrgAdmin();
+        Organization org = organizationRepository.findById(id).orElse(null);
+        if (org == null) return ResponseEntity.notFound().build();
+        String logoUrl = body != null ? body.get("logoUrl") : null;
+        org.setLogoUrl(logoUrl != null && !logoUrl.isBlank() ? logoUrl.trim() : null);
+        organizationRepository.save(org);
+        return ResponseEntity.ok(Map.of("logoUrl", org.getLogoUrl() != null ? org.getLogoUrl() : ""));
     }
 
     /**

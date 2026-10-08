@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,8 +15,8 @@ interface Batch { id: number; name: string; isActive: boolean; }
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">📋 Exams</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">📋 Exams</h1>
       <button class="btn btn-primary" (click)="openAddModal()">+ Add Exam</button>
     </div>
 
@@ -127,7 +127,62 @@ interface Batch { id: number; name: string; isActive: boolean; }
       </div>
     </div>
 
-    <div class="card">
+    <!-- Mobile View (< 992px) -->
+    <div class="mobile-only" style="margin-bottom:20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let e of exams">
+          <div class="mobile-card-header">
+            <div style="min-width:0;">
+              <div class="mobile-card-title">{{ e.title }}</div>
+              <div class="mobile-card-sub" *ngIf="e.courseId">Course #{{ e.courseId }}</div>
+            </div>
+            <span class="badge" [style.background]="e.deliveryMode === 'IN_APP' ? '#CCFBF1' : '#EEF2FF'"
+                  [style.color]="e.deliveryMode === 'IN_APP' ? '#134E4A' : '#4338CA'">
+              {{ e.deliveryMode === 'IN_APP' ? '📱 In-App' : '🌐 Web' }}
+            </span>
+          </div>
+
+          <div class="mobile-card-chips">
+            <span class="badge" style="background:#F1F5F9;color:#334155;font-weight:600;">
+              🎯 {{ e.totalMarks }} marks
+            </span>
+            <span class="badge" style="background:#FEF3C7;color:#92400E;" *ngIf="e.passingMarks">
+              Pass: {{ e.passingMarks }}
+            </span>
+            <span *ngIf="e.planId" class="badge badge-warning">⭐ {{ getPlanName(e.planId) }}</span>
+            <span *ngIf="e.batchIds?.length" class="badge" style="background:#EEF2FF;color:#4338CA;">👥 {{ getBatchNames(e.batchIds) }}</span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item">📅 {{ formatDate(e.examDate) }}</span>
+            <span class="mobile-card-meta-item">⏱️ {{ e.durationMinutes }} min</span>
+            <span class="mobile-card-meta-item" *ngIf="e.deliveryMode === 'IN_APP'">
+              📝 {{ questionCounts[e.id] || 0 }} questions
+            </span>
+            <a *ngIf="e.deliveryMode !== 'IN_APP' && e.link" [href]="e.link" target="_blank" class="mobile-card-meta-item" style="color:var(--primary);text-decoration:underline;">
+              🔗 Link
+            </a>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button *ngIf="e.deliveryMode === 'IN_APP'" class="btn btn-primary btn-sm" (click)="openPaper(e)">
+              {{ questionCounts[e.id] ? '📝 Paper' : '➕ Paper' }}
+            </button>
+            <button class="btn btn-secondary btn-sm" (click)="edit(e)">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm" style="flex:0 0 auto;" (click)="delete(e)">🗑️</button>
+          </div>
+        </div>
+
+        <div *ngIf="exams.length === 0" class="empty-state">
+          <span class="empty-icon">📋</span>
+          <h3>No exams found</h3>
+          <p>Click "+ Add Exam" to create one.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View (>= 992px) -->
+    <div class="card desktop-only">
       <table><thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Duration</th><th>Subscription</th><th>Batch</th><th>Marks</th><th>Mode</th><th>Link / Paper</th><th>Actions</th></tr></thead>
         <tbody>
           <tr *ngFor="let e of exams">

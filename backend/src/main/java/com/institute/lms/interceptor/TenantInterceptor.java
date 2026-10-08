@@ -136,18 +136,27 @@ public class TenantInterceptor implements HandlerInterceptor {
             return headerTenantId;
         }
 
-        // 3. Fall back to X-Tenant-Slug header, or a `tenant` query param for the
-        // same no-custom-headers browser requests described above.
+        // 3. Fall back to X-Tenant-Slug header, or a `tenant` / `tenantSlug` / `slug` query param
         String tenantSlug = request.getHeader("X-Tenant-Slug");
         if (tenantSlug == null || tenantSlug.isEmpty()) {
             tenantSlug = request.getParameter("tenant");
         }
+        if (tenantSlug == null || tenantSlug.isEmpty()) {
+            tenantSlug = request.getParameter("tenantSlug");
+        }
+        if (tenantSlug == null || tenantSlug.isEmpty()) {
+            tenantSlug = request.getParameter("slug");
+        }
         if (tenantSlug != null && !tenantSlug.isEmpty()) {
+            tenantSlug = tenantSlug.trim().toLowerCase();
+            if (tenantSlug.startsWith("app-") && tenantSlug.length() > 4) {
+                tenantSlug = tenantSlug.substring(4);
+            }
             Optional<Organization> org = organizationRepository.findBySlug(tenantSlug);
             if (org.isPresent()) {
                 return String.valueOf(org.get().getId());
             }
-            if ("axisora".equalsIgnoreCase(tenantSlug) || "admin".equalsIgnoreCase(tenantSlug) || "www".equalsIgnoreCase(tenantSlug)) {
+            if ("axisora".equalsIgnoreCase(tenantSlug) || "admin".equalsIgnoreCase(tenantSlug) || "www".equalsIgnoreCase(tenantSlug) || "app".equalsIgnoreCase(tenantSlug)) {
                 String defaultId = findDefaultOrgId();
                 if (defaultId != null) {
                     return defaultId;
@@ -172,11 +181,13 @@ public class TenantInterceptor implements HandlerInterceptor {
     /**
      * Resolves tenant from the request hostname.
      * <p>
-     * Domain structure: {@code [tenant].axisoraforge.in}
+     * Domain structure:
      * <ul>
-     *   <li>{@code axisoraforge.in}, {@code www.axisoraforge.in}, {@code admin.axisoraforge.in} → default org ("axisora" / "admin")</li>
-     *   <li>{@code axisora.axisoraforge.in} → org with slug "axisora" (or default org)</li>
-     *   <li>{@code manyasree.axisoraforge.in} → org with slug "manyasree"</li>
+     *   <li>{@code admin.axisoraforge.in}, {@code app-admin.axisoraforge.in}, {@code app.axisoraforge.in} → default org ("axisora" / "admin")</li>
+     *   <li>{@code manyasree.axisoraforge.in} → org with slug "manyasree" (Admin Portal)</li>
+     *   <li>{@code app-manyasree.axisoraforge.in} → org with slug "manyasree" (Student/Mobile App)</li>
+     *   <li>{@code app-[slug].axisoraforge.in} → org with slug [slug]</li>
+     *   <li>{@code [slug].axisoraforge.in} → org with slug [slug]</li>
      *   <li>{@code localhost}, {@code 127.0.0.1}, bare IP → default org</li>
      * </ul>
      */
@@ -191,16 +202,21 @@ public class TenantInterceptor implements HandlerInterceptor {
         }
 
         // Split the hostname into parts.
-        // axisoraforge.in         → ["axisoraforge", "in"]           → 2 parts → root domain → default org
-        // www.axisoraforge.in     → ["www", "axisoraforge", "in"]    → 3 parts, first = "www" → default org
-        // admin.axisoraforge.in   → ["admin", "axisoraforge", "in"]  → 3 parts, first = "admin" → default org
-        // axisora.axisoraforge.in → ["axisora", "axisoraforge", "in"] → 3 parts → default org
-        // manyasree.axisoraforge.in → ["manyasree", "axisoraforge", "in"] → 3 parts, first = tenant slug
+        // admin.axisoraforge.in       → ["admin", "axisoraforge", "in"]      → default org
+        // app-admin.axisoraforge.in   → ["app-admin", "axisoraforge", "in"]  → default org
+        // app.axisoraforge.in         → ["app", "axisoraforge", "in"]        → default org
+        // manyasree.axisoraforge.in   → ["manyasree", "axisoraforge", "in"]  → manyasree org
+        // app-manyasree.axisoraforge.in → ["app-manyasree", "axisoraforge", "in"] → manyasree org
         String[] parts = serverName.split("\\.");
         if (parts.length >= 3) {
-            String subdomain = parts[0];
-            // "www", "admin", and "axisora" are platform/root portals — treat as default org
-            if ("www".equalsIgnoreCase(subdomain) || "admin".equalsIgnoreCase(subdomain) || "axisora".equalsIgnoreCase(subdomain)) {
+            String subdomain = parts[0].toLowerCase();
+            // Handle app-<slug> pattern
+            if (subdomain.startsWith("app-") && subdomain.length() > 4) {
+                subdomain = subdomain.substring(4);
+            }
+            // "www", "admin", "app", and "axisora" are platform/root portals — treat as default org
+            if ("www".equalsIgnoreCase(subdomain) || "admin".equalsIgnoreCase(subdomain)
+                    || "axisora".equalsIgnoreCase(subdomain) || "app".equalsIgnoreCase(subdomain)) {
                 return findDefaultOrgId();
             }
             // Try to resolve subdomain as a tenant slug
@@ -208,6 +224,12 @@ public class TenantInterceptor implements HandlerInterceptor {
             if (org.isPresent()) {
                 return String.valueOf(org.get().getId());
             }
+        }
+
+        // Custom domain lookup (e.g., custom.school.org)
+        Optional<Organization> orgByDomain = organizationRepository.findByDomain(serverName);
+        if (orgByDomain.isPresent()) {
+            return String.valueOf(orgByDomain.get().getId());
         }
 
         // Root domain (axisoraforge.in) or unrecognized host → fall back to default org.

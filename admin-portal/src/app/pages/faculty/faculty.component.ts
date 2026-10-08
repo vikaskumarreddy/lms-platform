@@ -20,12 +20,49 @@ interface Faculty {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">Faculty</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">Faculty</h1>
       <button class="btn btn-primary" (click)="openAddModal()">+ Add Faculty</button>
     </div>
 
-    <div class="card">
+    <!-- Mobile View: Modern Adaptive Faculty Cards (Visible on screens < 992px) -->
+    <div class="mobile-only" style="margin-bottom: 20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let f of faculty">
+          <div class="mobile-card-header">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#EDE9FE;color:#6D28D7;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;">
+                👨‍🏫
+              </div>
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{f.name}}</div>
+                <div class="mobile-card-sub">{{f.email}}</div>
+              </div>
+            </div>
+            <span class="badge" [class.badge-success]="f.isActive" [class.badge-danger]="!f.isActive">
+              {{f.isActive ? 'Active' : 'Inactive'}}
+            </span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item" *ngIf="f.phone">📞 {{f.phone}}</span>
+            <span class="mobile-card-meta-item">ID: #{{f.id}}</span>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button class="btn btn-secondary btn-sm" (click)="openEditModal(f)">Edit</button>
+            <button class="btn btn-danger btn-sm" (click)="deleteFaculty(f)">Delete</button>
+          </div>
+        </div>
+
+        <div *ngIf="faculty.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;">
+          No faculty found. Click "+ Add Faculty" to create one.
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View: High Density Data Table (Visible on screens >= 992px) -->
+    <div class="card desktop-only">
       <table>
         <thead>
           <tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Actions</th></tr>
@@ -33,7 +70,7 @@ interface Faculty {
         <tbody>
           <tr *ngFor="let f of faculty">
             <td>{{f.id}}</td>
-            <td>{{f.name}}</td>
+            <td><strong>{{f.name}}</strong></td>
             <td>{{f.email}}</td>
             <td>{{f.phone || '-'}}</td>
             <td><span class="badge" [class.badge-success]="f.isActive" [class.badge-danger]="!f.isActive">{{f.isActive ? 'Active' : 'Inactive'}}</span></td>

@@ -121,23 +121,51 @@
     <!-- ================= BATCH HEALTH MATRIX ================= -->
     <div class="card" style="margin-top:20px;">
       <h3 style="margin-bottom:16px;">Batch Health</h3>
-      <table>
-        <thead><tr><th>Batch</th><th>Mentor</th><th>Students</th><th>Avg. Attendance</th><th>Status</th></tr></thead>
-        <tbody>
-          @for (b of overview.academics.batchHealth; track b.batchId) {
-            <tr>
-              <td>{{b.batchName}}</td>
-              <td>{{b.mentorName || '—'}}</td>
-              <td>{{b.studentCount}}</td>
-              <td><span class="badge" [class]="attendanceClass(b.averageAttendance)">{{b.averageAttendance}}%</span></td>
-              <td><span class="badge" [class.badge-success]="b.isActive" [class.badge-secondary]="!b.isActive">{{b.isActive ? 'Active' : 'Inactive'}}</span></td>
-            </tr>
-          }
-          @if (overview.academics.batchHealth.length === 0) {
-            <tr><td colspan="5" class="empty-cell">No batch data available</td></tr>
-          }
-        </tbody>
-      </table>
+
+      <!-- Mobile View (< 992px) -->
+      <div class="mobile-only" *ngIf="overview.academics.batchHealth.length">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let b of overview.academics.batchHealth; track b.batchId" style="padding:12px;">
+            <div class="mobile-card-header">
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{b.batchName}}</div>
+                <div class="mobile-card-sub">Mentor: {{b.mentorName || '—'}}</div>
+              </div>
+              <span class="badge" [class.badge-success]="b.isActive" [class.badge-secondary]="!b.isActive">{{b.isActive ? 'Active' : 'Inactive'}}</span>
+            </div>
+            <div class="mobile-card-chips">
+              <span class="badge" [class]="attendanceClass(b.averageAttendance)">📊 Attendance: {{b.averageAttendance}}%</span>
+              <span class="badge" style="background:#F1F5F9;color:#334155;">👥 {{b.studentCount}} students</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop View (>= 992px) -->
+      <div class="desktop-only">
+        <table>
+          <thead><tr><th>Batch</th><th>Mentor</th><th>Students</th><th>Avg. Attendance</th><th>Status</th></tr></thead>
+          <tbody>
+            @for (b of overview.academics.batchHealth; track b.batchId) {
+              <tr>
+                <td>{{b.batchName}}</td>
+                <td>{{b.mentorName || '—'}}</td>
+                <td>{{b.studentCount}}</td>
+                <td><span class="badge" [class]="attendanceClass(b.averageAttendance)">{{b.averageAttendance}}%</span></td>
+                <td><span class="badge" [class.badge-success]="b.isActive" [class.badge-secondary]="!b.isActive">{{b.isActive ? 'Active' : 'Inactive'}}</span></td>
+              </tr>
+            }
+            @if (overview.academics.batchHealth.length === 0) {
+              <tr><td colspan="5" class="empty-cell">No batch data available</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="overview.academics.batchHealth.length === 0" class="empty-state">
+        <span class="empty-icon">📊</span>
+        <h3>No batch data available</h3>
+      </div>
     </div>
 
     <!-- ================= PLACEMENT FUNNEL + UPCOMING DRIVES ================= -->
@@ -150,17 +178,41 @@
       </div>
       <div class="card">
         <h3 style="margin-bottom:16px;">Upcoming Placement Drives</h3>
-        <table>
-          <thead><tr><th>Company</th><th>Role</th><th>Deadline</th></tr></thead>
-          <tbody>
-            @for (d of overview.placements.upcomingDrives; track d.id) {
-              <tr><td>{{d.companyName}}</td><td>{{d.role || d.jobTitle || '—'}}</td><td>{{d.deadline | date:'MMM d'}}</td></tr>
-            }
-            @if (overview.placements.upcomingDrives.length === 0) {
-              <tr><td colspan="3" class="empty-cell">No upcoming drives</td></tr>
-            }
-          </tbody>
-        </table>
+
+        <!-- Mobile View (< 992px) -->
+        <div class="mobile-only" *ngIf="overview.placements.upcomingDrives.length">
+          <div class="mobile-card-list">
+            <div class="mobile-data-card" *ngFor="let d of overview.placements.upcomingDrives; track d.id" style="padding:10px 12px;">
+              <div class="mobile-card-header">
+                <div>
+                  <div class="mobile-card-title">{{d.companyName}}</div>
+                  <div class="mobile-card-sub">{{d.role || d.jobTitle || '—'}}</div>
+                </div>
+                <span class="badge badge-warning" *ngIf="d.deadline">⏳ {{d.deadline | date:'MMM d'}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop View (>= 992px) -->
+        <div class="desktop-only">
+          <table>
+            <thead><tr><th>Company</th><th>Role</th><th>Deadline</th></tr></thead>
+            <tbody>
+              @for (d of overview.placements.upcomingDrives; track d.id) {
+                <tr><td>{{d.companyName}}</td><td>{{d.role || d.jobTitle || '—'}}</td><td>{{d.deadline | date:'MMM d'}}</td></tr>
+              }
+              @if (overview.placements.upcomingDrives.length === 0) {
+                <tr><td colspan="3" class="empty-cell">No upcoming drives</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div *ngIf="overview.placements.upcomingDrives.length === 0" class="empty-state" style="padding:24px;">
+          <span class="empty-icon">💼</span>
+          <h3>No upcoming drives</h3>
+        </div>
       </div>
     </div>
 

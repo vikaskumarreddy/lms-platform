@@ -49,7 +49,7 @@ interface SubscriptionPlan {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
       <h1 style="font-size:24px;font-weight:700;margin:0;">👥 Batches</h1>
       <button class="btn btn-primary" (click)="openAddModal()">+ Create Batch</button>
     </div>
@@ -60,8 +60,56 @@ interface SubscriptionPlan {
       <a routerLink="/batches/rules" class="batch-tab-btn">⚡ Batch Rules</a>
     </div>
 
-    <div class="card" style="margin-bottom:20px;">
+    <!-- Mobile View: Modern Adaptive Batch Cards (Visible on screens < 992px) -->
+    <div class="mobile-only" style="margin-bottom: 20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let b of batches">
+          <div class="mobile-card-header">
+            <div>
+              <div class="mobile-card-title">👥 {{b.name}}</div>
+              <div class="mobile-card-sub" *ngIf="getMentorName(b.mentorId)">
+                👨‍🏫 Mentor: {{getMentorName(b.mentorId)}}
+              </div>
+            </div>
+            <span class="badge" [class.badge-success]="b.isActive" [class.badge-danger]="!b.isActive">
+              {{b.isActive ? 'Active' : 'Inactive'}}
+            </span>
+          </div>
 
+          <div class="mobile-card-chips">
+            <span class="badge" style="background:#EEF2FF;color:#4338CA;">
+              👥 {{getBatchStudentCount(b.id)}} students
+            </span>
+            <span *ngIf="getPlanName(b.planId)" class="badge badge-warning">
+              ⭐ {{getPlanName(b.planId)}}
+            </span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item" *ngIf="b.startDate">
+              📅 {{formatDate(b.startDate)}} → {{formatDate(b.endDate)}}
+            </span>
+            <span class="mobile-card-meta-item">
+              ID: #{{b.id}}
+            </span>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button class="btn btn-primary btn-sm" (click)="openBatchChat(b)">💬 Chat</button>
+            <button class="btn btn-secondary btn-sm" (click)="viewBatch(b)">👥 Manage</button>
+            <button class="btn btn-secondary btn-sm" (click)="openEditModal(b)">Edit</button>
+            <button class="btn btn-danger btn-sm" (click)="deleteBatch(b)">Delete</button>
+          </div>
+        </div>
+
+        <div *ngIf="batches.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;">
+          No batches found. Click "+ Create Batch" to create one.
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View: High Density Data Table (Visible on screens >= 992px) -->
+    <div class="card desktop-only" style="margin-bottom:20px;">
       <table>
         <thead>
           <tr>
@@ -431,8 +479,12 @@ interface SubscriptionPlan {
       gap: 8px;
       border-bottom: 2px solid var(--border-light);
       margin-bottom: 20px;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
     }
     .batch-tab-btn {
+      flex-shrink: 0;
       padding: 10px 18px;
       font-size: 14px;
       font-weight: 600;

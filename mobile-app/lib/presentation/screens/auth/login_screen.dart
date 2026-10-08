@@ -24,6 +24,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Load org public info, brand name, and logo based on the host domain
+    Future.microtask(() {
+      ref.read(orgThemeProvider.notifier).refresh();
+      ref.invalidate(orgNameProvider);
+      ref.invalidate(orgLogoProvider);
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -33,6 +44,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = ref.watch(orgThemeProvider);
+    final orgName = ref.watch(orgNameProvider).value ?? 'Axisora';
+    final orgLogoUrl = ref.watch(orgLogoProvider).value ?? '';
 
     return Scaffold(
       body: Stack(
@@ -58,12 +71,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 24),
-                  Center(child: LogoBadge(theme: theme)),
-                  const SizedBox(height: 20),
+                  Center(
+                    child: LogoBadge(
+                      theme: theme,
+                      logoUrl: orgLogoUrl,
+                      size: 92,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    orgName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     'Master Skills, Crack Placements,\nBuild Your Future',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white.withOpacity(0.92), fontSize: 15, fontWeight: FontWeight.w500, height: 1.4),
+                    style: TextStyle(color: Colors.white.withOpacity(0.92), fontSize: 14, fontWeight: FontWeight.w500, height: 1.4),
                   ),
                   const SizedBox(height: 32),
                   GlassPanel(

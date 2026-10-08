@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -25,13 +26,71 @@ class ApiService {
     return prefs.getInt('userId');
   }
 
+  /// Differentiates organization/tenant based on the current domain/host, query parameters,
+  /// or stored preferences.
+  /// Matches domain pattern:
+  /// - app-[slug].axisoraforge.in -> [slug] (e.g. app-manyasree.axisoraforge.in -> 'manyasree')
+  /// - app-admin.axisoraforge.in -> 'axisora' (default)
+  /// - app.axisoraforge.in -> 'axisora' (default)
+  /// - [slug].axisoraforge.in -> [slug] (e.g. manyasree.axisoraforge.in -> 'manyasree')
+  /// - future orgs follow the exact same subdomain structure.
+  static String? resolveTenantSlug([SharedPreferences? prefs]) {
+    try {
+      if (kIsWeb) {
+        final qp = Uri.base.queryParameters;
+        final qTenant = qp['tenant'] ?? qp['slug'] ?? qp['tenantSlug'];
+        if (qTenant != null && qTenant.trim().isNotEmpty) {
+          final s = qTenant.trim().toLowerCase();
+          if (s != 'admin' && s != 'axisora' && s != 'app' && s != 'www') return s;
+          return 'axisora';
+        }
+
+        final host = Uri.base.host.toLowerCase();
+        final parts = host.split('.');
+        if (parts.length >= 3) {
+          final sub = parts[0];
+          if (sub.startsWith('app-')) {
+            final afterApp = sub.substring(4);
+            if (afterApp.isNotEmpty && afterApp != 'admin' && afterApp != 'axisora' && afterApp != 'app' && afterApp != 'www') {
+              return afterApp;
+            }
+            return 'axisora';
+          } else if (sub != 'app' && sub != 'admin' && sub != 'axisora' && sub != 'www') {
+            return sub;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (prefs != null) {
+      final cached = prefs.getString('tenant_slug');
+      if (cached != null && cached.trim().isNotEmpty) {
+        return cached.trim().toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  /// Converts a relative logo URL (e.g., /uploads/organization-logos/...) into a full URL.
+  static String resolveLogoUrl(String? logoPath) {
+    if (logoPath == null || logoPath.trim().isEmpty) return '';
+    final trimmed = logoPath.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+    final origin = AppConfig.webBaseUrl.replaceAll(RegExp(r'/api$'), '');
+    return '$origin${trimmed.startsWith('/') ? '' : '/'}$trimmed';
+  }
+
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
+    final tenantSlug = resolveTenantSlug(prefs);
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
       'ngrok-skip-browser-warning': 'true',
+      if (tenantSlug != null && tenantSlug.isNotEmpty) 'X-Tenant-Slug': tenantSlug,
     };
   }
 
@@ -2198,10 +2257,58 @@ class ApiService {
   // the same `theme` map returned in `GET /api/organizations/current` there is
   // read here so the student app matches whatever colors the tenant picked.
 
+  /// Public organization info (theme, logo, name, domain) resolved by tenant domain or slug.
+  /// Works without authentication so the login screen can brand itself immediately.
+  Future<Map<String, dynamic>?> getOrganizationPublicInfo([String? slugOverride]) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final slug = (slugOverride != null && slugOverride.isNotEmpty)
+          ? slugOverride
+          : (resolveTenantSlug(prefs) ?? '');
+
+      final queryParam = slug.isNotEmpty ? '?slug=$slug' : '';
+      final url = Uri.parse('$baseUrl/organizations/public-info$queryParam');
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final orgName = (data['name'] as String?)?.trim();
+        final orgSlug = (data['slug'] as String?)?.trim().toLowerCase();
+        final logoUrl = (data['logoUrl'] as String?)?.trim();
+        final theme = data['theme'];
+
+        if (orgName != null && orgName.isNotEmpty) {
+          await prefs.setString('org_display_name', orgName);
+        }
+        if (orgSlug != null && orgSlug.isNotEmpty) {
+          await prefs.setString('tenant_slug', orgSlug);
+        }
+        if (logoUrl != null && logoUrl.isNotEmpty) {
+          await prefs.setString('org_logo_url', logoUrl);
+        }
+        if (theme is Map<String, dynamic>) {
+          await prefs.setString('org_theme_json', json.encode(theme));
+        }
+        return data;
+      }
+      return null;
+    } catch (e) {
+      print('Error loading org public info: $e');
+      return null;
+    }
+  }
+
   /// The current organization's `theme` map (CSS-variable-style keys -> hex colors),
   /// merged with platform defaults server-side, or null if the call fails.
   Future<Map<String, dynamic>?> getOrganizationTheme() async {
     try {
+      // First try public info (works before login on tenant domains)
+      final publicInfo = await getOrganizationPublicInfo();
+      if (publicInfo != null && publicInfo['theme'] is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(publicInfo['theme'] as Map);
+      }
+
       final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/organizations/current'),
@@ -2219,10 +2326,22 @@ class ApiService {
     }
   }
 
-  /// The current organization's display name (e.g. "Axisora Technologies"),
-  /// shown centered in the shared glass header. Null when unavailable.
+  /// The current organization's display name (e.g. "Manyasree Institute" or "Axisora Technologies"),
+  /// shown centered in the login screen and shared glass header.
   Future<String?> getCurrentOrganizationName() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final publicInfo = await getOrganizationPublicInfo();
+      if (publicInfo != null) {
+        final name = (publicInfo['name'] as String?)?.trim();
+        if (name != null && name.isNotEmpty) return name;
+      }
+
+      final cached = prefs.getString('org_display_name');
+      if (cached != null && cached.trim().isNotEmpty) {
+        return cached.trim();
+      }
+
       final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/organizations/current'),
@@ -2232,9 +2351,15 @@ class ApiService {
         final decoded = json.decode(response.body) as Map<String, dynamic>;
         final name = (decoded['name'] as String?)?.trim();
         final slug = (decoded['slug'] as String?)?.trim().toLowerCase();
+        final logo = (decoded['logoUrl'] as String?)?.trim();
         if (slug != null && slug.isNotEmpty) {
-          final prefs = await SharedPreferences.getInstance();
           await prefs.setString('tenant_slug', slug);
+        }
+        if (name != null && name.isNotEmpty) {
+          await prefs.setString('org_display_name', name);
+        }
+        if (logo != null && logo.isNotEmpty) {
+          await prefs.setString('org_logo_url', logo);
         }
         return name;
       }
@@ -2245,11 +2370,38 @@ class ApiService {
     }
   }
 
+  /// The current organization's logo URL (resolved to full URL if relative).
+  Future<String?> getCurrentOrganizationLogo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final publicInfo = await getOrganizationPublicInfo();
+      if (publicInfo != null) {
+        final logo = (publicInfo['logoUrl'] as String?)?.trim();
+        if (logo != null && logo.isNotEmpty) {
+          return resolveLogoUrl(logo);
+        }
+      }
+
+      final cached = prefs.getString('org_logo_url');
+      if (cached != null && cached.trim().isNotEmpty) {
+        return resolveLogoUrl(cached.trim());
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// The current organization's tenant slug (e.g. "manyasree" or "axisora"),
   /// used to construct tenant-scoped web URLs (such as the Coding Playground).
   Future<String?> getCurrentOrganizationSlug() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final detected = resolveTenantSlug(prefs);
+      if (detected != null && detected.isNotEmpty) {
+        return detected;
+      }
+
       final cached = prefs.getString('tenant_slug');
       if (cached != null && cached.trim().isNotEmpty) {
         return cached.trim().toLowerCase();

@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -38,8 +38,8 @@ interface Summary {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">💳 Payments</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">💳 Payments</h1>
       <a routerLink="/payment-settings" class="btn btn-secondary">⚙️ Payment Settings</a>
     </div>
 
@@ -72,22 +72,81 @@ interface Summary {
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-      <label style="font-weight:600;font-size:14px;">Show:</label>
-      <select [(ngModel)]="filter" name="filter" style="padding:8px;border:1px solid #E2E8F0;border-radius:8px;">
-        <option value="all">All students</option>
-        <option value="due">Outstanding only</option>
-        <option value="paid">Paid only</option>
-        <option value="cash">Cash only</option>
-        <option value="online">Online only</option>
-      </select>
+    <div class="card" style="margin-bottom:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:min(100%, 200px);">
+        <label style="font-weight:600;font-size:14px;white-space:nowrap;">Show:</label>
+        <select [(ngModel)]="filter" name="filter" style="width:100%;padding:8px;border:1px solid #E2E8F0;border-radius:8px;">
+          <option value="all">All students</option>
+          <option value="due">Outstanding only</option>
+          <option value="paid">Paid only</option>
+          <option value="cash">Cash only</option>
+          <option value="online">Online only</option>
+        </select>
+      </div>
       <input type="text" [(ngModel)]="search" name="search" placeholder="Search name or email"
-             style="padding:8px 12px;border:1px solid #E2E8F0;border-radius:8px;min-width:220px;">
-      <span style="flex:1"></span>
-      <span style="color:#64748B;font-size:13px;">{{filtered.length}} of {{transactions.length}}</span>
+             style="padding:8px 12px;border:1px solid #E2E8F0;border-radius:8px;flex:2;min-width:min(100%, 200px);">
+      <span style="color:#64748B;font-size:13px;white-space:nowrap;">{{filtered.length}} of {{transactions.length}}</span>
     </div>
 
-    <div class="card">
+    <!-- Mobile View (< 992px) -->
+    <div class="mobile-only" style="margin-bottom:20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let t of filtered">
+          <div class="mobile-card-header">
+            <div style="min-width:0;">
+              <div class="mobile-card-title">{{t.studentName}}</div>
+              <div class="mobile-card-sub">{{t.studentEmail || '—'}}</div>
+            </div>
+            <span class="badge"
+                  [class.badge-success]="isPaid(t)"
+                  [class.badge-warning]="!isPaid(t) && t.paymentMethod === 'ONLINE'"
+                  [class.badge-danger]="!isPaid(t) && t.paymentMethod !== 'ONLINE'">
+              {{isPaid(t) ? 'Paid' : 'Pending'}}
+            </span>
+          </div>
+
+          <div class="mobile-card-chips">
+            <span class="badge" style="font-size:14px;font-weight:700;background:#F1F5F9;color:#0F172A;">
+              {{money(t.amountDue)}}
+            </span>
+            <span class="badge"
+                  [style.background]="t.paymentMethod === 'ONLINE' ? '#EEF2FF' : '#F1F5F9'"
+                  [style.color]="t.paymentMethod === 'ONLINE' ? '#4338CA' : '#475569'">
+              {{t.paymentMethod === 'ONLINE' ? '🌐 Online' : '💵 Cash'}}
+            </span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item" *ngIf="t.paidAt">🗓️ Paid: {{formatDate(t.paidAt)}}</span>
+            <span class="mobile-card-meta-item" *ngIf="t.razorpayPaymentId">Ref: {{t.razorpayPaymentId}}</span>
+            <span class="mobile-card-meta-item" *ngIf="t.notes">Note: {{t.notes}}</span>
+          </div>
+
+          <div *ngIf="t.lastError && !isPaid(t)" style="color:#B91C1C;font-size:12px;background:#FEE2E2;padding:6px 10px;border-radius:6px;">
+            ⚠️ Last attempt failed: {{t.lastError}}
+          </div>
+
+          <div class="mobile-card-actions" *ngIf="!isPaid(t)">
+            <button class="btn btn-primary btn-sm" (click)="markPaid(t)" [disabled]="busyId === t.studentId">
+              {{busyId === t.studentId ? 'Saving...' : '✓ Mark Paid (Cash)'}}
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="!loading && filtered.length === 0" class="empty-state">
+          <span class="empty-icon">💳</span>
+          <h3>{{transactions.length === 0 ? 'No fee records yet' : 'No students match this filter'}}</h3>
+          <p *ngIf="transactions.length === 0">Fee records are automatically created when you add a student.</p>
+        </div>
+
+        <div *ngIf="loading" style="text-align:center;padding:32px;color:#64748B;">
+          Loading…
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View (>= 992px) -->
+    <div class="card desktop-only">
       <table>
         <thead>
           <tr>

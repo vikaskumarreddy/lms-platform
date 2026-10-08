@@ -2,9 +2,11 @@ package com.institute.lms.controller;
 
 import com.institute.lms.dto.placement.InterviewSlotAdminDTO;
 import com.institute.lms.dto.placement.InterviewSlotHistoryDTO;
+import com.institute.lms.entity.Batch;
 import com.institute.lms.entity.InterviewSlot;
 import com.institute.lms.entity.PlacementDrive;
 import com.institute.lms.entity.User;
+import com.institute.lms.repository.BatchRepository;
 import com.institute.lms.repository.InterviewSlotRepository;
 import com.institute.lms.repository.PlacementDriveRepository;
 import com.institute.lms.repository.UserRepository;
@@ -31,6 +33,7 @@ public class InterviewSlotController {
     private final InterviewSlotRepository interviewSlotRepository;
     private final PlacementDriveRepository placementDriveRepository;
     private final UserRepository userRepository;
+    private final BatchRepository batchRepository;
     private final FcmService fcmService;
     private final UserContext userContext;
     private final com.institute.lms.repository.InterviewSessionRepository sessionRepository;
@@ -40,7 +43,9 @@ public class InterviewSlotController {
 
     public InterviewSlotController(InterviewSlotRepository interviewSlotRepository,
                                     PlacementDriveRepository placementDriveRepository,
-                                    UserRepository userRepository, FcmService fcmService,
+                                    UserRepository userRepository,
+                                    BatchRepository batchRepository,
+                                    FcmService fcmService,
                                     UserContext userContext,
                                     com.institute.lms.repository.InterviewSessionRepository sessionRepository,
                                     com.institute.lms.repository.EventRepository eventRepository,
@@ -49,6 +54,7 @@ public class InterviewSlotController {
         this.interviewSlotRepository = interviewSlotRepository;
         this.placementDriveRepository = placementDriveRepository;
         this.userRepository = userRepository;
+        this.batchRepository = batchRepository;
         this.fcmService = fcmService;
         this.userContext = userContext;
         this.sessionRepository = sessionRepository;
@@ -263,11 +269,25 @@ public class InterviewSlotController {
                     if (facultyId != null) {
                         facultyUser = userRepository.findById(facultyId).orElse(null);
                     }
-                    String facultyName = facultyUser != null ? facultyUser.getName() : (slot.getFacultyName() != null ? slot.getFacultyName() : (drive != null && drive.getFacultyName() != null ? drive.getFacultyName() : "Faculty Interviewer"));
+                    String facultyName = facultyUser != null ? facultyUser.getName() : (slot.getFacultyName() != null ? slot.getFacultyName() : (drive != null && drive.getFacultyName() != null ? drive.getFacultyName() : null));
                     String facultyEmail = facultyUser != null ? facultyUser.getEmail() : (slot.getFacultyEmail() != null ? slot.getFacultyEmail() : (drive != null && drive.getFacultyEmail() != null ? drive.getFacultyEmail() : null));
 
-                    slot.setFacultyName(facultyName);
-                    slot.setFacultyEmail(facultyEmail);
+                    // Fallback to student's batch mentor if still unassigned
+                    if ((facultyEmail == null || facultyEmail.isBlank()) && currentUser.getBatchId() != null) {
+                        Batch b = batchRepository.findById(currentUser.getBatchId()).orElse(null);
+                        if (b != null && b.getMentorId() != null) {
+                            User mentor = userRepository.findById(b.getMentorId()).orElse(null);
+                            if (mentor != null) {
+                                facultyId = mentor.getId();
+                                facultyName = mentor.getName();
+                                facultyEmail = mentor.getEmail();
+                            }
+                        }
+                    }
+
+                    slot.setFacultyId(facultyId);
+                    slot.setFacultyName(facultyName != null && !facultyName.isBlank() ? facultyName : "Faculty Interviewer");
+                    slot.setFacultyEmail(facultyEmail != null && !facultyEmail.isBlank() ? facultyEmail : "");
 
                     InterviewSlot saved = interviewSlotRepository.save(slot);
 

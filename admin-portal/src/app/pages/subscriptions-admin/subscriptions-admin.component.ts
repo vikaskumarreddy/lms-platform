@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -76,15 +76,15 @@ interface PlanFormData {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">⭐ Subscription Plans</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">⭐ Subscription Plans</h1>
       <button class="btn btn-primary" (click)="showForm = !showForm">{{ showForm ? 'Cancel' : '+ Add Plan' }}</button>
     </div>
 
     <!-- Upgrade requests. Sits above everything else because it is the only part
          of this page with a queue waiting on the admin. -->
     <div class="card" style="margin-bottom:20px;" *ngIf="planRequests.length || requestsLoaded">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
         <h3 style="margin:0;">
           📥 Plan Upgrade Requests
           <span class="badge" *ngIf="pendingRequests.length"
@@ -102,54 +102,99 @@ interface PlanFormData {
         immediately and notifies them.
       </p>
 
-      <table *ngIf="visibleRequests.length">
-        <thead>
-          <tr>
-            <th>Student</th><th>From → To</th><th>Note</th><th>Requested</th><th>Status</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of visibleRequests">
-            <td>
-              <div style="font-weight:600;">{{ r.studentName }}</div>
-              <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
-            </td>
-            <td style="font-size:13px;">
-              <span style="color:#64748B;">{{ r.currentPlanName || 'No plan' }}</span>
-              <span style="margin:0 6px;">→</span>
-              <strong>{{ r.requestedPlanName }}</strong>
-            </td>
-            <td style="max-width:220px;font-size:13px;color:#475569;">
-              {{ r.studentNote || '—' }}
-              <div *ngIf="r.decisionNote" style="color:#94A3B8;font-size:12px;margin-top:2px;">
-                Decision: {{ r.decisionNote }}
+      <!-- Mobile View (< 992px) -->
+      <div class="mobile-only" *ngIf="visibleRequests.length">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let r of visibleRequests">
+            <div class="mobile-card-header">
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{ r.studentName }}</div>
+                <div class="mobile-card-sub">{{ r.studentEmail || '—' }}</div>
               </div>
-            </td>
-            <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
-            <td>
               <span class="badge"
                     [class.badge-warning]="r.status === 'PENDING'"
                     [class.badge-success]="r.status === 'APPROVED'"
                     [class.badge-danger]="r.status === 'REJECTED'">
                 {{ r.status }}
               </span>
-            </td>
-            <td style="white-space:nowrap;">
-              <ng-container *ngIf="r.status === 'PENDING'">
-                <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-right:6px;"
-                        [disabled]="decidingId === r.id" (click)="decideRequest(r, true)">
-                  {{ decidingId === r.id ? '…' : 'Approve' }}
-                </button>
-                <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;"
-                        [disabled]="decidingId === r.id" (click)="decideRequest(r, false)">
-                  Reject
-                </button>
-              </ng-container>
-              <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="mobile-card-chips">
+              <span class="badge" style="background:#F1F5F9;color:#475569;">From: {{ r.currentPlanName || 'No plan' }}</span>
+              <span>→</span>
+              <span class="badge badge-warning">⭐ {{ r.requestedPlanName }}</span>
+            </div>
+            <div *ngIf="r.studentNote" style="font-size:13px;color:#475569;background:var(--surface-alt);padding:8px 10px;border-radius:6px;">
+              {{ r.studentNote }}
+              <div *ngIf="r.decisionNote" style="color:#94A3B8;font-size:12px;margin-top:2px;">
+                Decision: {{ r.decisionNote }}
+              </div>
+            </div>
+            <div class="mobile-card-meta">
+              <span class="mobile-card-meta-item">📅 {{ formatDate(r.createdAt) }}</span>
+            </div>
+            <div class="mobile-card-actions" *ngIf="r.status === 'PENDING'">
+              <button class="btn btn-primary btn-sm" [disabled]="decidingId === r.id" (click)="decideRequest(r, true)">
+                {{ decidingId === r.id ? '…' : 'Approve' }}
+              </button>
+              <button class="btn btn-danger btn-sm" [disabled]="decidingId === r.id" (click)="decideRequest(r, false)">
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop View (>= 992px) -->
+      <div class="desktop-only" *ngIf="visibleRequests.length">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th><th>From → To</th><th>Note</th><th>Requested</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of visibleRequests">
+              <td>
+                <div style="font-weight:600;">{{ r.studentName }}</div>
+                <div style="color:#94A3B8;font-size:12px;">{{ r.studentEmail || '—' }}</div>
+              </td>
+              <td style="font-size:13px;">
+                <span style="color:#64748B;">{{ r.currentPlanName || 'No plan' }}</span>
+                <span style="margin:0 6px;">→</span>
+                <strong>{{ r.requestedPlanName }}</strong>
+              </td>
+              <td style="max-width:220px;font-size:13px;color:#475569;">
+                {{ r.studentNote || '—' }}
+                <div *ngIf="r.decisionNote" style="color:#94A3B8;font-size:12px;margin-top:2px;">
+                  Decision: {{ r.decisionNote }}
+                </div>
+              </td>
+              <td style="font-size:13px;">{{ formatDate(r.createdAt) }}</td>
+              <td>
+                <span class="badge"
+                      [class.badge-warning]="r.status === 'PENDING'"
+                      [class.badge-success]="r.status === 'APPROVED'"
+                      [class.badge-danger]="r.status === 'REJECTED'">
+                  {{ r.status }}
+                </span>
+              </td>
+              <td style="white-space:nowrap;">
+                <ng-container *ngIf="r.status === 'PENDING'">
+                  <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-right:6px;"
+                          [disabled]="decidingId === r.id" (click)="decideRequest(r, true)">
+                    {{ decidingId === r.id ? '…' : 'Approve' }}
+                  </button>
+                  <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;"
+                          [disabled]="decidingId === r.id" (click)="decideRequest(r, false)">
+                    Reject
+                  </button>
+                </ng-container>
+                <span *ngIf="r.status !== 'PENDING'" style="color:#94A3B8;font-size:12px;">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div *ngIf="!visibleRequests.length" style="color:#64748B;padding:16px;text-align:center;">
         {{ showDecidedRequests ? 'No upgrade requests yet.' : 'No pending requests.' }}
@@ -163,7 +208,7 @@ interface PlanFormData {
     <!-- Plan Form -->
     <div class="card" *ngIf="showForm" style="margin-bottom:20px;">
       <h3 style="margin-bottom:16px;">{{ editingId ? 'Edit' : 'Add New' }} Plan</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 250px), 1fr));gap:16px;">
         <input [(ngModel)]="formData.name" placeholder="Plan Name" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         <input type="number" [(ngModel)]="formData.price" placeholder="Price (e.g. 1999)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
         <input type="number" [(ngModel)]="formData.durationDays" placeholder="Duration (days, e.g. 365)" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;">
@@ -202,9 +247,9 @@ interface PlanFormData {
             <span style="color:#16A34A;">✓</span><span style="font-size:14px;">{{ f.trim() }}</span>
           </div>
         </div>
-        <div style="margin-top:12px;">
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;margin-right:8px;" (click)="edit(p)">Edit</button>
-          <button class="btn" style="background:#FEE2E2;color:#991B1B;padding:4px 12px;font-size:12px;" (click)="delete(p)">Delete</button>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" (click)="edit(p)">Edit</button>
+          <button class="btn btn-danger btn-sm" (click)="delete(p)">Delete</button>
         </div>
       </div>
     </div>
@@ -217,7 +262,7 @@ interface PlanFormData {
       Assigning a plan here adds it to the student's active subscriptions without removing existing ones.
     </p>
     <div class="card" style="margin-bottom:20px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 220px), 1fr));gap:16px;align-items:end;">
         <div>
           <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Student</label>
           <select [(ngModel)]="assignForm.studentId" (ngModelChange)="onStudentSelected($event)"
@@ -233,7 +278,7 @@ interface PlanFormData {
             <option *ngFor="let p of plans" [ngValue]="p.id">{{ p.name }} - ₹{{ p.price }}{{ p.period }}</option>
           </select>
         </div>
-        <button class="btn btn-primary" [disabled]="assigning" (click)="assignSubscription()">
+        <button class="btn btn-primary" [disabled]="assigning" (click)="assignSubscription()" style="min-height:44px;">
           {{ assigning ? 'Assigning...' : '+ Assign Plan' }}
         </button>
       </div>
@@ -243,20 +288,44 @@ interface PlanFormData {
         <h4 style="font-size:14px;font-weight:700;margin-bottom:8px;">
           Current subscriptions for {{ getStudentName(assignForm.studentId) }}
         </h4>
-        <table *ngIf="studentSubscriptions.length">
-          <thead><tr><th>Plan</th><th>Status</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
-          <tbody>
-            <tr *ngFor="let s of studentSubscriptions">
-              <td style="font-weight:600;">{{ s.planName || '—' }}</td>
-              <td><span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span></td>
-              <td style="font-size:13px;">{{ s.startDate || '—' }}</td>
-              <td style="font-size:13px;">{{ s.endDate || '—' }}</td>
-              <td>
-                <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;" (click)="removeStudentSubscription(s)">Remove</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        <!-- Mobile student subscriptions -->
+        <div class="mobile-only" *ngIf="studentSubscriptions.length">
+          <div class="mobile-card-list">
+            <div class="mobile-data-card" *ngFor="let s of studentSubscriptions" style="padding:12px;">
+              <div class="mobile-card-header">
+                <div class="mobile-card-title">{{ s.planName || '—' }}</div>
+                <span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span>
+              </div>
+              <div class="mobile-card-meta">
+                <span class="mobile-card-meta-item">Start: {{ s.startDate || '—' }}</span>
+                <span class="mobile-card-meta-item">End: {{ s.endDate || '—' }}</span>
+              </div>
+              <div class="mobile-card-actions">
+                <button class="btn btn-danger btn-sm" (click)="removeStudentSubscription(s)">Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop student subscriptions -->
+        <div class="desktop-only" *ngIf="studentSubscriptions.length">
+          <table>
+            <thead><tr><th>Plan</th><th>Status</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let s of studentSubscriptions">
+                <td style="font-weight:600;">{{ s.planName || '—' }}</td>
+                <td><span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span></td>
+                <td style="font-size:13px;">{{ s.startDate || '—' }}</td>
+                <td style="font-size:13px;">{{ s.endDate || '—' }}</td>
+                <td>
+                  <button class="btn btn-danger btn-sm" (click)="removeStudentSubscription(s)">Remove</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div *ngIf="!studentSubscriptions.length" style="color:#64748B;padding:12px;text-align:center;">No subscriptions for this student yet.</div>
       </div>
     </div>
@@ -264,20 +333,43 @@ interface PlanFormData {
     <!-- All Subscriptions -->
     <h2 style="font-size:20px;font-weight:700;margin:24px 0 16px;">All Subscriptions ({{ subscriptions.length }})</h2>
     <div class="card">
-      <table *ngIf="subscriptions.length">
-        <thead>
-          <tr><th>User</th><th>Plan</th><th>Status</th><th>Start</th><th>End</th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let s of subscriptions">
-            <td>{{ s.user?.fullName || s.user?.email || '—' }}</td>
-            <td>{{ s.plan?.name || '—' }}</td>
-            <td><span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span></td>
-            <td style="font-size:13px;">{{ s.startDate || '—' }}</td>
-            <td style="font-size:13px;">{{ s.endDate || '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Mobile All Subscriptions -->
+      <div class="mobile-only" *ngIf="subscriptions.length">
+        <div class="mobile-card-list">
+          <div class="mobile-data-card" *ngFor="let s of subscriptions" style="padding:12px;">
+            <div class="mobile-card-header">
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{ s.user?.fullName || s.user?.email || '—' }}</div>
+                <div class="mobile-card-sub">{{ s.plan?.name || '—' }}</div>
+              </div>
+              <span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span>
+            </div>
+            <div class="mobile-card-meta">
+              <span class="mobile-card-meta-item">Start: {{ s.startDate || '—' }}</span>
+              <span class="mobile-card-meta-item">End: {{ s.endDate || '—' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop All Subscriptions -->
+      <div class="desktop-only" *ngIf="subscriptions.length">
+        <table>
+          <thead>
+            <tr><th>User</th><th>Plan</th><th>Status</th><th>Start</th><th>End</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of subscriptions">
+              <td>{{ s.user?.fullName || s.user?.email || '—' }}</td>
+              <td>{{ s.plan?.name || '—' }}</td>
+              <td><span class="badge" [ngClass]="s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ s.status }}</span></td>
+              <td style="font-size:13px;">{{ s.startDate || '—' }}</td>
+              <td style="font-size:13px;">{{ s.endDate || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div *ngIf="!subscriptions.length" style="color:#64748B;padding:16px;text-align:center;">No subscriptions yet.</div>
     </div>
   `

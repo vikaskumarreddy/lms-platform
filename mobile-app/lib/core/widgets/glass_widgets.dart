@@ -156,30 +156,52 @@ class GradientButton extends StatelessWidget {
 
 /// The glossy circular logo badge used above the auth-screen glass card — bigger,
 /// with a stronger glow than the inline [AppLogo] used in headers/drawers.
+/// Displays tenant custom logo image when provided, with seamless fallback to icon.
 class LogoBadge extends StatelessWidget {
   final OrgThemeColors theme;
   final double size;
-  const LogoBadge({super.key, required this.theme, this.size = 88});
+  final String? logoUrl;
+  const LogoBadge({super.key, required this.theme, this.size = 88, this.logoUrl});
 
   @override
   Widget build(BuildContext context) {
+    final hasLogo = logoUrl != null && logoUrl!.trim().isNotEmpty;
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [...theme.primaryGradient, theme.accent],
-          stops: const [0.0, 0.55, 1.0],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: hasLogo ? Colors.white : null,
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [...theme.primaryGradient, theme.accent],
+                stops: const [0.0, 0.55, 1.0],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.7), width: 3),
+        border: Border.all(color: Colors.white.withOpacity(0.85), width: 3),
         boxShadow: [
           BoxShadow(color: theme.accentGlow, blurRadius: 30, offset: const Offset(0, 10)),
         ],
       ),
-      child: Icon(Icons.school_rounded, color: Colors.white, size: size * 0.48),
+      child: ClipOval(
+        child: hasLogo
+            ? Padding(
+                padding: EdgeInsets.all(size * 0.12),
+                child: Image.network(
+                  logoUrl!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Icon(
+                    Icons.school_rounded,
+                    color: theme.primary,
+                    size: size * 0.48,
+                  ),
+                ),
+              )
+            : Icon(Icons.school_rounded, color: Colors.white, size: size * 0.48),
+      ),
     );
   }
 }

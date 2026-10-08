@@ -120,7 +120,8 @@ interface Batch {
       </div>
     </div>
 
-    <div class="card">
+    <!-- Desktop View (>= 992px) -->
+    <div class="card desktop-only">
       <table><thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Subscription</th><th>Batch</th><th>Answers</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody><tr *ngFor="let q of questions">
         <td style="font-weight:600;">{{q.title}}</td><td>{{q.authorName}}</td><td><span class="badge badge-warning">{{q.category}}</span></td>
@@ -136,6 +137,79 @@ interface Batch {
         <td colspan="8" style="text-align:center;padding:32px;color:#64748B;">No questions found. Click "+ Add Question" to create one.</td>
       </tr>
       </tbody></table>
+    </div>
+
+    <!-- Mobile View (< 992px) - Flutter mobile Q&A card style -->
+    <div class="mobile-only" style="margin-bottom:20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let q of questions">
+          <!-- Author Header Row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <div style="width:34px;height:34px;border-radius:50%;background:#0D9488;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">
+                {{ (q.authorName || 'M')[0] | uppercase }}
+              </div>
+              <div style="min-width:0;">
+                <div style="font-weight:700;font-size:13.5px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  {{ q.authorName || 'Mentor' }}
+                </div>
+                <div style="font-size:11px;color:#64748B;">
+                  {{ q.createdAt ? (q.createdAt | date:'shortDate') : 'Recently' }}
+                </div>
+              </div>
+            </div>
+            <span class="badge badge-warning" style="font-size:11px;padding:3px 8px;border-radius:6px;font-weight:700;">
+              {{ q.category || 'General' }}
+            </span>
+          </div>
+
+          <!-- Question Title -->
+          <div style="font-weight:700;font-size:15px;color:#0F172A;line-height:1.35;word-break:break-word;">
+            {{ q.title }}
+          </div>
+
+          <!-- Content Snippet (if any) -->
+          <div *ngIf="q.content" style="font-size:12.5px;color:#475569;line-height:1.45;background:#F8FAFC;padding:8px 10px;border-radius:6px;border:1px solid #E2E8F0;max-height:60px;overflow:hidden;text-overflow:ellipsis;">
+            {{ q.content }}
+          </div>
+
+          <!-- Target Audience / Badges -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;">
+            <span *ngIf="q.planId" class="badge badge-warning" style="font-size:11px;">⭐ {{getPlanName(q.planId)}}</span>
+            <span *ngIf="q.batchId" class="badge" style="background:#EEF2FF;color:#4338CA;font-size:11px;">👥 {{getBatchName(q.batchId)}}</span>
+            <span *ngIf="!q.planId && !q.batchId" style="color:#94A3B8;font-size:11.5px;">🌐 Open to all</span>
+          </div>
+
+          <!-- Status and Answer Count Strip -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px dashed #E2E8F0;font-size:12px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span [class.badge-success]="q.isAnswered" [class.badge-danger]="!q.isAnswered" class="badge" style="font-size:11px;">
+                {{ q.isAnswered ? '✓ Answered' : '⏳ Open' }}
+              </span>
+              <span style="font-weight:600;color:#0D9488;">
+                💬 {{ q.answerCount || 0 }} {{ q.answerCount === 1 ? 'answer' : 'answers' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="mobile-card-actions">
+            <button class="btn btn-primary btn-sm" (click)="viewQuestion(q)" style="flex:2;">
+              💬 View & Resolve
+            </button>
+            <button class="btn btn-secondary btn-sm" (click)="edit(q)">
+              ✏️ Edit
+            </button>
+            <button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;" (click)="delete(q)">
+              🗑️
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="questions.length === 0" class="card" style="text-align:center;padding:32px;color:#64748B;">
+          No questions found. Click "+ Add Question" to create one.
+        </div>
+      </div>
     </div>
 
     <!-- View & Resolve Modal -->

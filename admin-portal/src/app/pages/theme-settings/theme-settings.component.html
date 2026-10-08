@@ -46,6 +46,63 @@
 
   <div class="theme-layout" *ngIf="!loading">
     <div class="theme-form">
+      <!-- Organization Logo & Branding Card -->
+      <div class="group-card logo-card">
+        <div class="logo-card-head">
+          <div>
+            <h3>Organization Logo & Branding</h3>
+            <p class="card-sub">Upload your institution's official logo. It will be featured on the Student App login page, Admin Portal login page, and application headers.</p>
+          </div>
+        </div>
+
+        <div class="logo-setting-row">
+          <!-- Logo Preview Box -->
+          <div class="logo-preview-box">
+            <div class="logo-preview-inner" [style.background]="form.surface">
+              <img *ngIf="orgLogoUrl" [src]="resolveLogoUrl(orgLogoUrl)" alt="Organization Logo" class="preview-logo-img" />
+              <div *ngIf="!orgLogoUrl" class="preview-logo-placeholder">
+                <span class="placeholder-icon">🎓</span>
+                <span class="placeholder-text">No custom logo</span>
+              </div>
+            </div>
+            <span class="surface-hint">Displays on Login & Portal Header</span>
+          </div>
+
+          <!-- Logo Controls -->
+          <div class="logo-controls">
+            <!-- File Upload -->
+            <div class="upload-action-box">
+              <label class="btn btn-secondary upload-btn">
+                <span>📁 Upload Logo Image</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" (change)="onLogoFileSelected($event)" [disabled]="uploadingLogo" style="display:none;" />
+              </label>
+              <span class="upload-hint">PNG, JPG, WebP, or SVG (max 5MB)</span>
+            </div>
+
+            <!-- URL Input -->
+            <div class="url-input-group">
+              <label for="logo-url-field">Or Image URL:</label>
+              <div class="input-with-button">
+                <input type="url" id="logo-url-field" [(ngModel)]="logoUrlInput" placeholder="https://example.com/logo.png" class="hex-field" style="width: 100%;" />
+                <button type="button" class="btn btn-secondary" (click)="saveLogoUrl()" [disabled]="!logoUrlInput || uploadingLogo">Set URL</button>
+              </div>
+            </div>
+
+            <div class="logo-status-messages">
+              <span *ngIf="uploadingLogo" class="status-msg loading">⏳ Uploading logo...</span>
+              <span *ngIf="logoSuccessMessage" class="status-msg success">{{ logoSuccessMessage }}</span>
+              <span *ngIf="logoErrorMessage" class="status-msg error">{{ logoErrorMessage }}</span>
+            </div>
+
+            <div *ngIf="orgLogoUrl" class="remove-logo-row">
+              <button type="button" class="btn-remove-logo" (click)="removeLogo()" [disabled]="uploadingLogo">
+                🗑️ Remove Logo (Use Default)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="group-card" *ngFor="let group of groups">
         <h3>{{ group.title }}</h3>
         <div class="color-row" *ngFor="let field of group.fields">
@@ -72,7 +129,10 @@
            [style.--p-sidebar-start]="form.sidebarGradientStart" [style.--p-sidebar-mid]="form.sidebarGradientMid"
            [style.--p-sidebar-end]="form.sidebarGradientEnd">
         <div class="mock-sidebar">
-          <div class="mock-logo">🎓</div>
+          <div class="mock-logo">
+            <img *ngIf="orgLogoUrl" [src]="resolveLogoUrl(orgLogoUrl)" class="mock-logo-img" alt="Logo" />
+            <span *ngIf="!orgLogoUrl">🎓</span>
+          </div>
           <div class="mock-nav-item active">📊</div>
           <div class="mock-nav-item">🎓</div>
           <div class="mock-nav-item">📚</div>
@@ -145,7 +205,8 @@
           <button class="btn btn-accent btn-sm" (click)="openAddCustomFieldModal()">+ Add Custom Field</button>
         </div>
 
-        <div class="fields-table-wrapper">
+        <!-- Desktop Table (>= 992px) -->
+        <div class="fields-table-wrapper desktop-only">
           <table class="fields-table">
             <thead>
               <tr>
@@ -204,6 +265,61 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile Field Cards (< 992px) -->
+        <div class="mobile-only" style="padding:12px;">
+          <div class="mobile-card-list">
+            <div *ngFor="let field of registrationFields; let i = index" class="mobile-data-card" [class.field-disabled]="!field.enabled" style="padding:14px;">
+              <!-- Header Row: Reorder arrows + Label + Prebuilt/Custom badge -->
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div class="order-btns" style="flex-direction:row;">
+                    <button type="button" class="order-btn" [disabled]="i === 0" (click)="moveField(i, 'up')">▲</button>
+                    <button type="button" class="order-btn" [disabled]="i === registrationFields.length - 1" (click)="moveField(i, 'down')">▼</button>
+                  </div>
+                  <div>
+                    <div style="font-weight:700;font-size:14px;color:var(--text);">
+                      {{ field.label }}
+                    </div>
+                    <code style="font-size:11px;color:var(--text-muted);">{{ field.key }}</code>
+                  </div>
+                </div>
+                <span *ngIf="field.isPrebuilt" class="badge-prebuilt">Pre-built</span>
+                <span *ngIf="!field.isPrebuilt" class="badge-custom">Custom</span>
+              </div>
+
+              <!-- Options if select -->
+              <div *ngIf="(field.type === 'select' || field.type === 'plan') && field.options && field.options.length > 0" style="font-size:11px;color:var(--text-muted);background:#F8FAFC;padding:6px 10px;border-radius:6px;border:1px solid #E2E8F0;">
+                Options: {{ field.options.join(', ') }}
+              </div>
+
+              <!-- Meta Strip: Type Badge + Required Switch -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px dashed var(--border-light);">
+                <div>
+                  <span class="type-badge" [ngClass]="'type-' + field.type">
+                    {{ field.type | uppercase }}
+                  </span>
+                </div>
+                <div>
+                  <label class="switch-mini">
+                    <input type="checkbox" [(ngModel)]="field.required" [disabled]="isMandatoryPrebuilt(field)">
+                    <span class="switch-label" style="font-size:12px;font-weight:600;">Required: {{ field.required ? 'Yes' : 'No' }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Actions Row: Toggle Enabled + Delete -->
+              <div class="mobile-card-actions" style="padding-top:8px;">
+                <button type="button" class="btn-toggle" [class.active]="field.enabled" [disabled]="isMandatoryPrebuilt(field)" (click)="toggleField(field)" style="flex:2;padding:8px 12px;font-size:12.5px;">
+                  {{ field.enabled ? '✓ Enabled on Form' : '✕ Hidden from Form' }}
+                </button>
+                <button *ngIf="!field.isPrebuilt" type="button" class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;padding:8px 14px;" (click)="removeField(field)" title="Delete Custom Field">
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

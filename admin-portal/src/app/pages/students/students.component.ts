@@ -57,30 +57,30 @@ interface Batch {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">Students</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:24px;font-weight:700;margin:0;">Students</h1>
       <button class="btn btn-primary" (click)="openAddModal()">+ Add Student</button>
     </div>
 
     <!-- Search & Filter Controls -->
     <div class="card" style="margin-bottom:16px;padding:16px;">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <div style="flex:1;min-width:220px;">
+        <div style="flex:1;min-width:min(100%, 220px);">
           <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()" placeholder="🔍 Search name, email, phone..." style="width:100%;padding:8px 12px;border:1px solid #CBD5E1;border-radius:6px;font-size:14px;">
         </div>
-        <div style="min-width:140px;">
+        <div style="flex:1;min-width:min(100%, 140px);">
           <select [(ngModel)]="selectedBatchId" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
             <option [ngValue]="null">👥 All Batches</option>
             <option *ngFor="let b of batches" [ngValue]="b.id">{{b.name}}</option>
           </select>
         </div>
-        <div style="min-width:140px;">
+        <div style="flex:1;min-width:min(100%, 140px);">
           <select [(ngModel)]="selectedPlanId" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
             <option [ngValue]="null">⭐ All Plans</option>
             <option *ngFor="let p of plans" [ngValue]="p.id">{{p.name}}</option>
           </select>
         </div>
-        <div style="min-width:130px;">
+        <div style="flex:1;min-width:min(100%, 130px);">
           <select [(ngModel)]="selectedFeeStatus" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
             <option value="ALL">💳 All Fees</option>
             <option value="PAID">Paid (Online)</option>
@@ -88,7 +88,7 @@ interface Batch {
             <option value="CASH">Cash / Offline</option>
           </select>
         </div>
-        <div style="min-width:120px;">
+        <div style="flex:1;min-width:min(100%, 120px);">
           <select [(ngModel)]="selectedActiveStatus" (change)="onFilterChange()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;">
             <option value="ALL">Status: All</option>
             <option value="ACTIVE">Active</option>
@@ -99,7 +99,57 @@ interface Batch {
       </div>
     </div>
 
-    <div class="card">
+    <!-- Mobile View: Modern Adaptive Cards (Visible on screens < 992px) -->
+    <div class="mobile-only" style="margin-bottom: 20px;">
+      <div class="mobile-card-list">
+        <div class="mobile-data-card" *ngFor="let s of paginatedStudents" (click)="viewStudent(s)" style="cursor:pointer;">
+          <div class="mobile-card-header">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#EEF2FF;color:#4338CA;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">
+                {{getInitials(s.name)}}
+              </div>
+              <div style="min-width:0;">
+                <div class="mobile-card-title">{{s.name}}</div>
+                <div class="mobile-card-sub">{{s.email}}</div>
+              </div>
+            </div>
+            <span class="badge" [class.badge-success]="s.isActive" [class.badge-danger]="!s.isActive">
+              {{s.isActive ? 'Active' : 'Inactive'}}
+            </span>
+          </div>
+
+          <div class="mobile-card-meta">
+            <span class="mobile-card-meta-item" *ngIf="s.phone">📞 {{s.phone}}</span>
+            <span class="mobile-card-meta-item">ID: #{{s.id}}</span>
+          </div>
+
+          <div class="mobile-card-chips">
+            <span *ngIf="getBatchName(s.batchId)" class="badge" style="background:#EEF2FF;color:#4338CA;">
+              👥 {{getBatchName(s.batchId)}}
+            </span>
+            <span *ngIf="getPlanName(s.planId)" class="badge badge-warning">
+              ⭐ {{getPlanName(s.planId)}}
+            </span>
+            <span class="badge" [style.background]="feeBadgeBg(s)" [style.color]="feeBadgeFg(s)">
+              {{feeLabel(s)}}
+            </span>
+          </div>
+
+          <div class="mobile-card-actions" (click)="$event.stopPropagation()">
+            <button class="btn btn-secondary btn-sm" (click)="viewStudent(s)">View Details →</button>
+            <button class="btn btn-secondary btn-sm" (click)="openEditModal(s)">Edit</button>
+            <button class="btn btn-danger btn-sm" (click)="deleteStudent(s)">Delete</button>
+          </div>
+        </div>
+
+        <div *ngIf="filteredStudents.length === 0" class="card" style="text-align:center;color:#64748B;padding:32px;">
+          No students match the current filters.
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop View: High Density Data Table (Visible on screens >= 992px) -->
+    <div class="card desktop-only">
       <table>
         <thead>
           <tr>
@@ -152,22 +202,24 @@ interface Batch {
           </tr>
         </tbody>
       </table>
+    </div>
 
-      <!-- Pagination Footer -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-top:1px solid #E2E8F0;flex-wrap:wrap;gap:12px;" *ngIf="filteredStudents.length > 0">
-        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748B;">
-          <span>Rows per page:</span>
+    <!-- Pagination Footer Card (Adaptive for both Mobile and Desktop) -->
+    <div class="card" style="padding:14px 16px;margin-top:16px;" *ngIf="filteredStudents.length > 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748B;flex-wrap:wrap;">
+          <span>Rows:</span>
           <select [(ngModel)]="pageSize" (change)="onFilterChange()" style="padding:4px 8px;border:1px solid #CBD5E1;border-radius:4px;font-size:13px;">
             <option *ngFor="let size of pageSizeOptions" [ngValue]="size">{{size}}</option>
           </select>
-          <span style="margin-left:8px;">
-            Showing {{startIndex + 1}} to {{endIndex}} of {{filteredStudents.length}} students
+          <span>
+            Showing {{startIndex + 1}}–{{endIndex}} of {{filteredStudents.length}}
           </span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" [disabled]="currentPage === 1" (click)="currentPage = currentPage - 1">‹ Prev</button>
-          <span style="font-size:13px;color:#334155;font-weight:600;">Page {{currentPage}} of {{totalPages}}</span>
-          <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" [disabled]="currentPage >= totalPages" (click)="currentPage = currentPage + 1">Next ›</button>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage === 1" (click)="currentPage = currentPage - 1">‹ Prev</button>
+          <span style="font-size:13px;color:#334155;font-weight:600;padding:0 4px;">{{currentPage}} / {{totalPages}}</span>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage >= totalPages" (click)="currentPage = currentPage + 1">Next ›</button>
         </div>
       </div>
     </div>
@@ -706,5 +758,14 @@ export class StudentsComponent implements OnInit {
         this.errors.show(err, 'Could not delete that student');
       }
     });
+  }
+
+  getInitials(name: string): string {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
   }
 }

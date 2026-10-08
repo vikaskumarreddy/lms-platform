@@ -1,5 +1,6 @@
 package com.institute.lms.controller;
 
+import com.institute.lms.entity.Batch;
 import com.institute.lms.entity.InterviewSession;
 import com.institute.lms.entity.InterviewSlot;
 import com.institute.lms.entity.PlacementDrive;
@@ -447,39 +448,118 @@ public class InterviewRoomController {
             });
         }
 
-        // Faculty real-time lookup
-        Long resolvedFacultyId = session.getInterviewerId();
-        if (resolvedFacultyId == null && session.getSlotId() != null) {
-            InterviewSlot sl = slotRepository.findById(session.getSlotId()).orElse(null);
-            if (sl != null && sl.getFacultyId() != null) {
-                resolvedFacultyId = sl.getFacultyId();
-            }
-        }
-        if (resolvedFacultyId == null && session.getDriveId() != null) {
-            PlacementDrive dr = placementDriveRepository.findById(session.getDriveId()).orElse(null);
-            if (dr != null && dr.getAssignedFacultyId() != null) {
-                resolvedFacultyId = dr.getAssignedFacultyId();
-            }
-        }
-
-        if (resolvedFacultyId != null) {
-            userRepository.findById(resolvedFacultyId).ifPresent(fac -> {
-                map.put("interviewerId", fac.getId());
-                map.put("interviewerName", fac.getName());
-                map.put("interviewerEmail", fac.getEmail());
-            });
-        }
-        if (!map.containsKey("interviewerEmail") || map.get("interviewerEmail") == null || map.get("interviewerEmail").toString().isBlank()) {
-            if (session.getInterviewerEmail() != null && !session.getInterviewerEmail().isBlank()) {
-                map.put("interviewerEmail", session.getInterviewerEmail());
-            } else if (session.getSlotId() != null) {
-                slotRepository.findById(session.getSlotId()).ifPresent(sl -> {
-                    if (sl.getFacultyEmail() != null) map.put("interviewerEmail", sl.getFacultyEmail());
-                });
-            }
-        }
+        // Faculty real-time lookup based on drive mentor mapping, slot, and user
+        Map<String, Object> facDetails = resolveInterviewerDetails(session);
+        map.put("interviewerId", facDetails.get("interviewerId"));
+        map.put("interviewerName", facDetails.get("interviewerName"));
+        map.put("interviewerEmail", facDetails.get("interviewerEmail"));
 
         return map;
+    }
+
+    private Map<String, Object> resolveInterviewerDetails(InterviewSession session) {
+        Long facId = session.getInterviewerId();
+        String facName = session.getInterviewerName();
+        String facEmail = session.getInterviewerEmail();
+
+        InterviewSlot sl = null;
+        if (session.getSlotId() != null) {
+            sl = slotRepository.findById(session.getSlotId()).orElse(null);
+        }
+
+        Long driveId = session.getDriveId();
+        if (driveId == null && sl != null && sl.getDriveId() != null) {
+            driveId = sl.getDriveId();
+        }
+
+        PlacementDrive dr = null;
+        if (driveId != null) {
+            dr = placementDriveRepository.findById(driveId).orElse(null);
+        }
+
+        // 1. If facId is null, resolve from slot or drive
+        if (facId == null && sl != null && sl.getFacultyId() != null) {
+            facId = sl.getFacultyId();
+        }
+        if (facId == null && dr != null && dr.getAssignedFacultyId() != null) {
+            facId = dr.getAssignedFacultyId();
+        }
+
+        // 2. If facId is resolved, fetch from user repository
+        if (facId != null) {
+            User facUser = userRepository.findById(facId).orElse(null);
+            if (facUser != null) {
+                facName = facUser.getName();
+                facEmail = facUser.getEmail();
+            }
+        }
+
+        // 3. Fallback to drive faculty email/name
+        if ((facEmail == null || facEmail.isBlank() || facEmail.contains("axisora.internal")) && dr != null) {
+            if (dr.getFacultyEmail() != null && !dr.getFacultyEmail().isBlank()) {
+                facEmail = dr.getFacultyEmail();
+                if (dr.getFacultyName() != null && !dr.getFacultyName().isBlank()) {
+                    facName = dr.getFacultyName();
+                }
+            }
+        }
+
+        // 4. Fallback to slot faculty email/name
+        if ((facEmail == null || facEmail.isBlank() || facEmail.contains("axisora.internal")) && sl != null) {
+            if (sl.getFacultyEmail() != null && !sl.getFacultyEmail().isBlank()) {
+                facEmail = sl.getFacultyEmail();
+                if (sl.getFacultyName() != null && !sl.getFacultyName().isBlank()) {
+                    facName = sl.getFacultyName();
+                }
+            }
+        }
+
+        // 5. Fallback to candidate's batch mentor
+        if ((facEmail == null || facEmail.isBlank() || facEmail.contains("axisora.internal")) && session.getCandidateId() != null) {
+            User cand = userRepository.findById(session.getCandidateId()).orElse(null);
+            if (cand != null && cand.getBatchId() != null) {
+                Batch b = batchRepository.findById(cand.getBatchId()).orElse(null);
+                if (b != null && b.getMentorId() != null) {
+                    User mentor = userRepository.findById(b.getMentorId()).orElse(null);
+                    if (mentor != null) {
+                        facId = mentor.getId();
+                        facName = mentor.getName();
+                        facEmail = mentor.getEmail();
+                    }
+                }
+            }
+        }
+
+        // 6. Clean up placeholder domain
+        if (facEmail != null && facEmail.contains("axisora.internal")) {
+            facEmail = null;
+        }
+
+        // 7. Persist back to session if it was missing or had dummy placeholder
+        boolean shouldSave = false;
+        if (facId != null && (session.getInterviewerId() == null || !facId.equals(session.getInterviewerId()))) {
+            session.setInterviewerId(facId);
+            shouldSave = true;
+        }
+        if (facName != null && !facName.isBlank() && !facName.equals(session.getInterviewerName())) {
+            session.setInterviewerName(facName);
+            shouldSave = true;
+        }
+        if (facEmail != null && !facEmail.isBlank() && !facEmail.equals(session.getInterviewerEmail())) {
+            session.setInterviewerEmail(facEmail);
+            shouldSave = true;
+        }
+        if (shouldSave) {
+            try {
+                sessionRepository.save(session);
+            } catch (Exception ignored) {}
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("interviewerId", facId);
+        result.put("interviewerName", facName != null && !facName.isBlank() ? facName : "Lead Mentor");
+        result.put("interviewerEmail", facEmail != null ? facEmail : "");
+        return result;
     }
 
     /**
@@ -715,23 +795,10 @@ public class InterviewRoomController {
             });
         }
 
-        Long facId = session.getInterviewerId();
-        String facName = session.getInterviewerName();
-        String facEmail = session.getInterviewerEmail();
-        if (facId == null && session.getSlotId() != null) {
-            InterviewSlot sl = slotRepository.findById(session.getSlotId()).orElse(null);
-            if (sl != null && sl.getFacultyId() != null) facId = sl.getFacultyId();
-        }
-        if (facId != null) {
-            User fac = userRepository.findById(facId).orElse(null);
-            if (fac != null) {
-                facName = fac.getName();
-                facEmail = fac.getEmail();
-            }
-        }
-        res.put("interviewerId", facId);
-        res.put("interviewerName", facName != null ? facName : "Lead Interviewer");
-        res.put("interviewerEmail", facEmail != null ? facEmail : "");
+        Map<String, Object> facDetails = resolveInterviewerDetails(session);
+        res.put("interviewerId", facDetails.get("interviewerId"));
+        res.put("interviewerName", facDetails.get("interviewerName"));
+        res.put("interviewerEmail", facDetails.get("interviewerEmail"));
         res.put("scheduledAt", session.getScheduledAt());
         res.put("startedAt", session.getStartedAt());
         res.put("endedAt", session.getEndedAt());
