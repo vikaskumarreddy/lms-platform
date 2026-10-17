@@ -103,7 +103,8 @@
 
         <div class="lesson-actions-strip">
           <button class="btn btn-secondary btn-sm" *ngIf="l.videoUrl" (click)="viewLessonVideo(l)">▶ Video</button>
-          <button class="btn btn-secondary btn-sm" *ngIf="l.pdfNotesUrl" (click)="viewLessonPdf(l)">📄 PDF</button>
+          <button class="btn btn-secondary btn-sm" *ngIf="l.notesType !== 'HTML' && l.pdfNotesUrl" (click)="viewLessonPdf(l)">📄 PDF</button>
+          <button class="btn btn-secondary btn-sm" *ngIf="l.notesType === 'HTML'" (click)="viewLessonHtml(l)" style="border-color:#4F46E5;color:#4F46E5;font-weight:600;background:#EEF2FF;">📱 Notes (HTML)</button>
           <button class="btn btn-secondary btn-sm" (click)="openEditLesson(m, l)">✏️ Edit</button>
           <button class="btn btn-danger btn-sm" (click)="deleteLesson(l)">🗑️ Delete</button>
         </div>
@@ -301,7 +302,26 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+      <!-- Notes Type Selector -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+        <label class="form-label" style="font-weight:700;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="color:#0F172A;">Notes Type</span>
+          <span style="font-size:12px;font-weight:400;color:#64748B;">Choose how lesson notes are provided</span>
+        </label>
+        <div style="display:flex;gap:20px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;font-weight:600;color:#1E293B;">
+            <input type="radio" name="lNotesType" value="PDF" [(ngModel)]="lessonForm.notesType" style="width:auto;margin:0;">
+            <span>📄 PDF Notes</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:13px;font-weight:600;color:#1E293B;">
+            <input type="radio" name="lNotesType" value="HTML" [(ngModel)]="lessonForm.notesType" style="width:auto;margin:0;">
+            <span>🌐 HTML Notes</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- PDF Notes Source (Visible only when notesType is PDF) -->
+      <div *ngIf="lessonForm.notesType !== 'HTML'" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
         <div>
           <label class="form-label">PDF Notes Source</label>
           <div style="display:flex;gap:18px;padding-top:6px;flex-wrap:wrap;">
@@ -335,6 +355,37 @@
           <label class="form-label">Duration (min)</label>
           <input type="number" [(ngModel)]="lessonForm.durationMinutes" name="lDuration" class="form-input">
         </div>
+      </div>
+
+      <!-- HTML Notes Editor (Visible only when notesType is HTML) -->
+      <div *ngIf="lessonForm.notesType === 'HTML'" style="margin-bottom:14px;border:1px solid #CBD5E1;border-radius:10px;padding:12px 14px;background:#F8FAFC;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <label class="form-label" style="font-weight:700;margin:0;color:#0F172A;">HTML Notes Content</label>
+            <div style="font-size:11.5px;color:#64748B;">Paste or type HTML. Saved encoded and rendered natively in the mobile app.</div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="previewCurrentLessonHtml()"
+                  style="display:flex;align-items:center;gap:6px;font-size:12px;background:#EEF2FF;color:#4F46E5;border-color:#C7D2FE;font-weight:600;padding:5px 10px;">
+            📱 Preview Mobile View
+          </button>
+        </div>
+        <textarea [(ngModel)]="lessonForm.content" name="lHtmlContent" class="form-input" rows="8"
+          style="font-family:Consolas, Monaco, monospace;font-size:13px;line-height:1.5;background:#FFFFFF;tab-size:2;resize:vertical;"
+          placeholder="<h3>Lesson Key Topics</h3>
+<p>Paste or write formatted HTML notes here.</p>
+<ul>
+  <li>Important concept 1</li>
+  <li>Important concept 2</li>
+</ul>"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11.5px;color:#64748B;">
+          <span>Length: {{lessonForm.content?.length || 0}} characters</span>
+          <span style="color:#059669;font-weight:600;">✓ Encoded reversibly for storage</span>
+        </div>
+      </div>
+
+      <div *ngIf="lessonForm.notesType === 'HTML'" style="margin-bottom:14px;max-width:200px;">
+        <label class="form-label">Duration (min)</label>
+        <input type="number" [(ngModel)]="lessonForm.durationMinutes" name="lDurationHtml" class="form-input">
       </div>
 
 
@@ -439,6 +490,93 @@
       <button class="btn btn-primary" [disabled]="bulkImporting || !bulkImportFile" (click)="runBulkImport()">
         {{bulkImporting ? 'Importing...' : 'Start Import'}}
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Phone HTML Preview Modal -->
+<div *ngIf="showHtmlPreviewModal" class="modal-overlay" (click)="closeHtmlPreview()">
+  <div class="modal-content" style="background:transparent;box-shadow:none;border:none;max-width:440px;padding:0;display:flex;flex-direction:column;align-items:center;" (click)="$event.stopPropagation()">
+    <!-- Header / Close button -->
+    <div style="width:320px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;color:#FFFFFF;">
+      <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;">
+        <span>📱 Flutter Mobile Preview</span>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="closeHtmlPreview()"
+              style="background:#1E293B;color:#FFFFFF;border-color:#334155;padding:4px 10px;font-size:12px;">
+        ✕ Close
+      </button>
+    </div>
+
+    <!-- The Phone Mockup -->
+    <div class="phone-mockup">
+      <div class="phone-notch"></div>
+      <div class="phone-screen phone-screen-app">
+        <!-- Status Bar -->
+        <div class="phone-status-bar">
+          <span>9:41</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span>●●●●</span>
+            <span>WiFi</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <!-- Mobile App Top Bar -->
+        <div class="phone-app-header">
+          <span style="font-size:15px;cursor:pointer;opacity:0.9;">←</span>
+          <div style="flex:1;overflow:hidden;">
+            <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              {{previewTitle}}
+            </div>
+            <div style="font-size:11px;color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              {{previewHeading || 'Lesson Notes'}}
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone Content Area -->
+        <div class="phone-scroll-body">
+          <!-- White Paper Card Container with Cyan Border matching Flutter -->
+          <div style="background:#FFFFFF;border-radius:14px;border:1.5px solid rgba(39, 217, 211, 0.4);overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,0.35);flex-shrink:0;">
+            <!-- Top Strip -->
+            <div style="background:#0C2B64;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="color:#27D9D3;font-size:14px;font-weight:bold;">&lt;/&gt;</span>
+                <span style="color:#FFFFFF;font-size:12px;font-weight:700;">Lesson Notes (HTML)</span>
+              </div>
+              <span style="background:rgba(255,255,255,0.12);color:white;font-size:10px;padding:2px 6px;border-radius:4px;">
+                Native Web
+              </span>
+            </div>
+            <!-- Rendered HTML Content -->
+            <div style="padding:14px;color:#1E293B;font-size:13.5px;line-height:1.6;word-break:break-word;max-height:380px;overflow-y:auto;background:#FFFFFF;">
+              <div *ngIf="previewHtmlRaw" [innerHTML]="previewSanitizedHtml"></div>
+              <div *ngIf="!previewHtmlRaw" style="color:#94A3B8;font-style:italic;padding:30px 0;text-align:center;">
+                No HTML content entered yet.
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Buttons matching Flutter -->
+          <div style="display:flex;gap:6px;margin-top:auto;padding-top:6px;">
+            <div style="flex:1;background:linear-gradient(90deg, #0D9488, #2563EB);padding:8px 6px;border-radius:10px;text-align:center;color:#FFFFFF;font-size:11px;font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,0.2);">
+              📋 Copy Notes
+            </div>
+            <div style="flex:1;background:linear-gradient(90deg, #3B82F6, #1D4ED8);padding:8px 6px;border-radius:10px;text-align:center;color:#FFFFFF;font-size:11px;font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,0.2);">
+              🔖 Bookmark
+            </div>
+          </div>
+          <div style="background:linear-gradient(90deg, #10B981, #059669);padding:9px;border-radius:10px;text-align:center;color:#FFFFFF;font-size:11.5px;font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,0.2);">
+            ✓ Mark as Completed
+          </div>
+        </div>
+
+        <!-- Phone Home Bar -->
+        <div class="phone-home-bar">
+          <div class="phone-home-indicator"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

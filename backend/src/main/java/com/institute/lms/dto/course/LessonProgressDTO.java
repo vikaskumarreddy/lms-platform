@@ -19,6 +19,7 @@ public class LessonProgressDTO {
     private Boolean isMandatory;
     private String thumbnailUrl;
     private String pdfNotesUrl;
+    private String notesType = "PDF";
     private Boolean completed;
 
     public LessonProgressDTO() {}
@@ -73,6 +74,8 @@ public class LessonProgressDTO {
     public void setThumbnailUrl(String thumbnailUrl) { this.thumbnailUrl = thumbnailUrl; }
     public String getPdfNotesUrl() { return pdfNotesUrl; }
     public void setPdfNotesUrl(String pdfNotesUrl) { this.pdfNotesUrl = pdfNotesUrl; }
+    public String getNotesType() { return notesType; }
+    public void setNotesType(String notesType) { this.notesType = notesType; }
     public Boolean getCompleted() { return completed; }
     public void setCompleted(Boolean completed) { this.completed = completed; }
 

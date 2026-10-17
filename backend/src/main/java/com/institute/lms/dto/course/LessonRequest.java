@@ -9,6 +9,7 @@ public class LessonRequest {
     private Long videoId;
     private String thumbnailUrl;
     private String pdfNotesUrl;
+    private String notesType;
     private String pdfSource;
     private Long pdfNoteId;
     private Integer orderIndex;
@@ -32,6 +33,8 @@ public class LessonRequest {
     public void setThumbnailUrl(String thumbnailUrl) { this.thumbnailUrl = thumbnailUrl; }
     public String getPdfNotesUrl() { return pdfNotesUrl; }
     public void setPdfNotesUrl(String pdfNotesUrl) { this.pdfNotesUrl = pdfNotesUrl; }
+    public String getNotesType() { return notesType; }
+    public void setNotesType(String notesType) { this.notesType = notesType; }
     public String getPdfSource() { return pdfSource; }
     public void setPdfSource(String pdfSource) { this.pdfSource = pdfSource; }
     public Long getPdfNoteId() { return pdfNoteId; }

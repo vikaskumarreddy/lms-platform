@@ -36,6 +36,10 @@ public class Lesson extends BaseEntity {
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
+    /** Notes type: {@code PDF} (traditional PDF notes) or {@code HTML} (interactive HTML content). */
+    @Column(name = "notes_type", length = 10)
+    private String notesType = "PDF";
+
     @Column(name = "pdf_notes_url")
     private String pdfNotesUrl;
 

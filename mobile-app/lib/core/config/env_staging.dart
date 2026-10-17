@@ -11,9 +11,8 @@ class EnvStaging {
   static const String host = 'axisoraforge.in';
   static const String port = '8080';
 
-  /// Live API base URL.
-  /// The backend is proxied through Nginx at the root domain on port 8080.
-  static const String apiBaseUrl = 'http://axisoraforge.in:8080/api';
+  /// Live API base URL (routed via secure HTTPS reverse proxy).
+  static const String apiBaseUrl = 'https://axisoraforge.in/api';
 
   /// Live Admin / Web Portal base URL.
   static const String webBaseUrl = 'https://axisoraforge.in';

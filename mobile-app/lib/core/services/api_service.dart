@@ -945,9 +945,14 @@ class ApiService {
     }
   }
 
-  Future<Lesson?> getLesson(int lessonId) async {
+  Future<Lesson?> getLesson(int lessonId, {bool forceRefresh = false}) async {
     try {
       final cacheKey = 'lesson_detail_$lessonId';
+      if (forceRefresh) {
+        try {
+          await LocalCacheService.instance.remove(cacheKey);
+        } catch (_) {}
+      }
       try {
         final headers = await _getHeaders();
         final response = await http.get(
@@ -959,6 +964,8 @@ class ApiService {
           final Map<String, dynamic> data = json.decode(response.body);
           await LocalCacheService.instance.save(cacheKey, data);
           return Lesson.fromJson(data);
+        } else {
+          print('getLesson HTTP ${response.statusCode} for id $lessonId');
         }
       } catch (e) {
         print('Network error fetching lesson, checking cache: $e');

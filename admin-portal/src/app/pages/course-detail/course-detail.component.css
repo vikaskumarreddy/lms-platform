@@ -97,6 +97,57 @@
 .phone-screen table { width: 100%; border-collapse: collapse; }
 .phone-screen table, .phone-screen th, .phone-screen td { border: 1px solid #E2E8F0; padding: 6px; }
 
+.phone-screen.phone-screen-app {
+  padding: 0;
+  background: #0A192F;
+  display: flex;
+  flex-direction: column;
+}
+.phone-screen-app .phone-status-bar {
+  height: 38px;
+  padding: 12px 18px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94A3B8;
+  background: #0C2B64;
+  flex-shrink: 0;
+}
+.phone-screen-app .phone-app-header {
+  background: #0C2B64;
+  padding: 8px 14px 12px;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.phone-screen-app .phone-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.phone-screen-app .phone-home-bar {
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0A192F;
+  flex-shrink: 0;
+}
+.phone-screen-app .phone-home-indicator {
+  width: 100px;
+  height: 4px;
+  background: #475569;
+  border-radius: 2px;
+}
+
 /* Course Detail Responsive Header & Card System */
 .course-header-bar {
   display: flex;

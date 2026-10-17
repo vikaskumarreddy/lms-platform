@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/utils/lesson_media.dart';
 import 'package:flutter/foundation.dart';
@@ -100,8 +101,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
     _mediaToken = prefs.getString('access_token');
+
     final results = await Future.wait([
-      _api.getLesson(widget.lessonId),
+      _api.getLesson(widget.lessonId, forceRefresh: true),
       _api.getLessonStatus(widget.lessonId),
     ]);
     if (!mounted) return;
@@ -125,7 +127,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     } catch (_) {}
 
     final pdfUrl = _lesson?.pdfNotesUrl;
-    if (!(_lesson?.isLocked ?? true) && pdfUrl != null && pdfUrl.isNotEmpty) {
+    if (!(_lesson?.isHtmlNotes ?? false) && !(_lesson?.isLocked ?? true) && pdfUrl != null && pdfUrl.isNotEmpty) {
       _loadPdfInline();
     }
   }
@@ -510,8 +512,11 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _buildPdfNotesSection(primaryColor,
-                          fill: true, isNavBarHidden: isNavBarHidden),
+                      child: lesson.isHtmlNotes
+                          ? _buildHtmlNotesSection(primaryColor,
+                              fill: true, isNavBarHidden: isNavBarHidden)
+                          : _buildPdfNotesSection(primaryColor,
+                              fill: true, isNavBarHidden: isNavBarHidden),
                     ),
                   ),
                   _buildActionButtons(lesson, primaryColor, secondaryColor,
@@ -715,6 +720,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 ],
               ),
             )
+          else if (lesson.isHtmlNotes)
+            _buildHtmlNotesSection(primaryColor, isNavBarHidden: isNavBarHidden)
           else
             _buildPdfNotesSection(primaryColor, isNavBarHidden: isNavBarHidden),
           const SizedBox(height: 20),
@@ -997,6 +1004,263 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     );
   }
 
+  String _decodeHtmlContent(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('b64:')) {
+      try {
+        final base64Str = trimmed.substring(4).trim();
+        return utf8.decode(base64.decode(base64.normalize(base64Str)));
+      } catch (_) {
+        return trimmed.substring(4);
+      }
+    }
+    return trimmed;
+  }
+
+  /// Renders lesson notes as interactive, styled HTML in-place of the PDF viewer.
+  Widget _buildHtmlNotesSection(Color primaryColor,
+      {bool fill = false, required bool isNavBarHidden}) {
+    final rawNotes = _lesson?.notes ?? '';
+    final decodedHtml = _decodeHtmlContent(rawNotes);
+    final hasContent = decodedHtml.trim().isNotEmpty;
+
+    if (!hasContent) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0C2B64).withOpacity(0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1E4E8C).withOpacity(0.35)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.html_rounded, color: Colors.white38, size: 24),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No HTML notes have been added for this lesson yet.',
+                style: TextStyle(color: Colors.white60, height: 1.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 500;
+    final hasVideo = (_lesson?.videoUrl.trim().isNotEmpty ?? false);
+
+    final trimmedDecoded = decodedHtml.trim();
+    final isFullDocument = trimmedDecoded.toLowerCase().startsWith('<!doctype') ||
+        trimmedDecoded.toLowerCase().startsWith('<html');
+
+    final String finalHtml;
+    if (isFullDocument) {
+      finalHtml = trimmedDecoded;
+    } else {
+      finalHtml = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #FFFFFF;
+      color: #1E293B;
+      font-size: 15px;
+      line-height: 1.65;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #0F172A;
+      font-weight: 700;
+      margin-top: 1.1em;
+      margin-bottom: 0.4em;
+      line-height: 1.3;
+    }
+    h1 { font-size: 22px; border-bottom: 2px solid #E2E8F0; padding-bottom: 6px; }
+    h2 { font-size: 18px; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px; }
+    h3 { font-size: 16px; }
+    p { margin-top: 0; margin-bottom: 12px; }
+    a { color: #2563EB; text-decoration: underline; }
+    code {
+      background: #F1F5F9;
+      color: #D946EF;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13.5px;
+      font-family: monospace;
+    }
+    pre {
+      background: #0F172A;
+      color: #F8FAFC;
+      padding: 12px 14px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    blockquote {
+      margin: 12px 0;
+      padding-left: 14px;
+      border-left: 4px solid #3B82F6;
+      color: #475569;
+      font-style: italic;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #CBD5E1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th { background: #F8FAFC; font-weight: 600; color: #0F172A; }
+    tr:nth-child(even) { background: #F8FAFC; }
+    img { max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  $trimmedDecoded
+</body>
+</html>
+''';
+    }
+
+    Widget content = Column(
+      children: [
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0C2B64).withOpacity(0.85),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.code_rounded, size: 16, color: Color(0xFF27D9D3)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  isNarrow ? 'Notes (HTML)' : 'Lesson Notes (HTML)',
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (hasVideo) ...[
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() {
+                      _videoHidden = !_videoHidden;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _videoHidden ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 13,
+                          color: Colors.white70,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _videoHidden ? 'Show Video' : 'Hide Video',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+            child: InAppWebView(
+              key: ValueKey('html_notes_\${_lesson?.id}_\${finalHtml.length}'),
+              initialData: InAppWebViewInitialData(
+                data: finalHtml,
+                mimeType: 'text/html',
+                encoding: 'utf-8',
+              ),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                supportZoom: true,
+                builtInZoomControls: true,
+                displayZoomControls: false,
+                useWideViewPort: true,
+                loadWithOverviewMode: true,
+                transparentBackground: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (fill) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF27D9D3).withOpacity(0.4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF27D9D3).withOpacity(0.4), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      height: isNavBarHidden
+          ? (MediaQuery.of(context).size.height * 0.78).clamp(650.0, 950.0)
+          : 540.0,
+      child: content,
+    );
+  }
+
   /// Download / Bookmark / Share / Mark-complete buttons.
   /// On Web (kIsWeb), "Download PDF" and "Save Video Offline" are hidden and
   /// "Add to Bookmarks" and "Complete Lesson" are placed in the same row to save space.
@@ -1061,20 +1325,23 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
   }
 
   Widget _buildDownloadPdfCard(Lesson lesson) {
+    final isHtml = lesson.isHtmlNotes;
     return Material(
       borderRadius: BorderRadius.circular(14),
       child: Ink(
         height: 52,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+          gradient: LinearGradient(
+            colors: isHtml
+                ? const [Color(0xFF0D9488), Color(0xFF2563EB)]
+                : const [Color(0xFF7C3AED), Color(0xFF2563EB)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7C3AED).withOpacity(0.3),
+              color: (isHtml ? const Color(0xFF0D9488) : const Color(0xFF7C3AED)).withOpacity(0.3),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -1082,14 +1349,32 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: (lesson.isLocked || _pdfSaving || lesson.pdfNotesUrl.isEmpty)
-              ? null
-              : _downloadPdf,
+          onTap: () {
+            if (isHtml) {
+              final raw = _lesson?.notes ?? '';
+              final decoded = _decodeHtmlContent(raw);
+              if (decoded.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No HTML notes to copy')),
+                );
+                return;
+              }
+              Clipboard.setData(ClipboardData(text: decoded));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Lesson notes copied to clipboard')),
+              );
+            } else {
+              if (lesson.isLocked || _pdfSaving || lesson.pdfNotesUrl.isEmpty) {
+                return;
+              }
+              _downloadPdf();
+            }
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
-                if (_pdfSaving)
+                if (!isHtml && _pdfSaving)
                   const SizedBox(
                     width: 18,
                     height: 18,
@@ -1099,7 +1384,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     ),
                   )
                 else
-                  const Icon(Icons.file_download_outlined,
+                  Icon(isHtml ? Icons.copy_rounded : Icons.file_download_outlined,
                       color: Colors.white, size: 20),
                 const SizedBox(width: 6),
                 Expanded(
@@ -1107,12 +1392,12 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const FittedBox(
+                      FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Download PDF',
-                          style: TextStyle(
+                          isHtml ? 'Copy Notes' : 'Download PDF',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
@@ -1124,7 +1409,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          _pdfSaving ? 'Saving...' : 'Save to your device',
+                          isHtml ? 'Copy notes text' : (_pdfSaving ? 'Saving...' : 'Save to your device'),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.85),
                             fontSize: 9.5,

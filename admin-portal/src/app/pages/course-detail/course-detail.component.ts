@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer, SafeResourceUrl, SafeHtml } from '@angular/platform-browser';
 import { ApiService } from '../../services/api.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { MediaService, MediaItem } from '../../services/media.service';
@@ -17,6 +17,7 @@ interface Lesson {
   videoSource?: 'URL' | 'SELF';
   videoId?: number | null;
   thumbnailUrl?: string;
+  notesType?: 'PDF' | 'HTML';
   pdfNotesUrl?: string;
   pdfSource?: 'URL' | 'SELF';
   pdfNoteId?: number | null;
@@ -152,6 +153,13 @@ export class CourseDetailComponent implements OnInit {
   activeModuleForLesson: CourseModule | null = null;
   lessonForm: any = {};
   savingLesson = false;
+
+  // HTML Notes preview modal state (simulates mobile app view)
+  showHtmlPreviewModal = false;
+  previewTitle = '';
+  previewHeading = '';
+  previewHtmlRaw = '';
+  previewSanitizedHtml: SafeHtml | null = null;
 
   // Course edit modal state (title / description / thumbnail / plan / instructor)
   showCourseModal = false;
@@ -327,11 +335,42 @@ export class CourseDetailComponent implements OnInit {
   }
 
   // ── Lesson CRUD ──────────────────────────────────────────────
+  encodeHtml(html: string): string {
+    if (!html) return '';
+    try {
+      const bytes = new TextEncoder().encode(html);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return 'b64:' + btoa(binary);
+    } catch (e) {
+      return html;
+    }
+  }
+
+  decodeHtml(encoded: string | undefined): string {
+    if (!encoded) return '';
+    if (encoded.startsWith('b64:')) {
+      try {
+        const raw = atob(encoded.substring(4));
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+          bytes[i] = raw.charCodeAt(i);
+        }
+        return new TextDecoder().decode(bytes);
+      } catch (e) {
+        return encoded.substring(4);
+      }
+    }
+    return encoded;
+  }
+
   openAddLesson(m: CourseModule) {
     this.activeModuleForLesson = m;
     this.editingLesson = null;
     this.lessonForm = {
-      title: '', heading: '', videoUrl: '', videoSource: 'URL', videoId: null, thumbnailUrl: '', pdfNotesUrl: '',
+      title: '', heading: '', content: '', notesType: 'PDF', videoUrl: '', videoSource: 'URL', videoId: null, thumbnailUrl: '', pdfNotesUrl: '',
       pdfSource: 'URL', pdfNoteId: null,
       orderIndex: m.lessons.length, durationMinutes: 10, isLocked: false, isMandatory: true
     };
@@ -342,7 +381,10 @@ export class CourseDetailComponent implements OnInit {
     this.activeModuleForLesson = m;
     this.editingLesson = l;
     this.lessonForm = {
-      title: l.title, heading: l.heading || '', videoUrl: l.videoUrl || '',
+      title: l.title, heading: l.heading || '',
+      content: this.decodeHtml(l.content),
+      notesType: l.notesType === 'HTML' ? 'HTML' : 'PDF',
+      videoUrl: l.videoUrl || '',
       videoSource: l.videoSource === 'SELF' ? 'SELF' : 'URL', videoId: l.videoId ?? null,
       thumbnailUrl: l.thumbnailUrl || '', pdfNotesUrl: l.pdfNotesUrl || '',
       pdfSource: l.pdfSource === 'SELF' ? 'SELF' : 'URL', pdfNoteId: l.pdfNoteId ?? null,
@@ -357,13 +399,19 @@ export class CourseDetailComponent implements OnInit {
   saveLesson() {
     if (!this.activeModuleForLesson) return;
     this.savingLesson = true;
+    const payload = {
+      ...this.lessonForm,
+      content: this.lessonForm.notesType === 'HTML'
+        ? this.encodeHtml(this.lessonForm.content)
+        : (this.lessonForm.content || '')
+    };
     if (this.editingLesson) {
-      this.api.put(`/api/lessons/${this.editingLesson.id}`, this.lessonForm).subscribe({
+      this.api.put(`/api/lessons/${this.editingLesson.id}`, payload).subscribe({
         next: () => { this.savingLesson = false; this.closeLessonModal(); this.loadCourse(); },
         error: (err) => { this.savingLesson = false; this.errors.show(err, 'Failed to update lesson'); }
       });
     } else {
-      this.api.post(`/api/lessons/module/${this.activeModuleForLesson.id}`, this.lessonForm).subscribe({
+      this.api.post(`/api/lessons/module/${this.activeModuleForLesson.id}`, payload).subscribe({
         next: () => { this.savingLesson = false; this.closeLessonModal(); this.loadCourse(); },
         error: (err) => { this.savingLesson = false; this.errors.show(err, 'Failed to add lesson'); }
       });
@@ -460,6 +508,7 @@ export class CourseDetailComponent implements OnInit {
   downloadImportTemplate() {
     const lesson = {
       title: 'Lesson title', heading: 'Short heading', content: '<p>Lesson notes (HTML allowed)</p>',
+      notesType: 'PDF',
       videoUrl: 'https://example.com/video.mp4', videoSource: 'URL', videoId: null,
       thumbnailUrl: '', pdfNotesUrl: '', pdfSource: 'URL', pdfNoteId: null,
       orderIndex: 0, durationMinutes: 10, isLocked: false, isMandatory: true
@@ -513,6 +562,36 @@ export class CourseDetailComponent implements OnInit {
   viewLessonPdf(l: Lesson) {
     if (l.pdfSource === 'SELF' && l.pdfNoteId) { this.viewSelfPdf(l.pdfNoteId); return; }
     if (l.pdfNotesUrl) window.open(l.pdfNotesUrl, '_blank', 'noopener');
+  }
+
+  /** Open the mobile mockup preview modal for HTML notes */
+  openHtmlPreview(title: string, heading: string, rawOrEncodedHtml: string) {
+    this.previewTitle = title || 'Lesson Notes Preview';
+    this.previewHeading = heading || '';
+    const decoded = this.decodeHtml(rawOrEncodedHtml);
+    this.previewHtmlRaw = decoded;
+    this.previewSanitizedHtml = this.sanitizer.bypassSecurityTrustHtml(decoded);
+    this.showHtmlPreviewModal = true;
+  }
+
+  closeHtmlPreview() {
+    this.showHtmlPreviewModal = false;
+    this.previewSanitizedHtml = null;
+    this.previewHtmlRaw = '';
+  }
+
+  /** "📱 View HTML" on a saved lesson row */
+  viewLessonHtml(l: Lesson) {
+    this.openHtmlPreview(l.title, l.heading || '', l.content || '');
+  }
+
+  /** "📱 Preview in Mobile View" inside the lesson modal form */
+  previewCurrentLessonHtml() {
+    this.openHtmlPreview(
+      this.lessonForm.title || 'Untitled Lesson',
+      this.lessonForm.heading,
+      this.lessonForm.content || ''
+    );
   }
 
 }

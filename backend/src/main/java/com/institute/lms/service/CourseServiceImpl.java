@@ -523,6 +523,21 @@ public class CourseServiceImpl implements CourseService {
             lesson.setPdfNoteId(null);
             lesson.setPdfNotesUrl(request.getPdfNotesUrl());
         }
+
+        String requestedNotesType = request.getNotesType();
+        if ("HTML".equalsIgnoreCase(requestedNotesType)) {
+            lesson.setNotesType("HTML");
+        } else if (requestedNotesType == null || requestedNotesType.trim().isEmpty() || "PDF".equalsIgnoreCase(requestedNotesType)) {
+            String c = request.getContent() != null ? request.getContent().trim() : "";
+            String lower = c.toLowerCase();
+            if (c.startsWith("b64:") || lower.startsWith("<!doctype") || lower.startsWith("<html") || lower.startsWith("<div") || lower.startsWith("<p")) {
+                lesson.setNotesType("HTML");
+            } else {
+                lesson.setNotesType("PDF");
+            }
+        } else {
+            lesson.setNotesType(requestedNotesType);
+        }
     }
 
     @Override
@@ -815,6 +830,7 @@ public class CourseServiceImpl implements CourseService {
         request.setThumbnailUrl(trim(request.getThumbnailUrl()));
         request.setPdfNotesUrl(trim(request.getPdfNotesUrl()));
         request.setPdfSource(trim(request.getPdfSource()));
+        request.setNotesType(trim(request.getNotesType()));
     }
 
     private static String trim(String value) {
@@ -826,7 +842,7 @@ public class CourseServiceImpl implements CourseService {
         Boolean isLocked = lesson.getIsLocked() != null ? lesson.getIsLocked() : false;
         Boolean isMandatory = lesson.getIsMandatory() != null ? lesson.getIsMandatory() : true;
 
-        return new LessonProgressDTO(
+        LessonProgressDTO dto = new LessonProgressDTO(
                 lesson.getId(),
                 lesson.getTitle(),
                 lesson.getHeading(),
@@ -841,5 +857,17 @@ public class CourseServiceImpl implements CourseService {
                 lesson.getPdfNotesUrl(),
                 completed
         );
+        String notesType = lesson.getNotesType();
+        if (notesType == null || notesType.trim().isEmpty() || "PDF".equalsIgnoreCase(notesType)) {
+            String c = lesson.getContent() != null ? lesson.getContent().trim() : "";
+            String lower = c.toLowerCase();
+            if (c.startsWith("b64:") || lower.startsWith("<!doctype") || lower.startsWith("<html") || lower.startsWith("<div") || lower.startsWith("<p")) {
+                notesType = "HTML";
+            } else {
+                notesType = notesType != null ? notesType : "PDF";
+            }
+        }
+        dto.setNotesType(notesType);
+        return dto;
     }
 }

@@ -13,6 +13,7 @@ class Lesson {
   final String videoSource;
   final String thumbnailUrl;
   final String pdfNotesUrl;
+  final String notesType;
   final String notes;
   final int? nextLessonId;
   final String? nextLessonTitle;
@@ -29,15 +30,53 @@ class Lesson {
     this.videoSource = 'URL',
     this.thumbnailUrl = '',
     this.pdfNotesUrl = '',
+    this.notesType = 'PDF',
     required this.notes,
     this.nextLessonId,
     this.nextLessonTitle,
   });
 
+  bool get isHtmlNotes {
+    if (notesType.toUpperCase() == 'HTML') return true;
+    final trimmed = notes.trim();
+    if (trimmed.startsWith('b64:')) return true;
+    final lower = trimmed.toLowerCase();
+    return lower.startsWith('<!doctype') ||
+        lower.startsWith('<html') ||
+        lower.startsWith('<div') ||
+        lower.startsWith('<p>') ||
+        lower.startsWith('<p ') ||
+        lower.startsWith('<h1') ||
+        lower.startsWith('<h2') ||
+        lower.startsWith('<h3') ||
+        lower.startsWith('<section') ||
+        lower.startsWith('<article') ||
+        lower.startsWith('<table');
+  }
+
   factory Lesson.fromJson(Map<String, dynamic> json) {
     // Backend sends durationMinutes as an int; fall back to 'duration' key
     final rawDuration = json['durationMinutes'] ?? json['duration'];
     final durationStr = rawDuration != null ? '$rawDuration min' : '0 min';
+
+    final rawType = (json['notesType'] ?? json['notes_type'])?.toString().toUpperCase();
+    final rawNotes = (json['content'] ?? json['notes'])?.toString() ?? '';
+    final trimmedNotes = rawNotes.trim();
+    final lowerNotes = trimmedNotes.toLowerCase();
+
+    final isHtmlDetected = rawType == 'HTML' ||
+        trimmedNotes.startsWith('b64:') ||
+        lowerNotes.startsWith('<!doctype') ||
+        lowerNotes.startsWith('<html') ||
+        lowerNotes.startsWith('<div') ||
+        lowerNotes.startsWith('<p>') ||
+        lowerNotes.startsWith('<p ') ||
+        lowerNotes.startsWith('<h1') ||
+        lowerNotes.startsWith('<h2') ||
+        lowerNotes.startsWith('<h3') ||
+        lowerNotes.startsWith('<section') ||
+        lowerNotes.startsWith('<article') ||
+        lowerNotes.startsWith('<table');
 
     return Lesson(
       id: _safeInt(json['id']),
@@ -51,7 +90,8 @@ class Lesson {
       videoSource: json['videoSource']?.toString() ?? 'URL',
       thumbnailUrl: json['thumbnailUrl']?.toString() ?? '',
       pdfNotesUrl: json['pdfNotesUrl']?.toString() ?? '',
-      notes: json['content']?.toString() ?? json['notes']?.toString() ?? '',
+      notesType: isHtmlDetected ? 'HTML' : 'PDF',
+      notes: rawNotes,
       nextLessonId: json['nextLessonId'] != null ? _safeInt(json['nextLessonId']) : null,
       nextLessonTitle: json['nextLessonTitle']?.toString(),
     );
